@@ -8,6 +8,14 @@ export type GalleryFeedPreview = {
   thumbs: string[]
 }
 
+type GalleryFeedPreviewRow = {
+  post_slug: string
+  image_count: number
+  url: string
+  thumb_url: string | null
+  sort_order: number
+}
+
 function normalizeThumbUrl(
   thumbUrl: string | null | undefined,
   url: string
@@ -17,16 +25,24 @@ function normalizeThumbUrl(
   return normalizeMediaUrl(raw) || raw
 }
 
-/**
- * 批量读取首页/列表卡片用的图库缩略图（每篇最多 thumbLimit 张）。
- */
-export async function loadGalleryFeedPreviews(
-  slugs: string[],
-  thumbLimit = 6
-): Promise<Record<string, GalleryFeedPreview>> {
-  const uniqueSlugs = [...new Set(slugs.filter(Boolean))]
-  if (!uniqueSlugs.length) return {}
+function isMissingGalleryFeedPreviewsRpc(error: {
+  code?: string
+  message?: string
+}): boolean {
+  const code = String(error.code || '')
+  const message = String(error.message || '')
+  return (
+    code === '42883' ||
+    code === 'PGRST202' ||
+    (/get_gallery_feed_previews/i.test(message) &&
+      /not found|schema cache/i.test(message))
+  )
+}
 
+async function loadGalleryFeedPreviewsLegacy(
+  slugs: string[],
+  thumbLimit: number
+): Promise<Record<string, GalleryFeedPreview>> {
   const sb = getSupabaseAdmin()
   const siteId = getBlogSiteIdOrNull()
   if (!sb || !siteId) return {}
@@ -35,14 +51,14 @@ export async function loadGalleryFeedPreviews(
     .from('galleries')
     .select('post_slug, image_count')
     .eq('site_id', siteId)
-    .in('post_slug', uniqueSlugs)
+    .in('post_slug', slugs)
 
   if (error) throw error
   if (!galleries?.length) return {}
 
   const slugsWithGallery = galleries
-    .filter((g) => (g.image_count ?? 0) > 0)
-    .map((g) => g.post_slug as string)
+    .filter((gallery) => (gallery.image_count ?? 0) > 0)
+    .map((gallery) => gallery.post_slug as string)
 
   const results: Record<string, GalleryFeedPreview> = {}
 
@@ -60,6 +76,51 @@ export async function loadGalleryFeedPreviews(
       }
     })
   )
+
+  return results
+}
+
+/**
+ * 批量读取首页/列表卡片用的图库缩略图（每篇最多 thumbLimit 张）。
+ */
+export async function loadGalleryFeedPreviews(
+  slugs: string[],
+  thumbLimit = 6
+): Promise<Record<string, GalleryFeedPreview>> {
+  const uniqueSlugs = [...new Set(slugs.filter(Boolean))]
+  if (!uniqueSlugs.length) return {}
+
+  const sb = getSupabaseAdmin()
+  const siteId = getBlogSiteIdOrNull()
+  if (!sb || !siteId) return {}
+
+  const safeThumbLimit = Math.min(Math.max(Number(thumbLimit) || 1, 1), 12)
+  const { data, error } = await sb.rpc('get_gallery_feed_previews', {
+    p_site_id: siteId,
+    p_slugs: uniqueSlugs,
+    p_thumb_limit: safeThumbLimit,
+  })
+
+  if (error) {
+    if (isMissingGalleryFeedPreviewsRpc(error)) {
+      return loadGalleryFeedPreviewsLegacy(uniqueSlugs, safeThumbLimit)
+    }
+    throw error
+  }
+
+  const results: Record<string, GalleryFeedPreview> = {}
+  for (const row of (data || []) as GalleryFeedPreviewRow[]) {
+    const thumb = normalizeThumbUrl(row.thumb_url, row.url)
+    if (!thumb) continue
+    const preview = results[row.post_slug] || {
+      total: row.image_count,
+      thumbs: [],
+    }
+    if (preview.thumbs.length < safeThumbLimit) {
+      preview.thumbs.push(thumb)
+    }
+    results[row.post_slug] = preview
+  }
 
   return results
 }
