@@ -208,6 +208,7 @@
 - 新文章发布是例外：Notion 创建成功后，后台先用乐观数据把文章加入列表，并在列表顶部持续显示“正在更新”提示；同时通过 `/api/admin/posts?syncSlug=&syncId=` 轻量检查数据库查询索引，避免反复全量拉取 500+ 条数据。
 - 新 Post 的前台刷新约 60 秒后开始，队列 reason 使用 `new-post:<slug>`。消费前必须确认相关 slug 已被 Notion Published Post 查询索引收录；未收录时不能把任务标记完成，而应约 60 秒后继续重试，最多 8 次。后台保持打开时，索引就绪后会主动执行一次文章范围 revalidate 并结束同步提示；普通编辑仍使用约 30 秒的轻量队列。
 - 队列表 SQL 位于 `supabase/migrations/010_revalidate_queue.sql`。未执行该 SQL 或未配置 Supabase/BLOG_SITE_ID 时，`/api/admin/revalidate` 会自动退回旧的即时刷新逻辑，避免前台不更新。
+- Notion ISR 读取使用请求作用域缓存与 500ms 请求启动间隔：同一次页面再生中的归档、Widget 和数据库元数据只读取一次，但不跨 ISR 请求缓存文章正文。运行期 Notion 限流时不得把 `PRO BLOG` 等默认站点信息写入页面缓存。
 
 ## 验证建议
 

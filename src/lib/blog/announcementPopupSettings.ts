@@ -9,8 +9,7 @@ import {
   normalizeAnnouncementPopupText,
   normalizeAnnouncementPopupUrl,
 } from '@/src/lib/blog/announcementPopupDefaults'
-import { queryDatabasePages, getDatabaseMetadata } from '@/src/lib/notion/getDatabase'
-import { slugEqualsFilter } from '@/src/lib/notion/filter'
+import { getDatabaseMetadata, getWidgetPages } from '@/src/lib/notion/getDatabase'
 import { databaseId, notion } from '@/src/lib/notion/notion'
 import {
   findNotionPropertyKey,
@@ -131,15 +130,19 @@ function readAnnouncementPopupFromPage(
   }
 }
 
-async function findAnnouncementPopupWidget(): Promise<PageObjectResponse | null> {
-  const pages = await queryDatabasePages(
-    slugEqualsFilter(ANNOUNCEMENT_POPUP_WIDGET_SLUG),
-    { pageSize: 8 }
-  )
+async function findAnnouncementPopupWidget(
+  widgetPages?: PageObjectResponse[]
+): Promise<PageObjectResponse | null> {
+  const pages = widgetPages ?? (await getWidgetPages())
   return (
     pages.find((page) => {
       const type = page.properties.type
-      return type?.type === 'select' && type.select?.name === 'Widget'
+      return (
+        type?.type === 'select' &&
+        type.select?.name === 'Widget' &&
+        readRichTextPlain(page.properties.slug) ===
+          ANNOUNCEMENT_POPUP_WIDGET_SLUG
+      )
     }) || null
   )
 }
@@ -236,9 +239,11 @@ function buildAnnouncementPopupProperties(
   return properties
 }
 
-export async function getAnnouncementPopupConfig(): Promise<AnnouncementPopupConfig> {
+export async function getAnnouncementPopupConfig(
+  widgetPages?: PageObjectResponse[]
+): Promise<AnnouncementPopupConfig> {
   try {
-    const widget = await findAnnouncementPopupWidget()
+    const widget = await findAnnouncementPopupWidget(widgetPages)
     if (widget) return readAnnouncementPopupFromPage(widget)
   } catch (error) {
     console.warn(

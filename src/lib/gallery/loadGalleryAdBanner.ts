@@ -1,6 +1,5 @@
 import { fetchUrlPreview } from '@/src/lib/blog/fetchUrlPreview'
-import { queryDatabasePages } from '@/src/lib/notion/getDatabase'
-import { slugEqualsFilter } from '@/src/lib/notion/filter'
+import { getWidgetPages } from '@/src/lib/notion/getDatabase'
 import {
   readCoverFromPageProperties,
   readRichTextPlain,
@@ -25,10 +24,10 @@ export function clearGalleryAdBannerCache(): void {
   buildCacheNullAt = 0
 }
 
-async function findGalleryAdWidget(): Promise<PageObjectResponse | null> {
-  const results = await queryDatabasePages(slugEqualsFilter(GALLERY_AD_SLUG), {
-    pageSize: 5,
-  })
+async function findGalleryAdWidget(
+  widgetPages?: PageObjectResponse[]
+): Promise<PageObjectResponse | null> {
+  const results = widgetPages ?? (await getWidgetPages())
   return (
     results.find(
       (page) =>
@@ -39,14 +38,16 @@ async function findGalleryAdWidget(): Promise<PageObjectResponse | null> {
   )
 }
 
-export async function loadGalleryAdBanner(): Promise<GalleryAdBanner | null> {
+export async function loadGalleryAdBanner(
+  widgetPages?: PageObjectResponse[]
+): Promise<GalleryAdBanner | null> {
   if (buildCache !== undefined) {
     if (buildCache !== null) return buildCache
     if (Date.now() - buildCacheNullAt < NULL_CACHE_TTL_MS) return null
     buildCache = undefined
   }
 
-  const raw = await findGalleryAdWidget()
+  const raw = await findGalleryAdWidget(widgetPages)
   if (!raw) {
     buildCache = null
     buildCacheNullAt = Date.now()

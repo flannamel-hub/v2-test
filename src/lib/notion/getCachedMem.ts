@@ -3,7 +3,7 @@ import { DatabaseObjectResponse } from '@notionhq/client/build/src/api-endpoints
 import { formatPages } from '../blog/format/page'
 import { getPages } from './getBlogData'
 import { joinRichTextPlain } from './readProperty'
-import { getDatabaseIcon, getDatabaseTitle } from './getDatabase'
+import { getDatabaseTitleAndIcon } from './getDatabase'
 import { isTransientNotionError, isNotionBuildPhase } from './transientErrors'
 
 const cache = new Map<string, CachedNav>()
@@ -40,14 +40,19 @@ async function fetchNavFromNotion(cacheTimeInSeconds: number) {
   const pages = await getPages()
   const formattedPages = formatPages(pages)
 
-  let databaseTitle: Awaited<ReturnType<typeof getDatabaseTitle>> = []
+  let databaseTitle: Awaited<
+    ReturnType<typeof getDatabaseTitleAndIcon>
+  >['title'] = []
   let databaseIcon: DatabaseObjectResponse['icon'] = null
 
   try {
-    databaseTitle = await getDatabaseTitle()
-    databaseIcon = await getDatabaseIcon()
+    const metadata = await getDatabaseTitleAndIcon()
+    databaseTitle = metadata.title
+    databaseIcon = metadata.icon
   } catch (metaError) {
-    if (!isTransientNotionError(metaError)) throw metaError
+    if (!isTransientNotionError(metaError) || !isNotionBuildPhase()) {
+      throw metaError
+    }
     console.warn(
       '[getCachedNavFooter] metadata transient error, using defaults:',
       metaError instanceof Error ? metaError.message : metaError
@@ -102,6 +107,7 @@ export async function getCachedNavFooter(cacheTimeInSeconds = 60): Promise<{
       return await fetchNavFromNotion(cacheTimeInSeconds)
     } catch (error) {
       if (!isTransientNotionError(error)) throw error
+      if (!isNotionBuildPhase()) throw error
 
       console.warn(
         '[getCachedNavFooter] transient error, using fallback nav:',

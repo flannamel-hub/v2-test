@@ -8,7 +8,7 @@ import {
   getSiteThemeCode,
   getSiteThemeConfigPageId,
 } from '@/src/lib/blog/siteTheme'
-import { getAll, queryDatabasePages } from './getDatabase'
+import { getAll, getWidgetPages, queryDatabasePages } from './getDatabase'
 import { notion } from './notion'
 import { readRichTextPlain } from './readProperty'
 
@@ -280,11 +280,15 @@ export const getPostsAndPieces = async (
   }
 }
 
-export const getWidgets = async () => {
-  const objects = await getAll(ApiScope.Home)
+export const getWidgets = async (widgetPages?: PageObjectResponse[]) => {
+  const objects = widgetPages ?? (await getWidgetPages())
   return objects.filter(
     (object) =>
       object.properties['type'].type === 'select' &&
-      object.properties['type'].select?.name === 'Widget'
+      object.properties['type'].select?.name === 'Widget' &&
+      ((object.properties['status'].type === 'status' &&
+        object.properties['status'].status?.name === 'Published') ||
+        (object.properties['status'].type === 'select' &&
+          object.properties['status'].select?.name === 'Published'))
   )
 }

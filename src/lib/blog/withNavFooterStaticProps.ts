@@ -4,17 +4,24 @@ import { resolveActiveTheme } from '@/src/themes/getActiveTheme'
 import { getAnnouncementPopupConfig } from '@/src/lib/blog/announcementPopupSettings'
 import { getVendingConfig } from '@/src/lib/blog/vendingSettings'
 import { getCachedNavFooter } from '../notion/getCachedMem'
+import { getWidgetPages } from '../notion/getDatabase'
 import { isTransientNotionError, isNotionBuildPhase } from '../notion/transientErrors'
+import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
+
+export type SharedNavFooterNotionData = {
+  widgetPages: PageObjectResponse[]
+}
 
 async function buildSharedProps(
   navPages: SharedNavFooterStaticProps['props']['navPages'],
   siteTitle: SharedNavFooterStaticProps['props']['siteTitle'],
-  logo: SharedNavFooterStaticProps['props']['logo']
+  logo: SharedNavFooterStaticProps['props']['logo'],
+  widgetPages: PageObjectResponse[]
 ): Promise<SharedNavFooterStaticProps['props']> {
   const [activeTheme, vendingConfig, announcementPopup] = await Promise.all([
     resolveActiveTheme(),
-    getVendingConfig(),
-    getAnnouncementPopupConfig(),
+    getVendingConfig(widgetPages),
+    getAnnouncementPopupConfig(widgetPages),
   ])
   return {
     navPages,
@@ -31,7 +38,8 @@ async function buildSharedProps(
 export function withNavFooterStaticProps(
   getStaticPropsFunc?: (
     context: GetStaticPropsContext,
-    sharedPageStaticProps: SharedNavFooterStaticProps
+    sharedPageStaticProps: SharedNavFooterStaticProps,
+    sharedNotionData: SharedNavFooterNotionData
   ) => Promise<SharedNavFooterStaticProps>
 ) {
   return async (
@@ -58,13 +66,33 @@ export function withNavFooterStaticProps(
       )
     }
 
-    const sharedProps = await buildSharedProps(navPages, siteTitle, logo)
+    let widgetPages: PageObjectResponse[] = []
+    try {
+      widgetPages = await getWidgetPages()
+    } catch (error) {
+      if (!isTransientNotionError(error) || !isNotionBuildPhase()) throw error
+      console.warn(
+        '[withNavFooterStaticProps] widget load failed during build, using fallback:',
+        error instanceof Error ? error.message : error
+      )
+    }
+
+    const sharedProps = await buildSharedProps(
+      navPages,
+      siteTitle,
+      logo,
+      widgetPages
+    )
 
     if (getStaticPropsFunc == null) {
       return { props: sharedProps }
     }
 
-    const result = await getStaticPropsFunc(context, { props: sharedProps })
+    const result = await getStaticPropsFunc(
+      context,
+      { props: sharedProps },
+      { widgetPages }
+    )
     if (result && 'props' in result && result.props) {
       // 复用 sharedProps.activeTheme（getRemoteTheme 已进程内缓存）；仅在页面显式覆盖时再解析
       const pageTheme = result.props.activeTheme as string | undefined

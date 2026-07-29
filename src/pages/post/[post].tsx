@@ -21,6 +21,7 @@ import { pickTweetShellWidgets } from '@/src/themes/tweet/tweetShellWidgets'
 import { applyThemePageLayout } from '@/src/themes/themeLayout'
 import {
   buildGalleryRecommendations,
+  findGalleryAnnouncementPost,
   GalleryRecommendPost,
   withoutGalleryAnnouncement,
 } from '@/src/lib/gallery/galleryRecommendations'
@@ -38,7 +39,10 @@ import { resolveActiveTheme } from '@/src/themes/getActiveTheme'
 import { formatBlocks } from '../../lib/blog/format/block'
 import { formatPosts, FORMAT_POST_LIST_OPTIONS, getNavigationInfo } from '../../lib/blog/format/post'
 import { getArchiveNavPosts } from '../../lib/blog/archiveNavCache'
-import { withNavFooterStaticProps } from '../../lib/blog/withNavFooterStaticProps'
+import {
+  withNavFooterStaticProps,
+} from '../../lib/blog/withNavFooterStaticProps'
+import type { SharedNavFooterNotionData } from '../../lib/blog/withNavFooterStaticProps'
 import { getAllBlocks } from '../../lib/notion/getBlocks'
 import {
   BLOG_STATIC_POST_PATHS_MAX,
@@ -73,7 +77,11 @@ export const getStaticPaths = async () => {
 }
 
 export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
-  async (context: GetStaticPropsContext, sharedPageStaticProps: SharedNavFooterStaticProps): Promise<any> => {
+  async (
+    context: GetStaticPropsContext,
+    sharedPageStaticProps: SharedNavFooterStaticProps,
+    sharedNotionData: SharedNavFooterNotionData
+  ): Promise<any> => {
     const slug = context.params?.post as string
 
     if (!slug || slug.includes('[') || slug === 'undefined') {
@@ -83,15 +91,24 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
     }
 
     try {
-      const [rawPost, activeTheme] = await Promise.all([
-        getPostBySlug(slug, ApiScope.Archive),
-        resolveActiveTheme(),
-      ])
-      if (!rawPost) return { notFound: true }
+      let navPosts: Post[] = []
+      try {
+        navPosts = await getArchiveNavPosts()
+      } catch (navError) {
+        console.warn('Post page: archive nav load failed, continuing without nav', navError)
+      }
 
-      const postForPage = (
-        await formatPosts([rawPost], FORMAT_POST_LIST_OPTIONS)
-      )[0]
+      let postForPage = navPosts.find((post) => post.slug === slug)
+      if (!postForPage) {
+        const rawPost = await getPostBySlug(slug, ApiScope.Archive)
+        if (!rawPost) return { notFound: true }
+        postForPage = (
+          await formatPosts([rawPost], FORMAT_POST_LIST_OPTIONS)
+        )[0]
+      }
+
+      const activeTheme =
+        sharedPageStaticProps.props.activeTheme ?? (await resolveActiveTheme())
 
       addSubTitle(
         sharedPageStaticProps.props,
@@ -100,12 +117,6 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
         false
       )
 
-      let navPosts: Post[] = []
-      try {
-        navPosts = await getArchiveNavPosts()
-      } catch (navError) {
-        console.warn('Post page: archive nav load failed, continuing without nav', navError)
-      }
       const { previousPost, nextPost } = getNavigationInfo(navPosts, postForPage)
 
       const postStats = await getPostStats(slug)
@@ -138,11 +149,18 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
       let galleryAdBanner = null
       if (activeTheme === 'gallery' || isTweetTheme(activeTheme) || isStandardSeriesTheme) {
         clearGalleryAdBannerCache()
-        galleryAdBanner = await loadGalleryAdBanner()
+        galleryAdBanner = await loadGalleryAdBanner(
+          sharedNotionData.widgetPages
+        )
       }
 
       const widgets =
-        isTweetTheme(activeTheme) ? await loadHomeWidgets() : null
+        isTweetTheme(activeTheme)
+          ? await loadHomeWidgets({
+              announcement: findGalleryAnnouncementPost(navPosts) ?? null,
+              widgetPages: sharedNotionData.widgetPages,
+            })
+          : null
 
       // 🛡️ JSON 暴力清洗：杜绝 undefined 导致的 500 报错
       const safeData = JSON.parse(JSON.stringify({

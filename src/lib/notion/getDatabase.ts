@@ -146,8 +146,51 @@ export const getAll = async (
 }
 
 export const getDatabaseMetadata = async (): Promise<GetDatabaseResponse> => {
-  const response = await withRetry(() => notion.databases.retrieve({ database_id: databaseId }))
-  return response
+  return withRetry(() =>
+    notion.databases.retrieve({ database_id: databaseId })
+  )
+}
+
+const WIDGET_FILTER: ApiFilter = {
+  and: [
+    {
+      property: 'type',
+      select: { equals: 'Widget' },
+    },
+  ],
+}
+
+let buildWidgetPagesInflight: Promise<PageObjectResponse[]> | null = null
+
+export const getWidgetPages = async (): Promise<PageObjectResponse[]> => {
+  if (isNotionBuildPhase()) {
+    if (!buildWidgetPagesInflight) {
+      buildWidgetPagesInflight = queryDatabasePages(WIDGET_FILTER, {
+        pageSize: 100,
+      }).catch((error) => {
+        if (!isTransientNotionError(error)) throw error
+        console.warn(
+          '[getWidgetPages] Notion transient error during build, using empty data:',
+          error instanceof Error ? error.message : error
+        )
+        return []
+      })
+    }
+    return buildWidgetPagesInflight
+  }
+
+  return queryDatabasePages(WIDGET_FILTER, { pageSize: 100 })
+}
+
+export const getDatabaseTitleAndIcon = async (): Promise<{
+  title: RichTextItemResponse[]
+  icon: DatabaseObjectResponse['icon']
+}> => {
+  const response = await getDatabaseMetadata()
+  if (!isFullDatabase(response)) {
+    throw new Error('Database response is not full')
+  }
+  return { title: response.title, icon: response.icon }
 }
 
 export const getDatabaseTitle = async (): Promise<

@@ -6,6 +6,7 @@ import { formatWidgets, preFormatWidgets } from './format/widget'
 import { ANNOUNCEMENT_SLUG } from './pinnedPosts'
 import { getPosts, getWidgets } from '../notion/getBlogData'
 import { readRichTextPlain } from '../notion/readProperty'
+import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
 
 function isAnnouncementPost(data: unknown): data is Post {
   if (!data || typeof data !== 'object') return false
@@ -31,9 +32,10 @@ export async function getAnnouncementPost(): Promise<Post | null> {
 export async function loadHomeWidgets(options?: {
   /** 若已从首页文章列表解析出公告帖，传入可避免重复请求 Notion */
   announcement?: Post | null
+  widgetPages?: PageObjectResponse[]
 }): Promise<Record<string, unknown>> {
   const blogStats = await getBlogStats()
-  const rawWidgets = await getWidgets()
+  const rawWidgets = await getWidgets(options?.widgetPages)
   const preFormattedWidgets = await preFormatWidgets(rawWidgets)
   const formattedWidgets = (await formatWidgets(
     preFormattedWidgets,
@@ -57,7 +59,9 @@ export async function loadHomeWidgets(options?: {
   }
 
   const announcementPost =
-    options?.announcement ?? (await getAnnouncementPost())
+    options && Object.prototype.hasOwnProperty.call(options, 'announcement')
+      ? options.announcement ?? null
+      : await getAnnouncementPost()
   if (announcementPost) {
     formattedWidgets.announcement = announcementPost
   } else if (

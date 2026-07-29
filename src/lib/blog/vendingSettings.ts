@@ -11,8 +11,7 @@ import {
 } from '@/src/lib/blog/vendingDefaults'
 import type { VendingConfig } from '@/src/lib/blog/vendingDefaults'
 import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
-import { queryDatabasePages, getDatabaseMetadata } from '@/src/lib/notion/getDatabase'
-import { slugEqualsFilter } from '@/src/lib/notion/filter'
+import { getDatabaseMetadata, getWidgetPages } from '@/src/lib/notion/getDatabase'
 import { databaseId, notion } from '@/src/lib/notion/notion'
 import { readRichTextPlain } from '@/src/lib/notion/readProperty'
 import { getSupabaseAdmin } from '@/src/lib/supabase/admin'
@@ -54,14 +53,18 @@ function readVendingConfigFromPage(page: PageObjectResponse): VendingConfig {
   }
 }
 
-async function findVendingWidget(): Promise<PageObjectResponse | null> {
-  const pages = await queryDatabasePages(slugEqualsFilter(VENDING_WIDGET_SLUG), {
-    pageSize: 8,
-  })
+async function findVendingWidget(
+  widgetPages?: PageObjectResponse[]
+): Promise<PageObjectResponse | null> {
+  const pages = widgetPages ?? (await getWidgetPages())
   return (
     pages.find((page) => {
       const type = page.properties.type
-      return type?.type === 'select' && type.select?.name === 'Widget'
+      return (
+        type?.type === 'select' &&
+        type.select?.name === 'Widget' &&
+        readRichTextPlain(page.properties.slug) === VENDING_WIDGET_SLUG
+      )
     }) || null
   )
 }
@@ -146,9 +149,11 @@ function buildVendingProperties(
   return properties
 }
 
-export async function getVendingConfig(): Promise<VendingConfig> {
+export async function getVendingConfig(
+  widgetPages?: PageObjectResponse[]
+): Promise<VendingConfig> {
   try {
-    const widget = await findVendingWidget()
+    const widget = await findVendingWidget(widgetPages)
     if (widget) return readVendingConfigFromPage(widget)
   } catch (error) {
     console.warn(
