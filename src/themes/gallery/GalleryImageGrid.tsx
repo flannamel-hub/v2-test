@@ -13,6 +13,11 @@ type GalleryGridLoaderProps = {
   compact?: boolean
 }
 
+export type GalleryLoadStatus = {
+  ready: boolean
+  hasGallery: boolean
+}
+
 type GalleryApiImage = {
   id: string
   url: string
@@ -35,6 +40,7 @@ type GalleryImageGridProps = {
   GridLoader?: ComponentType<GalleryGridLoaderProps>
   gridClassName?: string
   loadMoreClassName?: string
+  onStatusChange?: (status: GalleryLoadStatus) => void
 }
 
 type GalleryPageResult = {
@@ -49,6 +55,7 @@ export function GalleryImageGrid({
   GridLoader = GalleryGridLoader,
   gridClassName = galleryMediaGridClass,
   loadMoreClassName = 'gallery-load-more-btn min-w-[140px] rounded-md bg-neutral-900 px-10 py-3 font-gallery text-[15px] font-semibold text-white transition-all duration-200 hover:bg-neutral-800 disabled:opacity-60',
+  onStatusChange,
 }: GalleryImageGridProps) {
   const [images, setImages] = useState<GalleryApiImage[]>([])
   const [total, setTotal] = useState(0)
@@ -90,20 +97,24 @@ export function GalleryImageGrid({
     setPage(1)
     setAppendFrom(0)
     setLightboxIndex(null)
+    onStatusChange?.({ ready: false, hasGallery: false })
 
     fetchGalleryPage(1)
       .then(({ list, total: count, hasMore: more }) => {
         if (cancelled) return
+        const hasGallery = list.length > 0 || count > 0
         setTotal(count)
         setHasMore(more)
-        setActive(list.length > 0 || count > 0)
+        setActive(hasGallery)
         setImages(list)
+        onStatusChange?.({ ready: true, hasGallery })
       })
       .catch((e) => {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : '加载失败')
           setActive(false)
           setImages([])
+          onStatusChange?.({ ready: true, hasGallery: false })
         }
       })
       .finally(() => {
@@ -113,7 +124,7 @@ export function GalleryImageGrid({
     return () => {
       cancelled = true
     }
-  }, [fetchGalleryPage])
+  }, [fetchGalleryPage, onStatusChange])
 
   useEffect(() => {
     if (loading) {
@@ -229,34 +240,4 @@ export function GalleryImageGrid({
       />
     </div>
   )
-}
-
-/** 供父组件判断是否应隐藏 Notion 正文块 */
-export function useGalleryHasImages(postSlug: string): {
-  ready: boolean
-  hasGallery: boolean
-} {
-  const [ready, setReady] = useState(false)
-  const [hasGallery, setHasGallery] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    fetch(`/api/gallery/${encodeURIComponent(postSlug)}?page=1&limit=1`)
-      .then((r) => r.json())
-      .then((d: GalleryApiResponse) => {
-        if (cancelled) return
-        setHasGallery(!!d.success && (d.total || 0) > 0)
-      })
-      .catch(() => {
-        if (!cancelled) setHasGallery(false)
-      })
-      .finally(() => {
-        if (!cancelled) setReady(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [postSlug])
-
-  return { ready, hasGallery }
 }

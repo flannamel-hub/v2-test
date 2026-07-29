@@ -1,9 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { BlockRender } from '@/src/components/blocks/BlockRender'
 import { BlockResponse } from '@/src/types/notion'
 import { MathJaxContext } from 'better-react-mathjax'
-import { GalleryImageGrid, useGalleryHasImages } from './GalleryImageGrid'
+import { GalleryImageGrid } from './GalleryImageGrid'
+import type { GalleryLoadStatus } from './GalleryImageGrid'
 import {
   filterGalleryBodyBlocks,
   hasGalleryBodyContent,
@@ -18,14 +20,20 @@ type GalleryPostContentProps = {
 const proseBorderedClass = `${galleryProseClass} rounded-sm border border-neutral-200 bg-white px-6 py-8 md:px-10`
 
 export function GalleryPostContent({ postSlug, blocks }: GalleryPostContentProps) {
-  const { ready, hasGallery } = useGalleryHasImages(postSlug)
+  const [{ ready, hasGallery }, setGalleryStatus] = useState<GalleryLoadStatus>({
+    ready: false,
+    hasGallery: false,
+  })
   const bodyBlocks = filterGalleryBodyBlocks(blocks, hasGallery)
   const showBody = hasGalleryBodyContent(blocks, hasGallery)
 
   return (
     <MathJaxContext>
       <div className="overflow-hidden break-words">
-        <GalleryImageGrid postSlug={postSlug} />
+        <GalleryImageGrid
+          postSlug={postSlug}
+          onStatusChange={setGalleryStatus}
+        />
 
         {ready && showBody ? (
           <div className={hasGallery ? 'mt-8' : ''}>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { BlockRender } from '@/src/components/blocks/BlockRender'
 import { BlockResponse } from '@/src/types/notion'
 import { MathJaxContext } from 'better-react-mathjax'
@@ -7,7 +8,7 @@ import {
   filterGalleryBodyBlocks,
   hasGalleryBodyContent,
 } from '@/src/themes/gallery/galleryPostBlocks'
-import { useGalleryHasImages } from '@/src/themes/gallery/GalleryImageGrid'
+import type { GalleryLoadStatus } from '@/src/themes/gallery/GalleryImageGrid'
 import { TweetGallerySection } from './TweetGallerySection'
 
 type TweetPostContentProps = {
@@ -16,14 +17,20 @@ type TweetPostContentProps = {
 }
 
 export function TweetPostContent({ postSlug, blocks }: TweetPostContentProps) {
-  const { ready, hasGallery } = useGalleryHasImages(postSlug)
+  const [{ ready, hasGallery }, setGalleryStatus] = useState<GalleryLoadStatus>({
+    ready: false,
+    hasGallery: false,
+  })
   const bodyBlocks = filterGalleryBodyBlocks(blocks, hasGallery)
   const showBody = hasGalleryBodyContent(blocks, hasGallery)
 
   return (
     <MathJaxContext>
       <div className="tweet-post-content overflow-hidden break-words">
-        <TweetGallerySection postSlug={postSlug} />
+        <TweetGallerySection
+          postSlug={postSlug}
+          onStatusChange={setGalleryStatus}
+        />
 
         {ready && showBody ? (
           <div className={hasGallery ? 'tweet-post-content__body mt-6' : ''}>
