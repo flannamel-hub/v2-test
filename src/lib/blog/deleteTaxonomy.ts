@@ -137,7 +137,7 @@ export async function deleteCategoryFromNotion(
 
   const db = await notion.databases.retrieve({ database_id: databaseId })
   const categoryKey = resolveCategoryPropertyKey(db.properties as NotionProps)
-  if (!categoryKey) throw new Error('未找到 Notion 分类字段（category / Category）')
+  if (!categoryKey) throw new Error('未找到分类字段配置')
 
   const pages = await queryPagesWithFilter(notion, databaseId, {
     property: categoryKey,
@@ -175,7 +175,7 @@ export async function deleteTagFromNotion(
 
   const db = await notion.databases.retrieve({ database_id: databaseId })
   const tagsKey = resolveTagsPropertyKey(db.properties as NotionProps)
-  if (!tagsKey) throw new Error('未找到 Notion 标签字段（tags / Tags）')
+  if (!tagsKey) throw new Error('未找到标签字段配置')
 
   const pages = await queryPagesWithFilter(notion, databaseId, {
     property: tagsKey,
@@ -219,7 +219,7 @@ export async function renameCategoryFromNotion(
 
   const db = await notion.databases.retrieve({ database_id: databaseId })
   const categoryKey = resolveCategoryPropertyKey(db.properties as NotionProps)
-  if (!categoryKey) throw new Error('未找到 Notion 分类字段（category / Category）')
+  if (!categoryKey) throw new Error('未找到分类字段配置')
 
   const prop = db.properties[categoryKey]
   const options =

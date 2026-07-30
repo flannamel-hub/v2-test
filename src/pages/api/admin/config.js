@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   const databaseId = process.env.NOTION_DATABASE_ID || process.env.NOTION_PAGE_ID;
 
   if (!databaseId) {
-    return res.status(500).json({ success: false, error: '未配置 Notion 数据库 ID' });
+    return res.status(500).json({ success: false, error: '文章数据服务尚未配置，请联系管理' });
   }
 
   try {

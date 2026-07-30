@@ -603,7 +603,7 @@ export default async function handler(req, res) {
         if (!favKey) {
           return res.status(400).json({
             success: false,
-            error: '收藏功能暂不可用：请在 Notion 数据库添加 checkbox 属性「favourited」（或 favourite / 收藏）。',
+            error: '收藏功能暂不可用，请联系管理完善文章字段配置。',
           });
         }
         await withRetry(() =>

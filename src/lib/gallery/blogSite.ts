@@ -11,10 +11,10 @@ export function isValidBlogSiteId(siteId: string): boolean {
 export function getBlogSiteId(): string {
   const siteId = process.env.BLOG_SITE_ID?.trim()
   if (!siteId) {
-    throw new Error('BLOG_SITE_ID 未配置')
+    throw new Error('站点身份尚未配置')
   }
   if (!isValidBlogSiteId(siteId)) {
-    throw new Error('BLOG_SITE_ID 格式无效（需 UUID）')
+    throw new Error('站点身份配置无效')
   }
   return siteId
 }

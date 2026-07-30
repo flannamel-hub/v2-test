@@ -96,12 +96,12 @@ export async function getFullRedeployStatus(): Promise<FullRedeployStatus> {
 export async function triggerFullRedeploy(): Promise<void> {
   const hookUrl = getDeployHookUrl()
   if (!hookUrl) {
-    throw new Error('未配置 Vercel 部署钩子，请联系管理')
+    throw new Error('全量更新服务尚未配置，请联系管理')
   }
 
   const siteId = getBlogSiteIdOrNull()
   if (!siteId) {
-    throw new Error('未配置 BLOG_SITE_ID，请联系管理')
+    throw new Error('站点身份尚未配置，请联系管理')
   }
 
   const status = await getFullRedeployStatus()
@@ -112,10 +112,7 @@ export async function triggerFullRedeploy(): Promise<void> {
 
   const res = await fetch(hookUrl, { method: 'POST' })
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(
-      `触发 Vercel 重部署失败（${res.status}）${body ? `：${body.slice(0, 120)}` : ''}`
-    )
+    throw new Error(`触发全量更新失败（${res.status}）`)
   }
 
   await writeLastRedeployMs(siteId, Date.now())

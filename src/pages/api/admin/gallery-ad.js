@@ -41,7 +41,7 @@ function readCover(prop) {
 }
 
 async function findGalleryAdWidget() {
-  if (!MAIN_DB) throw new Error('未配置 NOTION_PAGE_ID / NOTION_DATABASE_ID');
+  if (!MAIN_DB) throw new Error('文章数据服务尚未配置，请联系管理');
 
   let cursor;
   do {

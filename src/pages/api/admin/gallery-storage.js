@@ -11,8 +11,7 @@ export default async function handler(req, res) {
     return res.status(503).json({
       success: false,
       configured: false,
-      error:
-        '图库容量统计暂未启用（需 Supabase + BLOG_SITE_ID）。',
+      error: '图库容量统计暂未启用。',
     })
   }
 

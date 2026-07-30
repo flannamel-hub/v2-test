@@ -129,7 +129,7 @@ export async function runCrawlerIngestJob(
   }
 ): Promise<CrawlerIngestRunResult> {
   if (!isGalleryTenantConfigured()) {
-    throw new Error('爬虫入库未配置（需 Supabase + BLOG_SITE_ID）')
+    throw new Error('爬虫入库服务尚未配置')
   }
 
   const staleFailed = await failStaleProcessingRows()

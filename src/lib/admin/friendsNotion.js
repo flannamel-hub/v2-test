@@ -119,7 +119,7 @@ export function clearFriendsDbCache() {
 
 export async function discoverFriendsDb() {
   if (cache) return cache
-  if (!MAIN_DB) throw new Error('未配置 NOTION_PAGE_ID / NOTION_DATABASE_ID')
+  if (!MAIN_DB) throw new Error('文章数据服务尚未配置，请联系管理')
 
   const friendPage = await findFriendsPage()
   if (!friendPage) throw new Error('主库中未找到 slug=friends 的页面')

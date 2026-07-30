@@ -231,7 +231,7 @@ export async function claimCrawlerQueueRows(options?: {
 export async function deleteCrawlerQueueRows(ids: string[]): Promise<number> {
   if (!ids.length) return 0
   const sb = getSupabaseAdmin()
-  if (!sb) throw new Error('Supabase 未配置')
+  if (!sb) throw new Error('入库服务尚未配置')
   const siteId = getBlogSiteId()
 
   const { error, count } = await sb
@@ -309,7 +309,7 @@ export async function retryCrawlerQueueRow(id: string): Promise<void> {
 export async function retryCrawlerQueueRows(ids: string[]): Promise<number> {
   if (!ids.length) return 0
   const sb = getSupabaseAdmin()
-  if (!sb) throw new Error('Supabase 未配置')
+  if (!sb) throw new Error('入库服务尚未配置')
   const siteId = getBlogSiteId()
   const now = new Date().toISOString()
 
@@ -333,7 +333,7 @@ export async function retryCrawlerQueueRows(ids: string[]): Promise<number> {
 export async function resetProcessingRowsToPending(ids: string[]): Promise<number> {
   if (!ids.length) return 0
   const sb = getSupabaseAdmin()
-  if (!sb) throw new Error('Supabase 未配置')
+  if (!sb) throw new Error('入库服务尚未配置')
   const siteId = getBlogSiteId()
   const now = new Date().toISOString()
 
@@ -365,7 +365,7 @@ export async function markCrawlerQueueRow(
   }>
 ): Promise<void> {
   const sb = getSupabaseAdmin()
-  if (!sb) throw new Error('Supabase 未配置')
+  if (!sb) throw new Error('入库服务尚未配置')
 
   const siteId = getBlogSiteId()
   const { error } = await sb

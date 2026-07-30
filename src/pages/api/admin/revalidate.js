@@ -50,7 +50,7 @@ async function drainRevalidateQueue(res, limit = 25) {
       failed: 0,
       pending: 0,
       results: [],
-      error: 'Revalidate 队列未配置（需 Supabase + BLOG_SITE_ID）',
+      error: '文章更新队列尚未配置',
     }
   }
 
@@ -94,13 +94,13 @@ async function drainRevalidateQueue(res, limit = 25) {
   const deferredResults = deferredJobs.map((job) => ({
     path: job.path,
     ok: false,
-    error: 'Notion 新文章索引尚未就绪，已自动延迟重试',
+    error: '新文章尚在同步，已自动延迟重试',
   }))
 
   for (const job of deferredJobs) {
     await markRevalidateJobFailed(
       job,
-      'Notion 新文章索引尚未就绪，已自动延迟重试'
+      '新文章尚在同步，已自动延迟重试'
     )
   }
 

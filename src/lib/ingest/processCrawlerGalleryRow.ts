@@ -103,7 +103,7 @@ async function loadTargetProps(pageId?: string | null): Promise<NotionPropsSchem
   if (pageId) {
     const page = await withRetry(() => notion.pages.retrieve({ page_id: pageId }))
     if (!isFullPage(page)) {
-      throw new Error('Notion 页面数据不完整')
+      throw new Error('文章页面数据不完整')
     }
     return page.properties as NotionPropsSchema
   }
@@ -275,7 +275,7 @@ export async function processCrawlerGalleryRow(
       notion.pages.retrieve({ page_id: pageId! })
     )
     if (!isFullPage(page)) {
-      throw new Error('Notion 页面不存在或数据不完整')
+      throw new Error('文章页面不存在或数据不完整')
     }
     postSlug = readSlugFromNotionPage(page)
     if (!postSlug) {

@@ -58,7 +58,7 @@ export async function updateCrawlerIngestAutoSettings(
 ): Promise<CrawlerIngestAutoSettings> {
   const siteId = getBlogSiteId()
   const supabase = getSupabaseAdmin()
-  if (!supabase) throw new Error('Supabase 未配置')
+  if (!supabase) throw new Error('入库服务尚未配置')
 
   const current = await getCrawlerIngestAutoSettings()
   const next: CrawlerIngestAutoSettings = {

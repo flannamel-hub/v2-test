@@ -150,7 +150,7 @@ export async function syncGalleryImages(input: {
 }): Promise<{ meta: GalleryMeta; imageCount: number }> {
   const sb = getSupabaseAdmin()
   if (!sb) {
-    throw new Error('Supabase 未配置：请设置 NEXT_PUBLIC_SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY')
+    throw new Error('图库服务尚未配置，请联系管理')
   }
 
   const siteId = getBlogSiteId()

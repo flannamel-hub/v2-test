@@ -200,7 +200,7 @@ export async function updateVendingConfig(
       properties,
     })
   } else {
-    if (!databaseId) throw new Error('未配置 NOTION_PAGE_ID / NOTION_DATABASE_ID')
+    if (!databaseId) throw new Error('文章数据服务尚未配置，请联系管理')
     await notion.pages.create({
       parent: { database_id: databaseId },
       properties,
