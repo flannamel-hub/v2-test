@@ -1667,7 +1667,7 @@ const CrawlerIngestPanel = ({
           <div style={{ fontSize: '12px', color: '#888', marginTop: 6, lineHeight: 1.5 }}>
             {configured
               ? `待入库 ${pendingCount} · 处理中 ${processingCount} · 已完成 ${summary?.done ?? 0} · 失败 ${failedCount}`
-              : '未配置 Supabase 图库租户（BLOG_SITE_ID）'}
+              : '入库服务尚未配置'}
             {configured && pendingCount + processingCount < (pendingItems?.length || 0) + processingCount ? null : null}
           </div>
             {configured && processingCount > 0 ? (
@@ -1772,7 +1772,7 @@ const CrawlerIngestPanel = ({
               {autoSaving ? '保存中…' : '保存定时'}
             </button>
             <span style={{ fontSize: 11, color: '#666' }}>
-              每日自动检查一次（北京时间约 03:00）；仅当所选整点为 3 点且有待入库时执行（Vercel 免费计划 Cron 每日限 1 次）
+              每日自动检查一次（北京时间约 03:00）；仅当所选整点为 3 点且有待入库时执行
             </span>
           </div>
         </div>
@@ -2168,10 +2168,10 @@ const AdminHeaderActionsMenu = ({
             onClick={() => runAndClose(onFullRedeploy)}
             title={
               !fullRedeployConfigured
-                ? '未配置 Vercel 部署钩子，请联系管理'
+                ? '全量更新服务尚未配置，请联系管理'
                 : fullRedeployCooldownSec > 0
                   ? '12h 内已执行全量更新，请稍后再试'
-                  : '网站全量重部署（24小时内仅可执行一次，慎点！）'
+                  : '网站内容全量更新（24小时内仅可执行一次，慎点！）'
             }
           >
             {fullRedeployBusy ? '全量更新中…' : '全量更新'}
@@ -2181,7 +2181,7 @@ const AdminHeaderActionsMenu = ({
               </span>
             ) : null}
             {!fullRedeployConfigured && fullRedeployCooldownSec <= 0 ? (
-              <span className="header-actions-menu-item__hint">未配置部署钩子</span>
+              <span className="header-actions-menu-item__hint">全量更新服务未配置</span>
             ) : null}
           </button>
           <button
@@ -2192,7 +2192,7 @@ const AdminHeaderActionsMenu = ({
             onClick={() => runAndClose(onOpenIngestList)}
             title={
               !crawlerIngestConfigured
-                ? '未配置 Supabase 图库租户，请联系管理'
+                ? '入库服务尚未配置，请联系管理'
                 : '爬虫入库管理：待入库、处理中、失败与入库记录'
             }
           >
@@ -2372,7 +2372,7 @@ const CrawlerIngestUnlockModal = ({
         <div className="cover-modal-icon" aria-hidden>🔐</div>
         <h3 id="crawler-unlock-modal-title" className="cover-modal-title">解锁爬虫管理</h3>
         <p className="cover-modal-desc">
-          爬虫入库会批量写入 Notion 与图库，请输入维护密码后继续。
+          爬虫入库会批量更新文章与图库，请输入维护密码后继续。
         </p>
         <input
           type="password"
@@ -6263,7 +6263,7 @@ const [mounted, setMounted] = useState(false);
       return;
     }
     if (!crawlerIngestConfigured) {
-      showAdminToast('爬虫入库未配置（Supabase + BLOG_SITE_ID）');
+      showAdminToast('爬虫入库服务尚未配置');
       return;
     }
 
@@ -7492,9 +7492,6 @@ const [mounted, setMounted] = useState(false);
                   <span className="pubq-spin" />
                   <div>
                     <div className="post-sync-banner-title">正在更新刚发布的文章…</div>
-                    <div className="post-sync-banner-detail">
-                      {syncingNewPostTitles.join('、')} · 正在等待 Notion 索引并自动更新 BLOG 前台，无需手动刷新
-                    </div>
                   </div>
                 </div>
               )}
