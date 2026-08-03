@@ -32,6 +32,8 @@ import { TweetLoadingProgress } from '@/src/themes/tweet/TweetLoadingProgress'
 import type { PageSeoFlat } from '@/src/lib/seo/lightSeo'
 import { NextPageWithLayout } from '../types/blog'
 
+const CHATWOOT_ENABLED = false
+
 type AppPropsWithLayout = AppProps & {
   Component: NextPageWithLayout
 }
@@ -104,7 +106,7 @@ function BlogAppShell({ Component, pageProps, router }: AppPropsWithLayout) {
   return (
     <>
       {/* 2. 替换 Jivo 为 Chatwoot 增强版逻辑 */}
-      {!isAdminRoute ? (
+      {CHATWOOT_ENABLED && !isAdminRoute ? (
         <Script id="chatwoot-setup" strategy="afterInteractive">
           {`
           (function(d,t) {
