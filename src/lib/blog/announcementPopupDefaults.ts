@@ -6,8 +6,10 @@ export type AnnouncementPopupConfig = {
   title: string
   content: string
   image: string
-  buttonText: string
-  buttonUrl: string
+  /** @deprecated 公告仅作通知，不再使用跳转按钮；读写保留以清空旧数据 */
+  buttonText?: string
+  /** @deprecated 公告仅作通知，不再使用跳转按钮；读写保留以清空旧数据 */
+  buttonUrl?: string
   source?: 'notion' | 'default'
 }
 

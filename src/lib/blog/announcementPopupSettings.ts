@@ -38,38 +38,6 @@ const BUTTON_URL_NAMES = [
 ]
 const IMAGE_NAMES = ['cover', 'Cover', 'COVER', '封面', 'image', 'Image']
 
-async function ensureAnnouncementPopupSchema(
-  dbProps: PartialDatabaseObjectResponse['properties']
-): Promise<PartialDatabaseObjectResponse['properties']> {
-  const missingProperties: Record<string, any> = {}
-
-  if (!findNotionPropertyKey(dbProps as any, BUTTON_TEXT_NAMES)) {
-    missingProperties.button_text = { rich_text: {} }
-  }
-  if (!findNotionPropertyKey(dbProps as any, BUTTON_URL_NAMES)) {
-    missingProperties.button_url = { url: {} }
-  }
-
-  if (!databaseId || Object.keys(missingProperties).length === 0) {
-    return dbProps
-  }
-
-  try {
-    await notion.databases.update({
-      database_id: databaseId,
-      properties: missingProperties,
-    } as any)
-    const updatedDb = await getDatabaseMetadata()
-    return updatedDb.properties || dbProps
-  } catch (error) {
-    console.warn(
-      '[announcementPopupSettings] schema update failed, optional button fields may be ignored:',
-      error instanceof Error ? error.message : error
-    )
-    return dbProps
-  }
-}
-
 function readTitle(prop: PageObjectResponse['properties'][string] | undefined) {
   if (!prop || prop.type !== 'title') return null
   const text = prop.title.map((t) => t.plain_text).join('').trim()
@@ -233,8 +201,9 @@ function buildAnnouncementPopupProperties(
   }
 
   applyImageProperty(properties, dbProps, config.image)
-  applyOptionalTextProperty(properties, dbProps, BUTTON_TEXT_NAMES, config.buttonText)
-  applyOptionalTextProperty(properties, dbProps, BUTTON_URL_NAMES, config.buttonUrl)
+  // 公告不再使用跳转按钮；若库里仍有旧字段则写空以清空
+  applyOptionalTextProperty(properties, dbProps, BUTTON_TEXT_NAMES, '')
+  applyOptionalTextProperty(properties, dbProps, BUTTON_URL_NAMES, '')
 
   return properties
 }
@@ -267,16 +236,13 @@ export async function updateAnnouncementPopupConfig(
     image:
       normalizeMediaUrl(input.image ?? current.image) ||
       normalizeAnnouncementPopupUrl(input.image ?? current.image),
-    buttonText: normalizeAnnouncementPopupText(
-      input.buttonText ?? current.buttonText,
-      80
-    ),
-    buttonUrl: normalizeAnnouncementPopupUrl(input.buttonUrl ?? current.buttonUrl),
+    buttonText: '',
+    buttonUrl: '',
     source: 'notion',
   }
 
   const db = await getDatabaseMetadata()
-  const dbProps = await ensureAnnouncementPopupSchema(db.properties || {})
+  const dbProps = db.properties || {}
   const existing = await findAnnouncementPopupWidget()
   const properties = buildAnnouncementPopupProperties(dbProps, next)
 

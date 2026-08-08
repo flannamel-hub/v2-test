@@ -29,10 +29,9 @@ export default async function handler(
         title: typeof body.title === 'string' ? body.title : undefined,
         content: typeof body.content === 'string' ? body.content : undefined,
         image: typeof body.image === 'string' ? body.image : undefined,
-        buttonText:
-          typeof body.buttonText === 'string' ? body.buttonText : undefined,
-        buttonUrl:
-          typeof body.buttonUrl === 'string' ? body.buttonUrl : undefined,
+        // 公告仅通知：忽略客户端传入的按钮字段，保存时统一清空
+        buttonText: '',
+        buttonUrl: '',
       })
       return res.status(200).json({ success: true, popup })
     }

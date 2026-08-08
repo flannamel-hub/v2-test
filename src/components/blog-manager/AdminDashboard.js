@@ -5375,13 +5375,10 @@ const [mounted, setMounted] = useState(false);
       title: (patch.title ?? announcementPopup.title ?? '').trim(),
       content: (patch.content ?? announcementPopup.content ?? '').trim(),
       image: (patch.image ?? announcementPopup.image ?? '').trim(),
-      buttonText: (patch.buttonText ?? announcementPopup.buttonText ?? '').trim(),
-      buttonUrl: (patch.buttonUrl ?? announcementPopup.buttonUrl ?? '').trim(),
+      // 公告仅作通知：保存时清空旧跳转按钮字段
+      buttonText: '',
+      buttonUrl: '',
     };
-    if (next.buttonUrl && !/^https?:\/\//i.test(next.buttonUrl) && !next.buttonUrl.startsWith('/')) {
-      alert('按钮链接请填写 http(s) 开头的网址，或 / 开头的站内路径');
-      return;
-    }
     if (next.image && !/^https?:\/\//i.test(next.image)) {
       alert('图片地址请填写 http(s) 开头的直链');
       return;
@@ -6928,7 +6925,7 @@ const [mounted, setMounted] = useState(false);
         const rest = list.filter(p => p.slug !== ANNOUNCEMENT_SLUG);
         list = ann ? [ann, ...rest] : rest;
      }
-     else if (activeTab === 'Widget') {
+     else if (activeTab === 'Widget' || activeTab === 'Ads') {
         list = [];
      }
      else if (activeTab === 'Favourites') {
@@ -7308,7 +7305,7 @@ const [mounted, setMounted] = useState(false);
               <div className="admin-list-head-left">
                 {/* 1. 分类标签组 */}
                 <div className="admin-list-tabs">
-                  {['Post', 'Favourites', 'Widget', 'Page'].map(t => (
+                  {['Post', 'Favourites', 'Widget', 'Ads', 'Page'].map(t => (
                     <button
                       key={t}
                       type="button"
@@ -7335,6 +7332,8 @@ const [mounted, setMounted] = useState(false);
                             {favouritedPostCount}
                           </span>
                         </>
+                      ) : t === 'Ads' ? (
+                        '广告位'
                       ) : (
                         '组件'
                       )}
@@ -7525,12 +7524,12 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ color: '#f97316', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
               )}
-              {activeTab === 'Widget' && viewMode !== 'folder' && (
+              {activeTab === 'Ads' && viewMode !== 'folder' && (
                 <div onClick={openGalleryAd} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #f59e0b', cursor: 'pointer' }}>
                   <div style={{ fontSize: '28px' }}>📢</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>内页广告位</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>页底横幅banner</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>全主题文章内页底部横幅</div>
                   </div>
                   <div style={{ color: '#f59e0b', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
@@ -7540,7 +7539,7 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>📣</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>公告弹窗</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>全站弹窗开关与内容</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>全站通知弹窗（无跳转按钮）</div>
                   </div>
                   <div style={{ color: '#38bdf8', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
@@ -7915,7 +7914,7 @@ const [mounted, setMounted] = useState(false);
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
               <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>📣 公告弹窗</div>
-              <div style={{fontSize:'12px', color:'#888'}}>全站弹窗开关与内容</div>
+              <div style={{fontSize:'12px', color:'#888'}}>全站通知弹窗（无跳转按钮）</div>
             </div>
 
             {announcementPopupLoading ? (
@@ -7925,7 +7924,7 @@ const [mounted, setMounted] = useState(false);
                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>弹窗功能</div>
-                    <div style={{fontSize:'12px', color:'#999'}}>{announcementPopup.enabled ? '当前：已开启' : '当前：已关闭'}</div>
+                    <div style={{fontSize:'12px', color:'#999'}}>{announcementPopup.enabled ? '当前：已开启' : '当前：已关闭'} · 仅作站务通知，不含广告跳转按钮</div>
                   </div>
                   <button
                     type="button"
@@ -7949,7 +7948,7 @@ const [mounted, setMounted] = useState(false);
                 </div>
                 <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
                   <div>
-                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'8px'}}>弹窗图片 <span style={{color:'#777', fontWeight:'normal'}}>(选填)</span></label>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'8px'}}>附图 <span style={{color:'#777', fontWeight:'normal'}}>(选填)</span></label>
                     <label className="img-drop" style={{width:'280px', height:'150px', minHeight:'150px', padding:0, borderRadius:'12px', overflow:'hidden', border:'1px dashed #555'}}
                       onDragOver={e=>{e.preventDefault(); e.stopPropagation();}}
                       onDrop={e=>{e.preventDefault(); e.stopPropagation(); uploadAnnouncementPopupImage(e.dataTransfer.files[0]);}}>
@@ -7958,7 +7957,7 @@ const [mounted, setMounted] = useState(false);
                         ? <div className="img-uploading"><div className="img-spin"></div></div>
                         : announcementPopup.image
                           ? <img src={announcementPopup.image} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="" />
-                          : <div style={{pointerEvents:'none', fontSize:'12px', textAlign:'center', color:'#999', padding:'32px 12px'}}>拖拽 / 点击上传公告图片<br/><span style={{color:'#666'}}>建议横图，弹窗顶部展示</span></div>}
+                          : <div style={{pointerEvents:'none', fontSize:'12px', textAlign:'center', color:'#999', padding:'32px 12px'}}>拖拽 / 点击上传通知附图<br/><span style={{color:'#666'}}>选填，建议克制配图</span></div>}
                     </label>
                     {announcementPopup.image ? (
                       <button type="button" onClick={()=>setAnnouncementPopup(prev=>({...prev, image:''}))} style={{marginTop:'8px', fontSize:'11px', color:'#ff7875', background:'none', border:'none', cursor:'pointer', padding:0}}>移除图片</button>
@@ -7966,22 +7965,12 @@ const [mounted, setMounted] = useState(false);
                   </div>
                   <div style={{flex:1, minWidth:'280px', display:'flex', flexDirection:'column', gap:'16px'}}>
                     <div>
-                      <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>弹窗标题</label>
+                      <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>通知标题</label>
                       <input className="glow-input" value={announcementPopup.title} onChange={e=>setAnnouncementPopup({...announcementPopup, title: e.target.value})} placeholder="例如：平台公告" />
                     </div>
                     <div>
-                      <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>公告正文</label>
-                      <textarea className="glow-input" value={announcementPopup.content} onChange={e=>setAnnouncementPopup({...announcementPopup, content: e.target.value})} placeholder="填写要展示给访客的公告内容" style={{minHeight:'130px', lineHeight:1.7}} />
-                    </div>
-                    <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'12px'}}>
-                      <div>
-                        <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>按钮文字 <span style={{color:'#777', fontWeight:'normal'}}>(选填)</span></label>
-                        <input className="glow-input" value={announcementPopup.buttonText} onChange={e=>setAnnouncementPopup({...announcementPopup, buttonText: e.target.value})} placeholder="查看详情" />
-                      </div>
-                      <div>
-                        <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>按钮链接 <span style={{color:'#777', fontWeight:'normal'}}>(选填)</span></label>
-                        <input className="glow-input" value={announcementPopup.buttonUrl} onChange={e=>setAnnouncementPopup({...announcementPopup, buttonUrl: e.target.value})} placeholder="https://example.com 或 /about" />
-                      </div>
+                      <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>通知正文</label>
+                      <textarea className="glow-input" value={announcementPopup.content} onChange={e=>setAnnouncementPopup({...announcementPopup, content: e.target.value})} placeholder="填写要展示给访客的通知内容" style={{minHeight:'130px', lineHeight:1.7}} />
                     </div>
                   </div>
                 </div>
@@ -8000,7 +7989,7 @@ const [mounted, setMounted] = useState(false);
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
               <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>📢 内页广告位</div>
-              <div style={{fontSize:'12px', color:'#888'}}>文章内页底部 + 下载页右栏顶部</div>
+              <div style={{fontSize:'12px', color:'#888'}}>全主题文章内页底部横幅</div>
             </div>
 
             {galleryAdLoading ? (
@@ -8008,7 +7997,7 @@ const [mounted, setMounted] = useState(false);
             ) : (
               <>
                 <div style={{fontSize:'12px', color:'#aaa', marginBottom:'20px', lineHeight:1.8}}>
-                  横幅显示在 Gallery 文章内页底部（猜你喜欢下方）。链接必填；未配置时不显示。背景图优先使用下方上传的 Banner，未上传则自动抓取链接预览图。
+                  横幅显示在全主题文章内页底部（Gallery / Tweet / Standard 系列均生效；Gallery 下载页右栏顶部也会显示）。链接必填；未配置时不显示。背景图优先使用下方上传的 Banner，未上传则自动抓取链接预览图。
                 </div>
                 <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
                   <div>
