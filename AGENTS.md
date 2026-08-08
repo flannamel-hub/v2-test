@@ -136,7 +136,7 @@
 | slug | 用途 | 主要约定 |
 |------|------|----------|
 | `theme-config` | 远程主题配置 | 通常用 `excerpt` 存主题代号；保存时双写 Notion + Supabase |
-| `gallery-ad` | 内页广告位 | 全主题文章内页底部横幅（Gallery / Tweet / Standard 系列）；Gallery 下载页也会显示 |
+| `gallery-ad` | 内页广告位 | `status` Published=开 / Hidden=关；全主题文章内页底部横幅；Gallery 下载页也会显示 |
 | `vending` | 贩售机入口 | `title`=按钮文字，`excerpt`=URL，`Published`=开 / `Hidden`=关 |
 | `announcement-popup` | 公告弹窗（通知） | `title`/`excerpt`/`cover`；**无跳转按钮**；旧 `button_text`/`button_url` 保存时清空，字段不存在则忽略 |
 | `social-links` | 社交媒体 | 父级 `status` 控制开关；内嵌 SocialLinks 子数据库 |
@@ -267,7 +267,8 @@
 - `announcement-popup` 定位为**站务通知**，不是广告：前台无 CTA 跳转按钮，无「通知」类标签；布局为标题栏 + 正文/可选附图 + 底部全宽「知道了」；正文内 URL 自动链接触可保留。
 - 前台浅色：`gallery`、`tweet-light`、standard 的 `html:not(.dark)`；深色：`tweet`、`tweet-dark`、standard 的 `html.dark`。
 - 关闭后用 `sessionStorage` + 内容 hash，同会话同内容不再弹；内容变更后会再弹。
-- `gallery-ad` 在文章页全主题生效（`GalleryAdBanner` / `TweetAdBanner` / `StandardAdBanner`）；下载页广告目前仅 Gallery。
+- `gallery-ad` 后台有开启/关闭开关（Notion `status`）；关闭后前台不渲染。文章页全主题生效（`GalleryAdBanner` / `TweetAdBanner` / `StandardAdBanner`）；下载页广告目前仅 Gallery。
+- 公告弹窗深色适配：standard / tweet-dark 为纯黑面板；tweet（灰色）为灰阶深色；浅色主题（gallery / tweet-light / standard light）保持白底。
 
 ### 后台核心 API
 
@@ -278,7 +279,7 @@
 | `GET/POST /api/admin/gallery` | 单篇图库元数据读写（Supabase） |
 | `GET /api/admin/gallery-storage` | 站点图库容量 |
 | `POST /api/admin/upload` | 服务端代理上传到兰空 |
-| `GET/POST/DELETE /api/admin/gallery-ad` | 内页广告条（后台在「广告位」Tab） |
+| `GET/POST/DELETE /api/admin/gallery-ad` | 内页广告条（后台在「广告位」Tab；支持 enabled 开关） |
 | `GET/POST /api/admin/friends` | 友链读写（friends 子库） |
 | `POST /api/admin/friends/batch` | 批量 upsert，可按 URL 去重 |
 | `POST /api/admin/friends/hide` | 按 URL 隐藏（优先 `status=Hidden`） |

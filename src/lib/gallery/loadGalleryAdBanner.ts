@@ -24,6 +24,14 @@ export function clearGalleryAdBannerCache(): void {
   buildCacheNullAt = 0
 }
 
+function isGalleryAdEnabled(page: PageObjectResponse): boolean {
+  const status = page.properties.status
+  if (!status) return true
+  if (status.type === 'status') return status.status?.name === 'Published'
+  if (status.type === 'select') return status.select?.name === 'Published'
+  return true
+}
+
 async function findGalleryAdWidget(
   widgetPages?: PageObjectResponse[]
 ): Promise<PageObjectResponse | null> {
@@ -48,7 +56,7 @@ export async function loadGalleryAdBanner(
   }
 
   const raw = await findGalleryAdWidget(widgetPages)
-  if (!raw) {
+  if (!raw || !isGalleryAdEnabled(raw)) {
     buildCache = null
     buildCacheNullAt = Date.now()
     return null

@@ -4183,7 +4183,7 @@ const [mounted, setMounted] = useState(false);
   const [socialLinks, setSocialLinks] = useState({ enabled: false, links: [] });
   const [socialLinksLoading, setSocialLinksLoading] = useState(false);
   const [socialLinksSaving, setSocialLinksSaving] = useState(false);
-  const [galleryAd, setGalleryAd] = useState({ id: null, url: '', promoText: '', cover: '' });
+  const [galleryAd, setGalleryAd] = useState({ id: null, enabled: false, url: '', promoText: '', cover: '' });
   const [galleryAdLoading, setGalleryAdLoading] = useState(false);
   const [galleryAdSaving, setGalleryAdSaving] = useState(false);
   const [galleryAdCoverUploading, setGalleryAdCoverUploading] = useState(false);
@@ -5308,8 +5308,16 @@ const [mounted, setMounted] = useState(false);
     try {
       const r = await fetch('/api/admin/gallery-ad');
       const d = await r.json();
-      if (d.success) setGalleryAd(d.ad || { id: null, url: '', promoText: '', cover: '' });
-      else alert('加载广告位失败：' + (d.error || '未知错误'));
+      if (d.success) {
+        const ad = d.ad || {};
+        setGalleryAd({
+          id: ad.id || null,
+          enabled: ad.enabled === true,
+          url: ad.url || '',
+          promoText: ad.promoText || '',
+          cover: ad.cover || '',
+        });
+      } else alert('加载广告位失败：' + (d.error || '未知错误'));
     } catch (e) { alert('加载广告位失败：' + e.message); }
     finally { setGalleryAdLoading(false); }
   };
@@ -5521,9 +5529,23 @@ const [mounted, setMounted] = useState(false);
     finally { setVendingSaving(false); }
   };
 
-  const saveGalleryAd = async () => {
-    const url = (galleryAd.url || '').trim();
-    if (!url.startsWith('http')) { alert('请填写有效的广告链接（需以 http 开头）'); return; }
+  const saveGalleryAd = async (patch = {}) => {
+    const next = {
+      ...galleryAd,
+      ...patch,
+      url: (patch.url ?? galleryAd.url ?? '').trim(),
+      promoText: (patch.promoText ?? galleryAd.promoText ?? '').trim(),
+      cover: (patch.cover ?? galleryAd.cover ?? '').trim(),
+      enabled: typeof patch.enabled === 'boolean' ? patch.enabled : galleryAd.enabled === true,
+    };
+    if (next.enabled && !next.url.startsWith('http')) {
+      alert('开启广告位前请先填写有效的广告链接（需以 http 开头）');
+      return;
+    }
+    if (!next.enabled && next.url && !next.url.startsWith('http')) {
+      alert('请填写有效的广告链接（需以 http 开头）');
+      return;
+    }
     setGalleryAdSaving(true);
     try {
       const r = await fetch('/api/admin/gallery-ad', {
@@ -5531,15 +5553,23 @@ const [mounted, setMounted] = useState(false);
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: galleryAd.id,
-          url,
-          promoText: (galleryAd.promoText || '').trim(),
-          cover: (galleryAd.cover || '').trim(),
+          enabled: next.enabled,
+          url: next.url,
+          promoText: next.promoText,
+          cover: next.cover,
         }),
       });
       const d = await r.json();
       if (d.success) {
-        alert('✓ 广告位已保存');
-        await loadGalleryAd();
+        const saved = d.ad || next;
+        setGalleryAd({
+          id: saved.id || null,
+          enabled: saved.enabled === true,
+          url: saved.url || '',
+          promoText: saved.promoText || '',
+          cover: saved.cover || '',
+        });
+        showAdminToast(saved.enabled ? '广告位已开启，正在更新前台…' : (typeof patch.enabled === 'boolean' ? '广告位已关闭，正在更新前台…' : '广告位已保存，正在更新前台…'));
         await fetchPosts();
         void runBatchedRevalidation({
           listScope: 'gallery-ad',
@@ -5568,7 +5598,7 @@ const [mounted, setMounted] = useState(false);
       const r = await fetch('/api/admin/gallery-ad', { method: 'DELETE' });
       const d = await r.json();
       if (d.success) {
-        setGalleryAd({ id: null, url: '', promoText: '', cover: '' });
+        setGalleryAd({ id: null, enabled: false, url: '', promoText: '', cover: '' });
         alert('✓ 广告位已清空');
         await fetchPosts();
         void runBatchedRevalidation({
@@ -7996,8 +8026,35 @@ const [mounted, setMounted] = useState(false);
               <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
             ) : (
               <>
+                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
+                  <div>
+                    <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告位开关</div>
+                    <div style={{fontSize:'12px', color:'#999'}}>
+                      {galleryAd.enabled ? '当前：已开启' : '当前：已关闭'} · 生效于 Gallery / Tweet / Standard 全主题文章页
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={galleryAdSaving}
+                    onClick={() => saveGalleryAd({ enabled: !galleryAd.enabled })}
+                    style={{
+                      minWidth: '88px',
+                      padding: '12px 20px',
+                      border: 'none',
+                      borderRadius: '999px',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      cursor: galleryAdSaving ? 'wait' : 'pointer',
+                      background: galleryAd.enabled ? '#22c55e' : '#555',
+                      color: '#fff',
+                      opacity: galleryAdSaving ? 0.6 : 1,
+                    }}
+                  >
+                    {galleryAdSaving ? '保存中…' : (galleryAd.enabled ? '已开启' : '已关闭')}
+                  </button>
+                </div>
                 <div style={{fontSize:'12px', color:'#aaa', marginBottom:'20px', lineHeight:1.8}}>
-                  横幅显示在全主题文章内页底部（Gallery / Tweet / Standard 系列均生效；Gallery 下载页右栏顶部也会显示）。链接必填；未配置时不显示。背景图优先使用下方上传的 Banner，未上传则自动抓取链接预览图。
+                  开启后横幅显示在全主题文章内页底部（Gallery / Tweet / Standard 系列）；Gallery 下载页右栏顶部也会显示。链接必填；关闭后前台不显示。背景图优先使用下方上传的 Banner，未上传则自动抓取链接预览图。
                 </div>
                 <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
                   <div>
@@ -8028,7 +8085,7 @@ const [mounted, setMounted] = useState(false);
                   </div>
                 </div>
                 <div style={{display:'flex', gap:'12px', marginTop:'32px'}}>
-                  <button onClick={saveGalleryAd} disabled={galleryAdSaving} style={{flex:1, padding:'18px', background: galleryAdSaving ? '#333' : '#fff', color: galleryAdSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: galleryAdSaving ? 'wait' : 'pointer'}}>
+                  <button onClick={() => saveGalleryAd()} disabled={galleryAdSaving} style={{flex:1, padding:'18px', background: galleryAdSaving ? '#333' : '#fff', color: galleryAdSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: galleryAdSaving ? 'wait' : 'pointer'}}>
                     {galleryAdSaving ? '保存中...' : '保存广告位'}
                   </button>
                   {galleryAd.id ? (

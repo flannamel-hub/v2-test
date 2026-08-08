@@ -141,18 +141,11 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
       const blocks = await getAllBlocks(postForPage.id)
       const formattedBlocks = await formatBlocks(blocks)
 
-      const isStandardSeriesTheme =
-        !activeTheme ||
-        activeTheme === 'anzifan' ||
-        activeTheme === 'standard' ||
-        activeTheme === 'touchgal'
-      let galleryAdBanner = null
-      if (activeTheme === 'gallery' || isTweetTheme(activeTheme) || isStandardSeriesTheme) {
-        clearGalleryAdBannerCache()
-        galleryAdBanner = await loadGalleryAdBanner(
-          sharedNotionData.widgetPages
-        )
-      }
+      // 内页广告：全主题文章页均加载（关闭状态由 loadGalleryAdBanner 按 Notion status 过滤）
+      clearGalleryAdBannerCache()
+      const galleryAdBanner = await loadGalleryAdBanner(
+        sharedNotionData.widgetPages
+      )
 
       const widgets =
         isTweetTheme(activeTheme)

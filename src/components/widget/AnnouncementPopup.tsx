@@ -176,21 +176,22 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
           padding: 20px;
           pointer-events: none;
         }
+        /* standard / anzifan / touchgal 深色：纯黑风格 */
         html.dark .announcement-popup,
         .announcement-popup--standard {
-          --ap-bg: #161b22;
-          --ap-surface: #21262d;
-          --ap-text: #e6edf3;
-          --ap-muted: #9da7b3;
-          --ap-border: rgba(240, 246, 252, 0.12);
-          --ap-divider: rgba(240, 246, 252, 0.08);
-          --ap-backdrop: rgba(1, 4, 9, 0.68);
-          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.55);
-          --ap-link: #79c0ff;
-          --ap-ack-bg: #e6edf3;
-          --ap-ack-text: #0d1117;
+          --ap-bg: #000000;
+          --ap-surface: #111111;
+          --ap-text: #f4f4f5;
+          --ap-muted: #a1a1aa;
+          --ap-border: rgba(255, 255, 255, 0.14);
+          --ap-divider: rgba(255, 255, 255, 0.1);
+          --ap-backdrop: rgba(0, 0, 0, 0.72);
+          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.65);
+          --ap-link: #e4e4e7;
+          --ap-ack-bg: #f4f4f5;
+          --ap-ack-text: #09090b;
           --ap-ack-hover: #ffffff;
-          --ap-close-hover: rgba(240, 246, 252, 0.08);
+          --ap-close-hover: rgba(255, 255, 255, 0.08);
         }
         html:not(.dark) .announcement-popup--standard {
           --ap-bg: #ffffff;
@@ -223,21 +224,23 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
           --ap-ack-hover: #000000;
           --ap-close-hover: rgba(23, 23, 23, 0.06);
         }
+        /* tweet（灰色）：灰阶深色，区别于 tweet-dark 纯黑 */
         html.tweet-theme .announcement-popup,
+        html.tweet-theme.dark:not(.tweet-theme--dark):not(.tweet-theme--light) .announcement-popup,
         .announcement-popup--tweet {
-          --ap-bg: #202327;
-          --ap-surface: #2a2e34;
-          --ap-text: #e7e9ea;
-          --ap-muted: #8b98a5;
-          --ap-border: rgba(255, 255, 255, 0.12);
-          --ap-divider: rgba(255, 255, 255, 0.08);
-          --ap-backdrop: rgba(0, 0, 0, 0.62);
-          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.5);
-          --ap-link: #1d9bf0;
-          --ap-ack-bg: #e7e9ea;
-          --ap-ack-text: #0f1419;
+          --ap-bg: #1c1c1c;
+          --ap-surface: #2a2a28;
+          --ap-text: #eeeeec;
+          --ap-muted: #b5b3ad;
+          --ap-border: rgba(238, 238, 236, 0.12);
+          --ap-divider: rgba(238, 238, 236, 0.08);
+          --ap-backdrop: rgba(0, 0, 0, 0.64);
+          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.55);
+          --ap-link: #d1d5db;
+          --ap-ack-bg: #eeeeec;
+          --ap-ack-text: #111110;
           --ap-ack-hover: #ffffff;
-          --ap-close-hover: rgba(255, 255, 255, 0.08);
+          --ap-close-hover: rgba(238, 238, 236, 0.08);
         }
         html.tweet-theme.tweet-theme--light .announcement-popup,
         .announcement-popup--tweet-light {
@@ -255,19 +258,20 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
           --ap-ack-hover: #000000;
           --ap-close-hover: rgba(15, 20, 25, 0.06);
         }
+        /* tweet·暗色：纯黑风格（与 standard 深色一致） */
         html.tweet-theme.tweet-theme--dark .announcement-popup,
         .announcement-popup--tweet-dark {
           --ap-bg: #000000;
-          --ap-surface: #16181c;
-          --ap-text: #e7e9ea;
-          --ap-muted: #71767b;
+          --ap-surface: #111111;
+          --ap-text: #f4f4f5;
+          --ap-muted: #a1a1aa;
           --ap-border: rgba(255, 255, 255, 0.14);
           --ap-divider: rgba(255, 255, 255, 0.1);
-          --ap-backdrop: rgba(0, 0, 0, 0.72);
-          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.65);
-          --ap-link: #1d9bf0;
-          --ap-ack-bg: #eff3f4;
-          --ap-ack-text: #0f1419;
+          --ap-backdrop: rgba(0, 0, 0, 0.75);
+          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.7);
+          --ap-link: #e4e4e7;
+          --ap-ack-bg: #f4f4f5;
+          --ap-ack-text: #09090b;
           --ap-ack-hover: #ffffff;
           --ap-close-hover: rgba(255, 255, 255, 0.08);
         }

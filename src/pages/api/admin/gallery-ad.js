@@ -40,6 +40,14 @@ function readCover(prop) {
   return prop.url || '';
 }
 
+function readEnabled(props) {
+  const status = props?.status;
+  if (!status) return true;
+  if (status.type === 'status') return status.status?.name === 'Published';
+  if (status.type === 'select') return status.select?.name === 'Published';
+  return true;
+}
+
 async function findGalleryAdWidget() {
   if (!MAIN_DB) throw new Error('文章数据服务尚未配置，请联系管理');
 
@@ -62,18 +70,17 @@ function mapAd(page) {
   const props = page.properties || {};
   return {
     id: page.id,
+    enabled: readEnabled(props),
     url: readRichText(props.excerpt),
     promoText: readRichText(props.title),
     cover: readCover(props.cover),
   };
 }
 
-async function buildProperties(dbProps, { url, promoText, cover }) {
+async function buildProperties(dbProps, { url, promoText, cover, enabled }) {
   const titleKey = dbProps['title'] ? 'title' : (dbProps['Page'] ? 'Page' : 'title');
   const statusType = dbProps['status']?.type || 'select';
-  const statusName = statusType === 'status'
-    ? (dbProps['status']?.status?.options?.find((o) => o.name === 'Published')?.name || 'Published')
-    : 'Published';
+  const statusName = enabled ? 'Published' : 'Hidden';
 
   const properties = {
     [titleKey]: { title: [{ text: { content: (promoText || '').trim() || '广告位' } }] },
@@ -101,7 +108,7 @@ export default async function handler(req, res) {
       if (!page) {
         return res.status(200).json({
           success: true,
-          ad: { id: null, url: '', promoText: '', cover: '' },
+          ad: { id: null, enabled: false, url: '', promoText: '', cover: '' },
         });
       }
       return res.status(200).json({ success: true, ad: mapAd(page) });
@@ -109,34 +116,74 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { id, url, promoText, cover } = body || {};
-      const trimmedUrl = (url || '').trim();
-      if (!trimmedUrl || !trimmedUrl.startsWith('http')) {
-        return res.status(400).json({ success: false, error: '请填写有效的广告链接（需以 http 开头）' });
+      const { id, url, promoText, cover, enabled } = body || {};
+      const existing = id
+        ? await withRetry(() => notion.pages.retrieve({ page_id: id })).catch(() => null)
+        : await findGalleryAdWidget();
+      const current = existing ? mapAd(existing) : {
+        id: null,
+        enabled: false,
+        url: '',
+        promoText: '',
+        cover: '',
+      };
+
+      const nextEnabled = typeof enabled === 'boolean' ? enabled : current.enabled;
+      const nextUrl = typeof url === 'string' ? url.trim() : current.url;
+      const nextPromo =
+        typeof promoText === 'string' ? promoText.trim() : (current.promoText || '');
+      const nextCover =
+        typeof cover === 'string' ? cover.trim() : (current.cover || '');
+
+      if (nextEnabled && (!nextUrl || !nextUrl.startsWith('http'))) {
+        return res.status(400).json({
+          success: false,
+          error: '开启广告位前请先填写有效的广告链接（需以 http 开头）',
+        });
+      }
+      if (!nextEnabled && nextUrl && !nextUrl.startsWith('http') && nextUrl !== '') {
+        return res.status(400).json({
+          success: false,
+          error: '请填写有效的广告链接（需以 http 开头）',
+        });
       }
 
       const db = await withRetry(() => notion.databases.retrieve({ database_id: MAIN_DB }));
       const properties = await buildProperties(db.properties || {}, {
-        url: trimmedUrl,
-        promoText: (promoText || '').trim(),
-        cover: (cover || '').trim(),
+        url: nextUrl,
+        promoText: nextPromo,
+        cover: nextCover,
+        enabled: nextEnabled,
       });
 
-      if (id) {
-        await withRetry(() => notion.pages.update({ page_id: id, properties }));
+      if (existing?.id) {
+        await withRetry(() => notion.pages.update({ page_id: existing.id, properties }));
       } else {
-        const existing = await findGalleryAdWidget();
-        if (existing) {
-          await withRetry(() => notion.pages.update({ page_id: existing.id, properties }));
-        } else {
-          await withRetry(() => notion.pages.create({
-            parent: { database_id: MAIN_DB },
-            properties,
-          }));
+        if (!nextUrl || !nextUrl.startsWith('http')) {
+          return res.status(400).json({
+            success: false,
+            error: '请填写有效的广告链接（需以 http 开头）',
+          });
         }
+        await withRetry(() => notion.pages.create({
+          parent: { database_id: MAIN_DB },
+          properties,
+        }));
       }
 
-      return res.status(200).json({ success: true });
+      const saved = await findGalleryAdWidget();
+      return res.status(200).json({
+        success: true,
+        ad: saved
+          ? mapAd(saved)
+          : {
+              id: existing?.id || null,
+              enabled: nextEnabled,
+              url: nextUrl,
+              promoText: nextPromo,
+              cover: nextCover,
+            },
+      });
     }
 
     if (req.method === 'DELETE') {
