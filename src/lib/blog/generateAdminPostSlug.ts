@@ -12,6 +12,7 @@ export const RESERVED_POST_SLUGS = new Set([
   'vending',
   'announcement-popup',
   'popup-ad',
+  'click-ad',
   'social-links',
 ])
 

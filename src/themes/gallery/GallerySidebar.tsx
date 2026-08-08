@@ -126,6 +126,7 @@ export const GallerySidebar = ({
             href={vendingUrl}
             target="_blank"
             rel="noopener noreferrer"
+            data-blog-vending="1"
             className="block w-full rounded-md bg-black py-2 text-center text-[13px] font-normal text-white transition-all hover:bg-neutral-800 active:scale-[0.98] active:bg-neutral-900"
           >
             STORE

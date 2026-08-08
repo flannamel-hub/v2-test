@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import type { AnnouncementPopupConfig } from '@/src/lib/blog/announcementPopupDefaults'
+import type { ClickAdConfig } from '@/src/lib/blog/clickAdDefaults'
 import type { PopupAdConfig } from '@/src/lib/blog/popupAdDefaults'
 import { AnnouncementPopup } from './AnnouncementPopup'
+import { ClickAdCapture } from './ClickAdCapture'
 import { PopupAd } from './PopupAd'
 
 type Props = {
   announcementPopup?: AnnouncementPopupConfig | null
   popupAd?: PopupAdConfig | null
+  clickAd?: ClickAdConfig | null
   activeTheme?: string
 }
 
 export function SitePopups({
   announcementPopup,
   popupAd,
+  clickAd,
   activeTheme,
 }: Props) {
   const router = useRouter()
@@ -40,6 +44,7 @@ export function SitePopups({
         announceSettled={announceSettled}
         isHomePage={isHomePage}
       />
+      <ClickAdCapture config={clickAd} isHomePage={isHomePage} />
     </>
   )
 }

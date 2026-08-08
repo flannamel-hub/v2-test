@@ -19,6 +19,7 @@ export function TweetVendingButton({
     <a
       href={url || DEFAULT_VENDING_URL}
       className="tweet-vending-btn"
+      data-blog-vending="1"
       target="_blank"
       rel="noopener noreferrer"
       aria-label={title || DEFAULT_VENDING_TITLE}

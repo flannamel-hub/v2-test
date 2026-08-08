@@ -92,6 +92,7 @@ function resolveSaveRevalidateScope(type, slug) {
     if (slug === 'vending') return 'vending';
     if (slug === 'announcement-popup') return 'announcement-popup';
     if (slug === 'popup-ad') return 'popup-ad';
+    if (slug === 'click-ad') return 'click-ad';
     if (slug === 'social-links') return 'social-links';
     return 'widget';
   }
@@ -4217,6 +4218,14 @@ const [mounted, setMounted] = useState(false);
   });
   const [popupAdLoading, setPopupAdLoading] = useState(false);
   const [popupAdSaving, setPopupAdSaving] = useState(false);
+  const [clickAd, setClickAd] = useState({
+    id: null,
+    enabled: false,
+    title: '',
+    url: '',
+  });
+  const [clickAdLoading, setClickAdLoading] = useState(false);
+  const [clickAdSaving, setClickAdSaving] = useState(false);
   const [friendDraft, setFriendDraft] = useState({ name: '', url: '', avatar: '' });
   const [friendDraftUploading, setFriendDraftUploading] = useState(false);
   const [friendBtnStatus, setFriendBtnStatus] = useState({}); // { [id|'draft']: 'saving' | 'done' }
@@ -5418,6 +5427,91 @@ const [mounted, setMounted] = useState(false);
     loadPopupAd();
   };
 
+  const loadClickAd = async () => {
+    setClickAdLoading(true);
+    try {
+      const r = await fetch('/api/admin/click-ad');
+      const d = await r.json();
+      if (d.success) {
+        setClickAd({
+          id: d.clickAd?.id || null,
+          enabled: d.clickAd?.enabled === true,
+          title: d.clickAd?.title || '',
+          url: d.clickAd?.url || '',
+        });
+      } else {
+        alert('加载遮罩广告失败：' + (d.error || '未知错误'));
+      }
+    } catch (e) {
+      alert('加载遮罩广告失败：' + e.message);
+    } finally {
+      setClickAdLoading(false);
+    }
+  };
+
+  const openClickAd = () => {
+    setView('click-ad');
+    loadClickAd();
+  };
+
+  const saveClickAd = async (patch = {}) => {
+    const next = {
+      ...clickAd,
+      ...patch,
+      title: (patch.title ?? clickAd.title ?? '').trim(),
+      url: (patch.url ?? clickAd.url ?? '').trim(),
+      enabled: typeof patch.enabled === 'boolean' ? patch.enabled : clickAd.enabled === true,
+    };
+    if (next.url && !/^https?:\/\//i.test(next.url) && !next.url.startsWith('/')) {
+      alert('广告链接请填写 http(s) 开头的网址，或 / 开头的站内路径');
+      return;
+    }
+    if (next.enabled && !next.url) {
+      alert('开启遮罩广告前请填写广告链接');
+      return;
+    }
+    setClickAdSaving(true);
+    try {
+      const r = await fetch('/api/admin/click-ad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      const d = await r.json();
+      if (!d.success) {
+        alert('保存遮罩广告失败：' + (d.error || '未知错误'));
+        return;
+      }
+      const saved = d.clickAd || next;
+      setClickAd({
+        id: saved.id || null,
+        enabled: saved.enabled === true,
+        title: saved.title || '',
+        url: saved.url || '',
+      });
+      showAdminToast(saved.enabled ? '遮罩广告已保存，正在更新前台…' : '遮罩广告已关闭，正在更新前台…');
+      void runBatchedRevalidation({
+        listScope: 'click-ad',
+        freshTheme: true,
+        contentChange: true,
+        progressLabels: {
+          listing: '正在统计遮罩广告页面…',
+          running: '正在更新遮罩广告…',
+          doneOk: '遮罩广告已同步到前台页面',
+          donePartial: '部分页面会稍后自动更新',
+          hintPartial: '个别页面未能更新，可重新保存遮罩广告',
+          hintOk: '遮罩广告相关页面已更新',
+        },
+      }).then((rev) => {
+        if (rev.failed > 0) showAdminToast(`部分页面更新失败（${rev.failed}/${rev.total}）`);
+      }).catch((e) => console.warn('遮罩广告增量刷新失败', e));
+    } catch (e) {
+      alert('保存遮罩广告失败：' + e.message);
+    } finally {
+      setClickAdSaving(false);
+    }
+  };
+
   const savePopupAd = async (patch = {}) => {
     const next = {
       ...popupAd,
@@ -6084,7 +6178,7 @@ const [mounted, setMounted] = useState(false);
             queuePriority: 10,
           });
           showRevalidateFeedback(rev, showAdminToast);
-        } else if (saveScope === 'gallery-ad' || saveScope === 'vending' || saveScope === 'announcement-popup' || saveScope === 'popup-ad' || saveScope === 'social-links') {
+        } else if (saveScope === 'gallery-ad' || saveScope === 'vending' || saveScope === 'announcement-popup' || saveScope === 'popup-ad' || saveScope === 'click-ad' || saveScope === 'social-links') {
           const scope = saveScope;
           void triggerContentRevalidation({
             scope,
@@ -7151,7 +7245,7 @@ const [mounted, setMounted] = useState(false);
       p.slug !== ANNOUNCEMENT_SLUG &&
       p.favourited
   ).length;
-  const siteInfoWidget = posts.find(p => p.type === 'Widget' && !['gallery-ad', 'vending', 'announcement-popup', 'popup-ad', 'social-links'].includes(p.slug));
+  const siteInfoWidget = posts.find(p => p.type === 'Widget' && !['gallery-ad', 'vending', 'announcement-popup', 'popup-ad', 'click-ad', 'social-links'].includes(p.slug));
   const pinnedDividerIndex = activeTab === 'Post' ? filtered.findIndex(p => !p.pinned) : -1;
   const publishDatesSet = (() => {
     const s = new Set();
@@ -7697,6 +7791,16 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ color: '#a78bfa', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
               )}
+              {activeTab === 'Ads' && viewMode !== 'folder' && (
+                <div onClick={openClickAd} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #fb7185', cursor: 'pointer' }}>
+                  <div style={{ fontSize: '28px' }}>🖱️</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>遮罩广告</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页首次点击伴生跳转 · 每天一次</div>
+                  </div>
+                  <div style={{ color: '#fb7185', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                </div>
+              )}
               {activeTab === 'Widget' && viewMode !== 'folder' && (
                 <div onClick={openAnnouncementPopup} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #38bdf8', cursor: 'pointer' }}>
                   <div style={{ fontSize: '28px' }}>📣</div>
@@ -8144,6 +8248,68 @@ const [mounted, setMounted] = useState(false);
                   style={{width:'100%', padding:'18px', background: announcementPopupSaving ? '#333' : '#fff', color: announcementPopupSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: announcementPopupSaving ? 'wait' : 'pointer', marginTop:'32px'}}
                 >
                   {announcementPopupSaving ? '保存中…' : '保存公告弹窗'}
+                </button>
+              </>
+            )}
+          </div>
+        ) : view === 'click-ad' ? (
+          <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🖱️ 遮罩广告</div>
+              <div style={{fontSize:'12px', color:'#888'}}>仅首页 · 每天首次有效点击触发一次</div>
+            </div>
+
+            {clickAdLoading ? (
+              <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
+            ) : (
+              <>
+                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
+                  <div>
+                    <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告开关</div>
+                    <div style={{fontSize:'12px', color:'#999'}}>
+                      {clickAd.enabled ? '当前：已开启' : '当前：已关闭'} · 不拦截原点击；排除贩售机与弹窗
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={clickAdSaving}
+                    onClick={() => saveClickAd({ enabled: !clickAd.enabled })}
+                    style={{
+                      minWidth: '88px',
+                      padding: '12px 20px',
+                      border: 'none',
+                      borderRadius: '999px',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      cursor: clickAdSaving ? 'wait' : 'pointer',
+                      background: clickAd.enabled ? '#22c55e' : '#555',
+                      color: '#fff',
+                      opacity: clickAdSaving ? 0.6 : 1,
+                    }}
+                  >
+                    {clickAdSaving ? '保存中…' : (clickAd.enabled ? '已开启' : '已关闭')}
+                  </button>
+                </div>
+                <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
+                  <div>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>备注名 <span style={{color:'#777', fontWeight:'normal'}}>(可选)</span></label>
+                    <input className="glow-input" value={clickAd.title} onChange={e=>setClickAd({...clickAd, title: e.target.value})} placeholder="例如：首页遮罩推广" />
+                  </div>
+                  <div>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>广告链接 <span style={{color:'#ff4d4f'}}>*</span></label>
+                    <input className="glow-input" value={clickAd.url} onChange={e=>setClickAd({...clickAd, url: e.target.value})} placeholder="https://example.com" />
+                  </div>
+                  <div style={{fontSize:'12px', color:'#888', lineHeight:1.7, padding:'14px 16px', background:'#2f2f33', borderRadius:'10px'}}>
+                    访客在首页第一次有效点击时，原操作照常进行，同时新标签打开上方链接。同一浏览器每天最多触发一次；点击贩售机、公告/弹窗广告时不会触发。
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => saveClickAd()}
+                  disabled={clickAdSaving}
+                  style={{width:'100%', padding:'18px', background: clickAdSaving ? '#333' : '#fff', color: clickAdSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: clickAdSaving ? 'wait' : 'pointer', marginTop:'32px'}}
+                >
+                  {clickAdSaving ? '保存中…' : '保存遮罩广告'}
                 </button>
               </>
             )}

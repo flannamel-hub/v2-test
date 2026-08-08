@@ -154,6 +154,7 @@ export const StatsWidget = ({
             href={vendingUrl}
             target="_blank"
             rel="noopener noreferrer"
+            data-blog-vending="1"
             className="btn-3d-premium"
             onClick={() => setShowModal(false)}
           >
@@ -229,7 +230,8 @@ export const StatsWidget = ({
                   e.stopPropagation();
                   setShowModal(true);
                 }} 
-                type="button" 
+                type="button"
+                data-blog-vending="1"
                 className="w-full h-9 rounded-xl flex items-center justify-center gap-2
                   bg-white/10 backdrop-blur-md border border-white/10
                   text-xs font-bold text-white tracking-wide

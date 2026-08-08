@@ -36,6 +36,7 @@ const systemPageSlugs = new Set([
   'vending',
   'announcement-popup',
   'popup-ad',
+  'click-ad',
   'social-links',
 ])
 

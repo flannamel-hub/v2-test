@@ -41,6 +41,7 @@ export default function withNavFooter(
           <SitePopups
             announcementPopup={props.announcementPopup}
             popupAd={props.popupAd}
+            clickAd={props.clickAd}
             activeTheme={themeId}
           />
         </>
@@ -78,6 +79,7 @@ export default function withNavFooter(
         <SitePopups
           announcementPopup={props.announcementPopup}
           popupAd={props.popupAd}
+          clickAd={props.clickAd}
           activeTheme={themeId}
         />
       </main>
