@@ -264,8 +264,8 @@
 
 ### 公告弹窗与内页广告约定
 
-- `announcement-popup` 定位为**站务通知**，不是广告：前台无 CTA 跳转按钮，仅右上角关闭 +「知道了」；正文内 URL 自动链接触可保留。
-- 前台样式为通知风（「通知」徽章 + 左侧色条）；浅色：`gallery`、`tweet-light`、standard 的 `html:not(.dark)`；深色：`tweet`、`tweet-dark`、standard 的 `html.dark`。
+- `announcement-popup` 定位为**站务通知**，不是广告：前台无 CTA 跳转按钮，无「通知」类标签；布局为标题栏 + 正文/可选附图 + 底部全宽「知道了」；正文内 URL 自动链接触可保留。
+- 前台浅色：`gallery`、`tweet-light`、standard 的 `html:not(.dark)`；深色：`tweet`、`tweet-dark`、standard 的 `html.dark`。
 - 关闭后用 `sessionStorage` + 内容 hash，同会话同内容不再弹；内容变更后会再弹。
 - `gallery-ad` 在文章页全主题生效（`GalleryAdBanner` / `TweetAdBanner` / `StandardAdBanner`）；下载页广告目前仅 Gallery。
 

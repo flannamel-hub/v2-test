@@ -98,69 +98,75 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
     }
   }
   const themeClass = resolveThemeClass(activeTheme)
+  const title = (config.title || '').trim()
+  const content = (config.content || '').trim()
+  const image = (config.image || '').trim()
 
   return (
     <div
       className={`announcement-popup ${themeClass}`}
       role="dialog"
       aria-modal="true"
+      aria-labelledby={title ? 'announcement-popup-title' : undefined}
     >
       <div className="announcement-popup__backdrop" onClick={close} />
-      <section
-        className="announcement-popup__panel"
-        aria-label={config.title || '站务通知'}
-      >
-        <button
-          className="announcement-popup__close"
-          type="button"
-          aria-label="关闭通知"
-          onClick={close}
-        >
-          &times;
-        </button>
-        <div className="announcement-popup__accent" aria-hidden="true" />
+      <section className="announcement-popup__panel">
+        <header className="announcement-popup__header">
+          {title ? (
+            <h2 id="announcement-popup-title" className="announcement-popup__title">
+              {title}
+            </h2>
+          ) : (
+            <span className="announcement-popup__title-spacer" aria-hidden="true" />
+          )}
+          <button
+            className="announcement-popup__close"
+            type="button"
+            aria-label="关闭"
+            onClick={close}
+          >
+            &times;
+          </button>
+        </header>
+
         <div className="announcement-popup__body">
-          <div className="announcement-popup__badge">通知</div>
-          {config.title ? (
-            <h2 className="announcement-popup__title">{config.title}</h2>
-          ) : null}
-          {config.content ? (
+          {content ? (
             <div className="announcement-popup__content">
-              {renderLinkedText(config.content)}
+              {renderLinkedText(content)}
             </div>
           ) : null}
-          {config.image ? (
+          {image ? (
             <div className="announcement-popup__media">
-              <img src={config.image} alt="" />
+              <img src={image} alt="" />
             </div>
           ) : null}
-          <div className="announcement-popup__actions">
-            <button
-              className="announcement-popup__ack"
-              type="button"
-              onClick={close}
-            >
-              知道了
-            </button>
-          </div>
         </div>
+
+        <footer className="announcement-popup__footer">
+          <button
+            className="announcement-popup__ack"
+            type="button"
+            onClick={close}
+          >
+            知道了
+          </button>
+        </footer>
       </section>
       <style jsx global>{`
         .announcement-popup {
           --ap-bg: #ffffff;
-          --ap-surface: #f8fafc;
-          --ap-text: #0f172a;
-          --ap-muted: #475569;
-          --ap-border: rgba(15, 23, 42, 0.1);
-          --ap-backdrop: rgba(15, 23, 42, 0.4);
-          --ap-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
-          --ap-accent: #2563eb;
-          --ap-link: #2563eb;
-          --ap-badge-bg: rgba(37, 99, 235, 0.1);
-          --ap-badge-text: #1d4ed8;
-          --ap-ack-bg: transparent;
-          --ap-ack-border: rgba(15, 23, 42, 0.16);
-          --ap-ack-text: #0f172a;
+          --ap-surface: #f3f4f6;
+          --ap-text: #111827;
+          --ap-muted: #4b5563;
+          --ap-border: rgba(17, 24, 39, 0.1);
+          --ap-divider: rgba(17, 24, 39, 0.08);
+          --ap-backdrop: rgba(17, 24, 39, 0.45);
+          --ap-shadow: 0 18px 48px rgba(17, 24, 39, 0.16);
+          --ap-link: #1d4ed8;
+          --ap-ack-bg: #111827;
+          --ap-ack-text: #ffffff;
+          --ap-ack-hover: #030712;
+          --ap-close-hover: rgba(17, 24, 39, 0.06);
           position: fixed;
           inset: 0;
           z-index: 2147483000;
@@ -170,110 +176,100 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
           padding: 20px;
           pointer-events: none;
         }
-        /* standard 默认按深色壳层，再用 html:not(.dark) 覆盖为浅色 */
         html.dark .announcement-popup,
         .announcement-popup--standard {
-          --ap-bg: #141820;
-          --ap-surface: #1c222d;
-          --ap-text: #f1f5f9;
-          --ap-muted: #94a3b8;
-          --ap-border: rgba(148, 163, 184, 0.18);
-          --ap-backdrop: rgba(2, 6, 23, 0.64);
-          --ap-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
-          --ap-accent: #60a5fa;
-          --ap-link: #93c5fd;
-          --ap-badge-bg: rgba(96, 165, 250, 0.14);
-          --ap-badge-text: #93c5fd;
-          --ap-ack-bg: transparent;
-          --ap-ack-border: rgba(148, 163, 184, 0.28);
-          --ap-ack-text: #f1f5f9;
+          --ap-bg: #161b22;
+          --ap-surface: #21262d;
+          --ap-text: #e6edf3;
+          --ap-muted: #9da7b3;
+          --ap-border: rgba(240, 246, 252, 0.12);
+          --ap-divider: rgba(240, 246, 252, 0.08);
+          --ap-backdrop: rgba(1, 4, 9, 0.68);
+          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.55);
+          --ap-link: #79c0ff;
+          --ap-ack-bg: #e6edf3;
+          --ap-ack-text: #0d1117;
+          --ap-ack-hover: #ffffff;
+          --ap-close-hover: rgba(240, 246, 252, 0.08);
         }
         html:not(.dark) .announcement-popup--standard {
           --ap-bg: #ffffff;
-          --ap-surface: #f8fafc;
-          --ap-text: #0f172a;
-          --ap-muted: #475569;
-          --ap-border: rgba(15, 23, 42, 0.1);
-          --ap-backdrop: rgba(15, 23, 42, 0.4);
-          --ap-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
-          --ap-accent: #2563eb;
-          --ap-link: #2563eb;
-          --ap-badge-bg: rgba(37, 99, 235, 0.1);
-          --ap-badge-text: #1d4ed8;
-          --ap-ack-bg: transparent;
-          --ap-ack-border: rgba(15, 23, 42, 0.16);
-          --ap-ack-text: #0f172a;
-        }
-        /* Gallery：浅色通知风 */
-        html.gallery-theme .announcement-popup,
-        .announcement-popup--gallery {
-          --ap-bg: #ffffff;
-          --ap-surface: #f4f6f8;
+          --ap-surface: #f3f4f6;
           --ap-text: #111827;
           --ap-muted: #4b5563;
           --ap-border: rgba(17, 24, 39, 0.1);
-          --ap-backdrop: rgba(15, 23, 42, 0.38);
-          --ap-shadow: 0 24px 64px rgba(15, 23, 42, 0.16);
-          --ap-accent: #65a30d;
-          --ap-link: #3f6212;
-          --ap-badge-bg: rgba(101, 163, 13, 0.12);
-          --ap-badge-text: #3f6212;
-          --ap-ack-bg: transparent;
-          --ap-ack-border: rgba(17, 24, 39, 0.14);
-          --ap-ack-text: #111827;
+          --ap-divider: rgba(17, 24, 39, 0.08);
+          --ap-backdrop: rgba(17, 24, 39, 0.45);
+          --ap-shadow: 0 18px 48px rgba(17, 24, 39, 0.16);
+          --ap-link: #1d4ed8;
+          --ap-ack-bg: #111827;
+          --ap-ack-text: #ffffff;
+          --ap-ack-hover: #030712;
+          --ap-close-hover: rgba(17, 24, 39, 0.06);
         }
-        /* Tweet 默认 / tweet-dark：深色 */
+        html.gallery-theme .announcement-popup,
+        .announcement-popup--gallery {
+          --ap-bg: #ffffff;
+          --ap-surface: #f5f5f5;
+          --ap-text: #171717;
+          --ap-muted: #525252;
+          --ap-border: rgba(23, 23, 23, 0.1);
+          --ap-divider: rgba(23, 23, 23, 0.08);
+          --ap-backdrop: rgba(23, 23, 23, 0.42);
+          --ap-shadow: 0 18px 48px rgba(23, 23, 23, 0.14);
+          --ap-link: #404040;
+          --ap-ack-bg: #171717;
+          --ap-ack-text: #ffffff;
+          --ap-ack-hover: #000000;
+          --ap-close-hover: rgba(23, 23, 23, 0.06);
+        }
         html.tweet-theme .announcement-popup,
         .announcement-popup--tweet {
           --ap-bg: #202327;
           --ap-surface: #2a2e34;
-          --ap-text: #f5f7fb;
-          --ap-muted: #a8b3c2;
+          --ap-text: #e7e9ea;
+          --ap-muted: #8b98a5;
           --ap-border: rgba(255, 255, 255, 0.12);
-          --ap-backdrop: rgba(0, 0, 0, 0.58);
-          --ap-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
-          --ap-accent: #1d9bf0;
-          --ap-link: #66c2ff;
-          --ap-badge-bg: rgba(29, 155, 240, 0.16);
-          --ap-badge-text: #8fd0ff;
-          --ap-ack-bg: transparent;
-          --ap-ack-border: rgba(255, 255, 255, 0.2);
-          --ap-ack-text: #f5f7fb;
+          --ap-divider: rgba(255, 255, 255, 0.08);
+          --ap-backdrop: rgba(0, 0, 0, 0.62);
+          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.5);
+          --ap-link: #1d9bf0;
+          --ap-ack-bg: #e7e9ea;
+          --ap-ack-text: #0f1419;
+          --ap-ack-hover: #ffffff;
+          --ap-close-hover: rgba(255, 255, 255, 0.08);
         }
-        /* tweet-light：浅色 */
         html.tweet-theme.tweet-theme--light .announcement-popup,
         .announcement-popup--tweet-light {
           --ap-bg: #ffffff;
-          --ap-surface: #f7f9fa;
+          --ap-surface: #f7f9f9;
           --ap-text: #0f1419;
           --ap-muted: #536471;
           --ap-border: rgba(15, 20, 25, 0.12);
-          --ap-backdrop: rgba(15, 23, 42, 0.34);
-          --ap-shadow: 0 24px 64px rgba(15, 23, 42, 0.14);
-          --ap-accent: #1d9bf0;
-          --ap-link: #0f7ec8;
-          --ap-badge-bg: rgba(29, 155, 240, 0.1);
-          --ap-badge-text: #0f7ec8;
-          --ap-ack-bg: transparent;
-          --ap-ack-border: rgba(15, 20, 25, 0.16);
-          --ap-ack-text: #0f1419;
+          --ap-divider: rgba(15, 20, 25, 0.08);
+          --ap-backdrop: rgba(15, 20, 25, 0.36);
+          --ap-shadow: 0 18px 48px rgba(15, 20, 25, 0.12);
+          --ap-link: #1d9bf0;
+          --ap-ack-bg: #0f1419;
+          --ap-ack-text: #ffffff;
+          --ap-ack-hover: #000000;
+          --ap-close-hover: rgba(15, 20, 25, 0.06);
         }
         html.tweet-theme.tweet-theme--dark .announcement-popup,
         .announcement-popup--tweet-dark {
           --ap-bg: #000000;
           --ap-surface: #16181c;
           --ap-text: #e7e9ea;
-          --ap-muted: #8b98a5;
+          --ap-muted: #71767b;
           --ap-border: rgba(255, 255, 255, 0.14);
+          --ap-divider: rgba(255, 255, 255, 0.1);
           --ap-backdrop: rgba(0, 0, 0, 0.72);
-          --ap-shadow: 0 28px 80px rgba(0, 0, 0, 0.6);
-          --ap-accent: #1d9bf0;
-          --ap-link: #66c2ff;
-          --ap-badge-bg: rgba(29, 155, 240, 0.16);
-          --ap-badge-text: #8fd0ff;
-          --ap-ack-bg: transparent;
-          --ap-ack-border: rgba(255, 255, 255, 0.22);
-          --ap-ack-text: #e7e9ea;
+          --ap-shadow: 0 22px 56px rgba(0, 0, 0, 0.65);
+          --ap-link: #1d9bf0;
+          --ap-ack-bg: #eff3f4;
+          --ap-ack-text: #0f1419;
+          --ap-ack-hover: #ffffff;
+          --ap-close-hover: rgba(255, 255, 255, 0.08);
         }
         .announcement-popup__backdrop {
           position: absolute;
@@ -283,103 +279,95 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
         }
         .announcement-popup__panel {
           position: relative;
-          display: flex;
-          width: min(440px, 100%);
+          width: min(420px, 100%);
           max-height: min(720px, calc(100vh - 40px));
+          display: flex;
+          flex-direction: column;
           overflow: hidden;
           border: 1px solid var(--ap-border);
-          border-radius: 14px;
+          border-radius: 12px;
           background: var(--ap-bg);
           color: var(--ap-text);
           box-shadow: var(--ap-shadow);
           pointer-events: auto;
-          animation: announcement-popup-rise 180ms ease-out;
+          animation: announcement-popup-rise 160ms ease-out;
         }
-        .announcement-popup__accent {
-          width: 4px;
-          flex-shrink: 0;
-          background: var(--ap-accent);
+        .announcement-popup__header {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          padding: 20px 18px 14px 22px;
+          border-bottom: 1px solid var(--ap-divider);
+        }
+        .announcement-popup__title {
+          flex: 1;
+          min-width: 0;
+          margin: 0;
+          padding-top: 2px;
+          color: var(--ap-text);
+          font-size: 18px;
+          line-height: 1.4;
+          font-weight: 650;
+          letter-spacing: -0.01em;
+        }
+        .announcement-popup__title-spacer {
+          flex: 1;
+          min-height: 28px;
         }
         .announcement-popup__close {
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          z-index: 2;
+          flex-shrink: 0;
           width: 32px;
           height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
+          margin: -2px -2px 0 0;
           padding: 0;
-          border: 1px solid var(--ap-border);
+          border: none;
           border-radius: 8px;
-          background: var(--ap-surface);
+          background: transparent;
           color: var(--ap-muted);
-          font-size: 22px;
+          font-size: 24px;
           line-height: 1;
           font-family: Arial, Helvetica, sans-serif;
           cursor: pointer;
-          transition:
-            background 160ms ease,
-            border-color 160ms ease,
-            color 160ms ease;
+          transition: background 140ms ease, color 140ms ease;
         }
         .announcement-popup__close:hover {
-          border-color: var(--ap-accent);
+          background: var(--ap-close-hover);
           color: var(--ap-text);
         }
         .announcement-popup__body {
           flex: 1;
-          min-width: 0;
-          padding: 22px 44px 20px 20px;
-        }
-        .announcement-popup__badge {
-          display: inline-flex;
-          align-items: center;
-          margin: 0 0 12px;
-          padding: 3px 9px;
-          border-radius: 6px;
-          background: var(--ap-badge-bg);
-          color: var(--ap-badge-text);
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.06em;
-          line-height: 1.4;
-        }
-        .announcement-popup__title {
-          margin: 0;
-          color: var(--ap-text);
-          font-size: 20px;
-          line-height: 1.35;
-          font-weight: 700;
+          min-height: 0;
+          overflow: auto;
+          padding: 18px 22px 8px;
         }
         .announcement-popup__content {
-          margin: 10px 0 0;
+          margin: 0;
           color: var(--ap-muted);
           font-size: 14px;
-          line-height: 1.7;
+          line-height: 1.75;
           white-space: pre-wrap;
         }
         .announcement-popup__media {
           width: 100%;
           margin: 16px 0 0;
-          max-height: 160px;
           border: 1px solid var(--ap-border);
-          border-radius: 10px;
+          border-radius: 8px;
           overflow: hidden;
           background: var(--ap-surface);
         }
         .announcement-popup__media img {
-          width: 100%;
-          height: 100%;
-          max-height: 160px;
-          object-fit: cover;
           display: block;
+          width: 100%;
+          max-height: 180px;
+          object-fit: cover;
         }
-        .announcement-popup__actions {
+        .announcement-popup__footer {
           display: flex;
-          justify-content: flex-end;
-          margin-top: 18px;
+          justify-content: stretch;
+          padding: 16px 22px 20px;
         }
         .announcement-popup .announcement-popup__text-link {
           color: var(--ap-link);
@@ -389,34 +377,35 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
           text-underline-offset: 3px;
         }
         .announcement-popup .announcement-popup__text-link:hover {
-          opacity: 0.82;
+          opacity: 0.85;
         }
         .announcement-popup .announcement-popup__ack {
-          min-height: 36px;
+          width: 100%;
+          min-height: 42px;
           padding: 0 16px;
-          border: 1px solid var(--ap-ack-border);
+          border: none;
           border-radius: 8px;
           background: var(--ap-ack-bg);
           color: var(--ap-ack-text);
-          font-size: 13px;
-          font-weight: 600;
+          font-size: 14px;
+          font-weight: 650;
           cursor: pointer;
-          transition:
-            background 160ms ease,
-            border-color 160ms ease;
+          transition: background 140ms ease, opacity 140ms ease;
         }
         .announcement-popup .announcement-popup__ack:hover {
-          border-color: var(--ap-accent);
-          background: var(--ap-surface);
+          background: var(--ap-ack-hover);
+        }
+        .announcement-popup .announcement-popup__ack:active {
+          opacity: 0.88;
         }
         @keyframes announcement-popup-rise {
           from {
             opacity: 0;
-            transform: translateY(10px) scale(0.985);
+            transform: translateY(8px);
           }
           to {
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translateY(0);
           }
         }
         @media (max-width: 520px) {
@@ -425,13 +414,20 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
             padding: 12px;
           }
           .announcement-popup__panel {
-            border-radius: 12px;
+            width: 100%;
+            border-radius: 14px 14px 10px 10px;
+          }
+          .announcement-popup__header {
+            padding: 18px 14px 12px 18px;
           }
           .announcement-popup__body {
-            padding: 18px 40px 16px 16px;
+            padding: 16px 18px 6px;
+          }
+          .announcement-popup__footer {
+            padding: 14px 18px 18px;
           }
           .announcement-popup__title {
-            font-size: 18px;
+            font-size: 17px;
           }
         }
       `}</style>
