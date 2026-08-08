@@ -139,23 +139,23 @@
 | `gallery-ad` | 内页广告位 | `status` Published=开 / Hidden=关；全主题文章内页底部横幅；Gallery 下载页也会显示 |
 | `vending` | 贩售机入口 | `title`=按钮文字，`excerpt`=URL，`Published`=开 / `Hidden`=关 |
 | `announcement-popup` | 公告弹窗（通知） | `title`/`excerpt`/`cover`；**无跳转按钮**；旧 `button_text`/`button_url` 保存时清空，字段不存在则忽略 |
+| `popup-ad` | 弹窗广告 | `title`/`excerpt`/`cover`/`button_text`/`button_url`；`Published`=开；**仅首页**；`sessionStorage` 每会话一次；与公告同时开时先公告后广告 |
 | `social-links` | 社交媒体 | 父级 `status` 控制开关；内嵌 SocialLinks 子数据库 |
 
 预留未实现（仍用 Notion 系统 Widget，勿当已上线）：
 
 | slug | 规划 | 产品规则 |
 |------|------|----------|
-| `popup-ad` | 弹窗广告（P1） | 首页进入触发；`sessionStorage` 每浏览器会话一次；与公告同时开时先公告后广告 |
 | `click-ad` | 遮罩广告（P2） | 仅首页；`localStorage` 每天一次；排除贩售机；原点击仍有效 + 新标签打开广告链接 |
 
 `[page].tsx` 会过滤：
 
 - `CONFIG.DEFAULT_SPECIAL_PAGES` 全部值：`tag`、`category`、`archive`、`friends`、`about`、`download`
-- 以及：`theme-config`、`gallery-ad`、`vending`、`announcement-popup`、`social-links`
+- 以及：`theme-config`、`gallery-ad`、`vending`、`announcement-popup`、`popup-ad`、`social-links`
 
 新建文章保留 slug（`RESERVED_POST_SLUGS`）：
 
-- `announcement`、`about`、`download`、`theme-config`、`gallery-ad`、`vending`、`announcement-popup`、`social-links`
+- `announcement`、`about`、`download`、`theme-config`、`gallery-ad`、`vending`、`announcement-popup`、`popup-ad`、`social-links`
 
 注意：后台 `AdminDashboard.js` 内 `SPECIAL_PAGE_SLUGS` 列表更短（主要用于列表分类），与上述两处不完全一致；改 slug 保留规则时建议三处一起核对。
 
@@ -259,16 +259,18 @@
 
 - 后台列表 Tab 顺序：`已发布` / `已收藏` / `组件` / `广告位` / `自定义页面`（内部代号含 `Ads`）。
 - **组件**：友链、社媒、贩售机、**公告弹窗**、网站信息（硬编码卡片；Notion 普通 Widget 行不列出）。
-- **广告位**：当前仅 **内页广告位**（`gallery-ad`）；后续 P1 `popup-ad`、P2 `click-ad` 也放此 Tab。
+- **广告位**：**内页广告位**（`gallery-ad`）、**弹窗广告**（`popup-ad`）；后续 P2 `click-ad` 也放此 Tab。
 - `Widget` 与 `Ads` 的 `getFilteredPosts` 均清空 Notion 行，只渲染硬编码入口。
 
-### 公告弹窗与内页广告约定
+### 公告弹窗与广告位约定
 
 - `announcement-popup` 定位为**站务通知**，不是广告：前台无 CTA 跳转按钮，无「通知」类标签；布局为标题栏 + 正文/可选附图 + 底部全宽「知道了」；正文内 URL 自动链接触可保留。
 - 前台浅色：`gallery`、`tweet-light`、standard 的 `html:not(.dark)`；深色：`tweet`、`tweet-dark`、standard 的 `html.dark`。
 - 关闭后用 `sessionStorage` + 内容 hash，同会话同内容不再弹；内容变更后会再弹。
 - `gallery-ad` 后台有开启/关闭开关（Notion `status`）；关闭后前台不渲染。文章页全主题生效（`GalleryAdBanner` / `TweetAdBanner` / `StandardAdBanner`）；下载页广告目前仅 Gallery。
+- `popup-ad` 为营销弹窗：主图 + 标题 + 文案 + CTA；**仅首页**进入时弹出；`sessionStorage` 键 `popup-ad:session-shown` 每浏览器会话一次；与公告同时开启时由 `SitePopups` 先公告、关闭后再弹广告。
 - 公告弹窗深色适配：standard / tweet-dark 为纯黑面板；tweet（灰色）为灰阶深色；浅色主题（gallery / tweet-light / standard light）保持白底。
+- 前台挂载：`withNavFooter` → `SitePopups`（公告 + 弹窗广告）。
 
 ### 后台核心 API
 
@@ -285,6 +287,7 @@
 | `POST /api/admin/friends/hide` | 按 URL 隐藏（优先 `status=Hidden`） |
 | `GET/POST /api/admin/vending` | 贩售机配置 |
 | `GET/POST /api/admin/announcement-popup` | 公告通知弹窗配置（无跳转按钮；保存清空旧 button 字段） |
+| `GET/POST /api/admin/popup-ad` | 首页弹窗广告配置（CTA 必填链接；会话一次） |
 | `GET/POST /api/admin/social-links` | 社媒组件配置 |
 | `GET /api/admin/theme-cooldown` | 主题切换配额状态（命名历史遗留） |
 | `POST /api/admin/revalidate` | ISR 刷新；支持即时刷新与 `action: drain` 消费队列 |

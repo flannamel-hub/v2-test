@@ -91,6 +91,7 @@ function resolveSaveRevalidateScope(type, slug) {
     if (slug === 'gallery-ad') return 'gallery-ad';
     if (slug === 'vending') return 'vending';
     if (slug === 'announcement-popup') return 'announcement-popup';
+    if (slug === 'popup-ad') return 'popup-ad';
     if (slug === 'social-links') return 'social-links';
     return 'widget';
   }
@@ -4205,6 +4206,17 @@ const [mounted, setMounted] = useState(false);
   });
   const [announcementPopupLoading, setAnnouncementPopupLoading] = useState(false);
   const [announcementPopupSaving, setAnnouncementPopupSaving] = useState(false);
+  const [popupAd, setPopupAd] = useState({
+    id: null,
+    enabled: false,
+    title: '',
+    content: '',
+    image: '',
+    buttonText: '',
+    buttonUrl: '',
+  });
+  const [popupAdLoading, setPopupAdLoading] = useState(false);
+  const [popupAdSaving, setPopupAdSaving] = useState(false);
   const [friendDraft, setFriendDraft] = useState({ name: '', url: '', avatar: '' });
   const [friendDraftUploading, setFriendDraftUploading] = useState(false);
   const [friendBtnStatus, setFriendBtnStatus] = useState({}); // { [id|'draft']: 'saving' | 'done' }
@@ -5376,6 +5388,117 @@ const [mounted, setMounted] = useState(false);
     loadAnnouncementPopup();
   };
 
+  const loadPopupAd = async () => {
+    setPopupAdLoading(true);
+    try {
+      const r = await fetch('/api/admin/popup-ad');
+      const d = await r.json();
+      if (d.success) {
+        setPopupAd({
+          id: d.popupAd?.id || null,
+          enabled: d.popupAd?.enabled === true,
+          title: d.popupAd?.title || '',
+          content: d.popupAd?.content || '',
+          image: d.popupAd?.image || '',
+          buttonText: d.popupAd?.buttonText || '',
+          buttonUrl: d.popupAd?.buttonUrl || '',
+        });
+      } else {
+        alert('加载弹窗广告失败：' + (d.error || '未知错误'));
+      }
+    } catch (e) {
+      alert('加载弹窗广告失败：' + e.message);
+    } finally {
+      setPopupAdLoading(false);
+    }
+  };
+
+  const openPopupAd = () => {
+    setView('popup-ad');
+    loadPopupAd();
+  };
+
+  const savePopupAd = async (patch = {}) => {
+    const next = {
+      ...popupAd,
+      ...patch,
+      title: (patch.title ?? popupAd.title ?? '').trim(),
+      content: (patch.content ?? popupAd.content ?? '').trim(),
+      image: (patch.image ?? popupAd.image ?? '').trim(),
+      buttonText: (patch.buttonText ?? popupAd.buttonText ?? '').trim(),
+      buttonUrl: (patch.buttonUrl ?? popupAd.buttonUrl ?? '').trim(),
+      enabled: typeof patch.enabled === 'boolean' ? patch.enabled : popupAd.enabled === true,
+    };
+    if (next.buttonUrl && !/^https?:\/\//i.test(next.buttonUrl) && !next.buttonUrl.startsWith('/')) {
+      alert('跳转链接请填写 http(s) 开头的网址，或 / 开头的站内路径');
+      return;
+    }
+    if (next.enabled && !next.buttonUrl) {
+      alert('开启弹窗广告前请填写跳转链接');
+      return;
+    }
+    if (next.image && !/^https?:\/\//i.test(next.image)) {
+      alert('图片地址请填写 http(s) 开头的直链');
+      return;
+    }
+    setPopupAdSaving(true);
+    try {
+      const r = await fetch('/api/admin/popup-ad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      const d = await r.json();
+      if (!d.success) {
+        alert('保存弹窗广告失败：' + (d.error || '未知错误'));
+        return;
+      }
+      const saved = d.popupAd || next;
+      setPopupAd({
+        id: saved.id || null,
+        enabled: saved.enabled === true,
+        title: saved.title || '',
+        content: saved.content || '',
+        image: saved.image || '',
+        buttonText: saved.buttonText || '',
+        buttonUrl: saved.buttonUrl || '',
+      });
+      showAdminToast(saved.enabled ? '弹窗广告已保存，正在更新前台…' : '弹窗广告已关闭，正在更新前台…');
+      void runBatchedRevalidation({
+        listScope: 'popup-ad',
+        freshTheme: true,
+        contentChange: true,
+        progressLabels: {
+          listing: '正在统计弹窗广告页面…',
+          running: '正在更新弹窗广告…',
+          doneOk: '弹窗广告已同步到前台页面',
+          donePartial: '部分页面会稍后自动更新',
+          hintPartial: '个别页面未能更新，可重新保存弹窗广告',
+          hintOk: '弹窗广告相关页面已更新',
+        },
+      }).then((rev) => {
+        if (rev.failed > 0) showAdminToast(`部分页面更新失败（${rev.failed}/${rev.total}）`);
+      }).catch((e) => console.warn('弹窗广告增量刷新失败', e));
+    } catch (e) {
+      alert('保存弹窗广告失败：' + e.message);
+    } finally {
+      setPopupAdSaving(false);
+    }
+  };
+
+  const uploadPopupAdImage = async (file) => {
+    if (!file) return;
+    setPopupAdSaving(true);
+    try {
+      const url = await uploadAvatarFile(file);
+      setPopupAd((prev) => ({ ...prev, image: url }));
+    } catch (e) {
+      alert('上传失败：' + e.message);
+    } finally {
+      setPopupAdSaving(false);
+    }
+  };
+
   const saveAnnouncementPopup = async (patch = {}) => {
     const next = {
       ...announcementPopup,
@@ -5961,7 +6084,7 @@ const [mounted, setMounted] = useState(false);
             queuePriority: 10,
           });
           showRevalidateFeedback(rev, showAdminToast);
-        } else if (saveScope === 'gallery-ad' || saveScope === 'vending' || saveScope === 'announcement-popup' || saveScope === 'social-links') {
+        } else if (saveScope === 'gallery-ad' || saveScope === 'vending' || saveScope === 'announcement-popup' || saveScope === 'popup-ad' || saveScope === 'social-links') {
           const scope = saveScope;
           void triggerContentRevalidation({
             scope,
@@ -7028,7 +7151,7 @@ const [mounted, setMounted] = useState(false);
       p.slug !== ANNOUNCEMENT_SLUG &&
       p.favourited
   ).length;
-  const siteInfoWidget = posts.find(p => p.type === 'Widget' && !['gallery-ad', 'vending', 'announcement-popup', 'social-links'].includes(p.slug));
+  const siteInfoWidget = posts.find(p => p.type === 'Widget' && !['gallery-ad', 'vending', 'announcement-popup', 'popup-ad', 'social-links'].includes(p.slug));
   const pinnedDividerIndex = activeTab === 'Post' ? filtered.findIndex(p => !p.pinned) : -1;
   const publishDatesSet = (() => {
     const s = new Set();
@@ -7564,6 +7687,16 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ color: '#f59e0b', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
               )}
+              {activeTab === 'Ads' && viewMode !== 'folder' && (
+                <div onClick={openPopupAd} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #a78bfa', cursor: 'pointer' }}>
+                  <div style={{ fontSize: '28px' }}>🪟</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>弹窗广告</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页进入弹出 · 每会话一次</div>
+                  </div>
+                  <div style={{ color: '#a78bfa', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                </div>
+              )}
               {activeTab === 'Widget' && viewMode !== 'folder' && (
                 <div onClick={openAnnouncementPopup} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #38bdf8', cursor: 'pointer' }}>
                   <div style={{ fontSize: '28px' }}>📣</div>
@@ -8011,6 +8144,93 @@ const [mounted, setMounted] = useState(false);
                   style={{width:'100%', padding:'18px', background: announcementPopupSaving ? '#333' : '#fff', color: announcementPopupSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: announcementPopupSaving ? 'wait' : 'pointer', marginTop:'32px'}}
                 >
                   {announcementPopupSaving ? '保存中…' : '保存公告弹窗'}
+                </button>
+              </>
+            )}
+          </div>
+        ) : view === 'popup-ad' ? (
+          <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🪟 弹窗广告</div>
+              <div style={{fontSize:'12px', color:'#888'}}>仅首页 · 每个浏览器会话弹一次</div>
+            </div>
+
+            {popupAdLoading ? (
+              <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
+            ) : (
+              <>
+                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
+                  <div>
+                    <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告开关</div>
+                    <div style={{fontSize:'12px', color:'#999'}}>
+                      {popupAd.enabled ? '当前：已开启' : '当前：已关闭'} · 与公告同时开启时先公告后广告
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={popupAdSaving}
+                    onClick={() => savePopupAd({ enabled: !popupAd.enabled })}
+                    style={{
+                      minWidth: '88px',
+                      padding: '12px 20px',
+                      border: 'none',
+                      borderRadius: '999px',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      cursor: popupAdSaving ? 'wait' : 'pointer',
+                      background: popupAd.enabled ? '#22c55e' : '#555',
+                      color: '#fff',
+                      opacity: popupAdSaving ? 0.6 : 1,
+                    }}
+                  >
+                    {popupAdSaving ? '保存中…' : (popupAd.enabled ? '已开启' : '已关闭')}
+                  </button>
+                </div>
+                <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
+                  <div>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'8px'}}>主图 <span style={{color:'#777', fontWeight:'normal'}}>(建议)</span></label>
+                    <label className="img-drop" style={{width:'280px', height:'158px', minHeight:'158px', padding:0, borderRadius:'12px', overflow:'hidden', border:'1px dashed #555'}}
+                      onDragOver={e=>{e.preventDefault(); e.stopPropagation();}}
+                      onDrop={e=>{e.preventDefault(); e.stopPropagation(); uploadPopupAdImage(e.dataTransfer.files[0]);}}>
+                      <input type="file" accept="image/*" style={{display:'none'}} onChange={e=>{ uploadPopupAdImage(e.target.files[0]); e.target.value=''; }} />
+                      {popupAdSaving
+                        ? <div className="img-uploading"><div className="img-spin"></div></div>
+                        : popupAd.image
+                          ? <img src={popupAd.image} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="" />
+                          : <div style={{pointerEvents:'none', fontSize:'12px', textAlign:'center', color:'#999', padding:'40px 12px'}}>拖拽 / 点击上传广告主图<br/><span style={{color:'#666'}}>建议 16:9</span></div>}
+                    </label>
+                    {popupAd.image ? (
+                      <button type="button" onClick={()=>setPopupAd(prev=>({...prev, image:''}))} style={{marginTop:'8px', fontSize:'11px', color:'#ff7875', background:'none', border:'none', cursor:'pointer', padding:0}}>移除图片</button>
+                    ) : null}
+                  </div>
+                  <div style={{flex:1, minWidth:'280px', display:'flex', flexDirection:'column', gap:'16px'}}>
+                    <div>
+                      <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>广告标题</label>
+                      <input className="glow-input" value={popupAd.title} onChange={e=>setPopupAd({...popupAd, title: e.target.value})} placeholder="例如：限时活动" />
+                    </div>
+                    <div>
+                      <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>广告文案</label>
+                      <textarea className="glow-input" value={popupAd.content} onChange={e=>setPopupAd({...popupAd, content: e.target.value})} placeholder="一行卖点说明" style={{minHeight:'90px', lineHeight:1.7}} />
+                    </div>
+                    <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'12px'}}>
+                      <div>
+                        <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>按钮文字</label>
+                        <input className="glow-input" value={popupAd.buttonText} onChange={e=>setPopupAd({...popupAd, buttonText: e.target.value})} placeholder="了解详情" />
+                      </div>
+                      <div>
+                        <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>跳转链接 <span style={{color:'#ff4d4f'}}>*</span></label>
+                        <input className="glow-input" value={popupAd.buttonUrl} onChange={e=>setPopupAd({...popupAd, buttonUrl: e.target.value})} placeholder="https://example.com" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => savePopupAd()}
+                  disabled={popupAdSaving}
+                  style={{width:'100%', padding:'18px', background: popupAdSaving ? '#333' : '#fff', color: popupAdSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: popupAdSaving ? 'wait' : 'pointer', marginTop:'32px'}}
+                >
+                  {popupAdSaving ? '保存中…' : '保存弹窗广告'}
                 </button>
               </>
             )}

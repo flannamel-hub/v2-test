@@ -5,6 +5,8 @@ import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
 type Props = {
   config?: AnnouncementPopupConfig | null
   activeTheme?: string
+  /** 公告不展示、或用户关闭后回调，供弹窗广告排队 */
+  onSettled?: () => void
 }
 
 function buildPopupKey(config: AnnouncementPopupConfig) {
@@ -61,7 +63,7 @@ function renderLinkedText(text: string) {
   return nodes
 }
 
-export function AnnouncementPopup({ config, activeTheme }: Props) {
+export function AnnouncementPopup({ config, activeTheme, onSettled }: Props) {
   const hasContent = Boolean(
     config?.enabled &&
       ((config.title || '').trim() ||
@@ -77,15 +79,18 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
   useEffect(() => {
     if (!config || !hasContent || !popupKey) {
       setVisible(false)
+      onSettled?.()
       return
     }
     try {
       const storageKey = `announcement-popup:${popupKey}`
-      setVisible(sessionStorage.getItem(storageKey) !== 'closed')
+      const closed = sessionStorage.getItem(storageKey) === 'closed'
+      setVisible(!closed)
+      if (closed) onSettled?.()
     } catch {
       setVisible(true)
     }
-  }, [config, hasContent, popupKey])
+  }, [config, hasContent, popupKey, onSettled])
 
   if (!config || !hasContent || !visible) return null
 
@@ -96,6 +101,7 @@ export function AnnouncementPopup({ config, activeTheme }: Props) {
     } catch {
       // Ignore storage failures in private browsing modes.
     }
+    onSettled?.()
   }
   const themeClass = resolveThemeClass(activeTheme)
   const title = (config.title || '').trim()

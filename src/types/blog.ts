@@ -8,6 +8,7 @@ import React, { ReactElement, ReactNode } from 'react'
 import { IconType } from 'react-icons/lib'
 import type { VendingConfig } from '@/src/lib/blog/vendingDefaults'
 import type { AnnouncementPopupConfig } from '@/src/lib/blog/announcementPopupDefaults'
+import type { PopupAdConfig } from '@/src/lib/blog/popupAdDefaults'
 import type { SocialLinksWidgetType } from '@/src/lib/blog/format/widget/socialLinks'
 import { ApiColor, BlockResponse } from './notion'
 
@@ -156,6 +157,8 @@ export type SharedNavFooterStaticProps = {
     /** 兼容旧主题组件的贩售机开关 */
     vendingEnabled?: boolean
     announcementPopup?: AnnouncementPopupConfig | null
+    /** 首页弹窗广告（Notion Widget: slug=popup-ad） */
+    popupAd?: PopupAdConfig | null
     socialLinks?: SocialLinksWidgetType | null
   }
   // revalidate: number

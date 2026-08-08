@@ -1,6 +1,7 @@
 import { BlogStats, Widget } from '@/src/types/blog'
 import { formatAnnouncementPopupWidget } from './format/widget/announcementPopup'
 import { formatGalleryAdWidget } from './format/widget/galleryAd'
+import { formatPopupAdWidget } from './format/widget/popupAd'
 import { formatProfileWidget } from './format/widget/profile'
 import { formatSocialLinksWidget } from './format/widget/socialLinks'
 import { formatStatsWidget } from './format/widget/stats'
@@ -38,6 +39,10 @@ export const supportedWidgetsMap: {
   },
   'announcement-popup': {
     formatFn: formatAnnouncementPopupWidget,
+    database: [],
+  },
+  'popup-ad': {
+    formatFn: formatPopupAdWidget,
     database: [],
   },
 }

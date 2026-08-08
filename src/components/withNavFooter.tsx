@@ -1,6 +1,6 @@
 import Footer from './footer/Footer'
 import Navbar from './nav/Navbar'
-import { AnnouncementPopup } from './widget/AnnouncementPopup'
+import { SitePopups } from './widget/SitePopups'
 import { ThemeNavShell } from '@/src/themes/themeLayout'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
 import { Page, SharedNavFooterStaticProps } from '@/src/types/blog'
@@ -38,8 +38,9 @@ export default function withNavFooter(
           >
             <WrappedComponent {...props} />
           </ThemeNavShell>
-          <AnnouncementPopup
-            config={props.announcementPopup}
+          <SitePopups
+            announcementPopup={props.announcementPopup}
+            popupAd={props.popupAd}
             activeTheme={themeId}
           />
         </>
@@ -74,8 +75,9 @@ export default function withNavFooter(
             }}
           />
         </div>
-        <AnnouncementPopup
-          config={props.announcementPopup}
+        <SitePopups
+          announcementPopup={props.announcementPopup}
+          popupAd={props.popupAd}
           activeTheme={themeId}
         />
       </main>
