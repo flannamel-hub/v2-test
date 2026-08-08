@@ -276,7 +276,7 @@
 | `GET/POST/PATCH/DELETE /api/admin/post` | 读/建/改/归档；结构化块与 Markdown 转 blocks；置顶、收藏、Post/Piece、主题配置保存 |
 | `GET/POST /api/admin/gallery` | 单篇图库元数据读写（Supabase） |
 | `GET /api/admin/gallery-storage` | 站点图库容量 |
-| `POST /api/admin/upload` | 服务端代理上传到兰空 |
+| `POST /api/admin/upload` | 服务端代理上传到兰空；路由内用 `verifyAdminRequest` 校验 Basic / `internal_auth` Cookie，失败在读取 Token、请求体和转发前返回 401 |
 | `GET/POST/DELETE /api/admin/gallery-ad` | 内页广告条（后台在「广告位」Tab；支持 enabled 开关） |
 | `GET/POST /api/admin/friends` | 友链读写（friends 子库） |
 | `POST /api/admin/friends/batch` | 批量 upsert，可按 URL 去重 |
@@ -292,6 +292,15 @@
 | `GET/POST /api/admin/full-redeploy` | 全量 redeploy（Deploy Hook + 冷却） |
 | `DELETE/PATCH /api/admin/taxonomy` | 删除标签/分类或重命名分类 |
 | `GET/POST /api/admin/config` | 读/改 Notion 数据库标题（站点名）等相关配置 |
+
+### Admin API 鉴权边界（P3.0）
+
+- `src/middleware.ts` 的 matcher 虽包含 `/api/admin/:path*`，但当前实现分支只判断 `pathname.startsWith('/admin')`；因此不能仅凭路由名称或 matcher 认定全部 Admin API 已受 middleware 保护。
+- `/api/admin/upload` 是浏览器后台专用敏感接口，已在路由内调用 `verifyAdminRequest(req)`；未登录或错误凭据返回 401，并且不会读取 `LSKY_TOKEN`、请求体或转发兰空。`npm run test:upload-auth` 覆盖未登录、错误 Basic、正确 Basic 与正确 Cookie。
+- `/api/admin/crawler-ingest` 也已有路由内 `verifyAdminRequest`，敏感操作再叠加维护密码。
+- 当前代码调用盘点中，`posts`、`post`、`gallery*`、`upload`、`gallery-ad`、`popup-ad`、`click-ad`、`social-links`、`theme-cooldown`、`config`、`taxonomy`、`full-redeploy`、`crawler-ingest` 只在 BLOG 后台浏览器使用；`friends*`、`announcement-popup`、`vending`、`revalidate` 同时被平台服务端调用。
+- 平台目前会服务端调用 `/api/admin/friends*`、`/api/admin/announcement-popup`、`/api/admin/vending` 与 `/api/admin/revalidate`，这些调用尚未统一携带 BLOG Basic/Cookie。未设计并部署明确的服务到服务凭据前，禁止把 middleware 分支直接扩大到全部 `/api/admin/*`，否则会破坏现有组件同步。
+- 长期目标仍是按调用方分类：浏览器后台接口使用管理员会话，平台联动接口使用独立服务端鉴权，公开只读能力放在非 admin 路由；不得继续依赖匿名 Admin API。
 
 ### 维护密码锁
 
@@ -464,7 +473,7 @@ Cookie 细节：
 - `httpOnly`、`sameSite: 'lax'`、`maxAge: 86400`、`path: '/'`，生产 `secure: true`
 
 默认凭据兜底（代码侧）：`AUTH_USER || 'admin'`，`AUTH_PASS || '123456'`。  
-API 层还有 `verifyAdminRequest(req)` 二次校验；敏感操作另加维护密码。
+API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 `/api/admin/crawler-ingest`；其他 Admin API 不能假定已有二次校验。敏感操作另加维护密码。
 
 ---
 
@@ -574,6 +583,7 @@ API 层还有 `verifyAdminRequest(req)` 二次校验；敏感操作另加维护�
 - 爬虫自动入库依赖「每天一次 cron」与「配置整点」对齐。
 - 文章全篇密码与加密块都不是强安全机制。
 - 双 revalidate 入口：公开密钥 `/api/revalidate` vs 后台队列 `/api/admin/revalidate`。
+- `/api/admin/*` 的 matcher 不等于真实鉴权；新增或修改 Admin API 时必须明确记录浏览器、平台服务或公共调用方，并在路由层选择对应鉴权。
 
 ---
 

@@ -19,6 +19,7 @@
     "export": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:upload-auth": "node --test tests/upload-auth.test.cjs",
     "analyze": "cross-env ANALYZE=true next build",
     "analyze:server": "cross-env BUNDLE_ANALYZE=server next build",
     "analyze:browser": "cross-env BUNDLE_ANALYZE=browser next build"

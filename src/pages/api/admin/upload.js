@@ -1,3 +1,5 @@
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
+
 // ============================================================
 // 兰空图床 (Lsky Pro 2.x) 中转上传代理
 // ------------------------------------------------------------
@@ -49,6 +51,11 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ success: false, error: '仅支持 POST 请求' })
+  }
+
+  // middleware 当前只实际保护 /admin 页面；上传代理必须自行二次鉴权。
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
   }
 
   // 1. 校验 token 是否配置

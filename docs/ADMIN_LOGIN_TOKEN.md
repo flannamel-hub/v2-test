@@ -11,7 +11,7 @@ Blog 侧通过 **Vercel env** 验签，**不**读取商户数据库。
 2. 商户系统 `POST /api/merchant/blog/login-link`，Body: `{ "serviceId": "<uuid>" }`
 3. 响应 `{ "url": "https://{host}/admin?login_token=...", "aud": "...", "expiresInSec": 300 }`
 4. 浏览器打开 URL → Blog middleware 验签 → 写入 `internal_auth` Cookie → 302 到 `/admin`（无 query）
-5. 后续 `/admin`、`/api/admin/*` 走 Cookie / Basic Auth（与原有逻辑一致）
+5. 后续 `/admin` 页面走 Cookie / Basic Auth；Admin API 必须由各路由执行明确的管理员或服务端鉴权，不能只依赖 middleware matcher
 
 ---
 
@@ -70,6 +70,12 @@ Blog 侧通过 **Vercel env** 验签，**不**读取商户数据库。
 9. 设置 `internal_auth` Cookie，302 到 `/admin`（去掉 token）
 
 实现：`src/middleware.ts`、`src/lib/admin/loginToken.ts`
+
+### Admin API 当前边界
+
+- middleware 的 matcher 包含 `/api/admin/:path*`，但实现分支当前只处理 `/admin` 页面。
+- `/api/admin/upload` 与 `/api/admin/crawler-ingest` 已在路由内调用 `verifyAdminRequest(req)`，接受 Basic 或 `internal_auth` Cookie。
+- 平台服务端调用的友链、公告、贩售机和 revalidate 接口尚待独立服务到服务鉴权；在该协议落地前，不得通过扩大 middleware 分支统一拦截全部 Admin API。
 
 ---
 
