@@ -495,6 +495,18 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 | `migrations/009_theme_switch_quota.sql` | 主题切换 24h/4 次配额字段 |
 | `migrations/010_revalidate_queue.sql` | ISR revalidate 队列 |
 | `migrations/011_gallery_feed_previews_rpc.sql` | `get_gallery_feed_previews` RPC |
+| `migrations/012_image_host_governance.sql` | 全平台共享图床单例、审计事件、原子激活/回滚 RPC（P3 执行包；生产待执行） |
+
+### 图床共享配置治理（P3 执行包已就绪，生产待执行）
+
+- 图床域名是全平台共享基础设施，不按 `BLOG_SITE_ID` 复制到每个站点；共享库使用单例 `blog_image_host_config(id=1)` 保存 `upload_api_origin`、`public_asset_origin`、`legacy_asset_origins` 和单调递增 `version`。
+- 初始配置必须保持现网行为：上传与公开 origin 都是 `https://img.x1file.top`，历史 origin 为空。`img.vlogs.cc` 只有在后续平台 Admin、BLOG 运行时和单站灰度完成后才能激活。
+- 每次激活/回滚通过 `activate_blog_image_host_config` / `rollback_blog_image_host_config` 完成；使用 `expected_version + FOR UPDATE` 防并发覆盖，同一事务更新配置并写 `blog_image_host_events`。回滚恢复上一事件快照的配置内容，但版本号继续递增。
+- `anon` / `authenticated` 不得直接读取、写入配置或事件，也不得执行 RPC；`service_role` 只允许读取两张表和执行两个受控 RPC，不授予直接 INSERT/UPDATE/DELETE，避免绕过审计。
+- origin 只接受规范化 HTTPS 域名，可带合法端口，不接受 path/query/hash/userinfo/IP；历史 origin 会规范化、去重，公开 origin 变化时自动保留前一个公开 origin。
+- 候选验活摘要必须是小型 JSON object，不得包含 token、cookie、authorization、password、secret 等疑似敏感字段；配置表不保存兰空、FRP、ClouDNS 或其他 Token。
+- 数据库执行顺序固定为：`supabase/scripts/preflight-image-host-governance-p3.sql` → `supabase/migrations/012_image_host_governance.sql` → `supabase/scripts/verify-image-host-governance-p3.sql`。当前只读生产 preflight revision `20260809-image-host-p3-v1` 已返回 `ready=true`，migration/verify 尚未执行。
+- 本阶段只建立数据库底座。BLOG 运行时 loader、上传 origin 动态读取、兰空返回 URL 规范化、Notion/Gallery 精确 origin 映射与 stale ISR 兜底属于后续 P5，不能把数据库对象存在误写成新域名已经生效。
 
 ---
 
