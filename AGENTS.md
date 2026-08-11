@@ -498,10 +498,10 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 | `migrations/011_gallery_feed_previews_rpc.sql` | `get_gallery_feed_previews` RPC |
 | `migrations/012_image_host_governance.sql` | 全平台共享图床单例、审计事件、原子激活/回滚 RPC（P3 已生产验收） |
 
-### 图床共享配置治理（P3 已生产验收，P5 运行时代码已完成）
+### 图床共享配置治理（P3 已生产验收，P5 已上线，P6 version=2 已激活）
 
 - 图床域名是全平台共享基础设施，不按 `BLOG_SITE_ID` 复制到每个站点；共享库使用单例 `blog_image_host_config(id=1)` 保存 `upload_api_origin`、`public_asset_origin`、`legacy_asset_origins` 和单调递增 `version`。
-- 初始配置必须保持现网行为：上传与公开 origin 都是 `https://img.x1file.top`，历史 origin 为空。`img.vlogs.cc` 只有在后续平台 Admin、BLOG 运行时和单站灰度完成后才能激活。
+- 初始配置历史状态是：上传与公开 origin 都为 `https://img.x1file.top`，历史 origin 为空。2026-08-12 已由平台 Admin 激活 version=2：上传/公开 origin 为 `https://img.vlogs.cc`，历史 origin 包含 `https://img.x1file.top`。
 - 每次激活/回滚通过 `activate_blog_image_host_config` / `rollback_blog_image_host_config` 完成；使用 `expected_version + FOR UPDATE` 防并发覆盖，同一事务更新配置并写 `blog_image_host_events`。回滚恢复上一事件快照的配置内容，但版本号继续递增。
 - `anon` / `authenticated` 不得直接读取、写入配置或事件，也不得执行 RPC；`service_role` 只允许读取两张表和执行两个受控 RPC，不授予直接 INSERT/UPDATE/DELETE，避免绕过审计。
 - origin 只接受规范化 HTTPS 域名，可带合法端口，不接受 path/query/hash/userinfo/IP；历史 origin 会规范化、去重，公开 origin 变化时自动保留前一个公开 origin。
@@ -512,7 +512,8 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 - `/api/admin/upload` 仍先做路由内管理员鉴权；通过后才读取共享配置和 `LSKY_TOKEN`，上传到当前 `upload_api_origin`，并仅接受当前上传/公开/历史允许名单中的兰空返回 URL，保存前统一为 `public_asset_origin`。失败响应不再向浏览器透传兰空原始正文。
 - Notion cover、页面图标、正文图片/视频、Widget、站点 logo、友链头像、公告/广告、Gallery `url`/`thumb_url`/feed、爬虫入库与 SEO 上游均在数据格式化或保存层执行精确 origin 映射；只替换 `legacy_asset_origins` 中完全相等的 origin，保留 path/query/hash，不修改任意第三方 URL、普通文本或链接。
 - `GET /api/image-host-config` 只公开 `version`、`public_asset_origin`、`legacy_asset_origins` 并强制 `no-store`；`ImageHostAssetBridge` 在 hydration 后只修正 `img/source/video` 的 `src`、`srcset`、`poster`，用于尚未完成 ISR 的旧 HTML，不扫描正文文本、不修改 `<a href>`，也不能替代服务端映射。
-- `site-config`/内容刷新会清除图床短缓存但保留 LKG，下一次读取重新访问共享库。P5 本地测试完成不等于新域名已生产激活；单 BLOG Vercel Project 灰度通过前，平台 `BLOG_IMAGE_HOST_MUTATIONS_ENABLED` 必须继续关闭，生产配置保持 version=1 与旧域名。
+- `site-config`/内容刷新会清除图床短缓存但保留 LKG，下一次读取重新访问共享库。当前 version=2 已确认使旧图输出映射到 `img.vlogs.cc`，新文章上传也使用新 origin；旧 `img.x1file.top` 必须继续在线。平台写闸门只控制后续 mutation，不决定 BLOG 当前读取哪个版本。
+- 后台 `GalleryManager` 缩略图顶部只保留序号和删除按钮；不显示“待发布”或顶部小型“封面”。非封面图片在底部显示蓝色全宽“设为封面”，当前封面继续显示自动/手动状态和必要的“取消设定”。二次打开文章后必须仍可改选封面并保存。
 
 ---
 
@@ -586,7 +587,7 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 - 爬虫：确认 cron 鉴权、自动整点与 vercel cron 对齐、失败重试与图库同步。
 - 密码保护：分别验证全篇密码与加密块，并清楚其安全边界。
 - 公告弹窗：确认无跳转按钮、浅/深色主题样式、「知道了」关闭后同会话不再弹；后台「广告位」Tab 含内页广告且「组件」Tab 仍含公告。
-- 图床 P5：`npm run test:image-host` 必须通过鉴权顺序、origin/允许名单、path/query/hash、异常配置与上传返回规范化；再执行针对性 ESLint、`npx tsc --noEmit`（区分既有基线）和生产构建。单站灰度前不得激活 `img.vlogs.cc`。
+- 图床：`npm run test:image-host` 必须通过鉴权顺序、origin/允许名单、path/query/hash、异常配置与上传返回规范化；Gallery 封面改动另跑 `npm run test:gallery-cover`；再执行针对性 ESLint、`npx tsc --noEmit`（区分既有基线）和生产构建。
 
 ---
 

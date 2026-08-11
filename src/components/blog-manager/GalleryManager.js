@@ -582,6 +582,32 @@ export function GalleryManager({
                     ) : null}
                   </div>
                 ) : null}
+                {!sortMode && !isCoverItem ? (
+                  <button
+                    type="button"
+                    title="设为封面"
+                    onClick={(e) => handleSetCover(index, e)}
+                    style={{
+                      position: 'absolute',
+                      left: '4px',
+                      right: '4px',
+                      bottom: '4px',
+                      border: 'none',
+                      background: '#2563eb',
+                      color: '#fff',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '9px',
+                      fontWeight: 'bold',
+                      padding: '4px 3px',
+                      lineHeight: 1.2,
+                      textAlign: 'center',
+                      zIndex: 4,
+                    }}
+                  >
+                    设为封面
+                  </button>
+                ) : null}
                 <div
                   style={{
                     position: 'absolute',
@@ -595,57 +621,23 @@ export function GalleryManager({
                   }}
                 >
                   <span style={{ fontSize: '10px', color: '#fff' }}>{index + 1}</span>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!sortMode && !isCoverItem ? (
-                      <button
-                        type="button"
-                        title="设为封面"
-                        onClick={(e) => handleSetCover(index, e)}
-                        style={{
-                          border: 'none',
-                          background: 'rgba(0,0,0,0.55)',
-                          color: '#7dd3fc',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '9px',
-                          padding: '2px 4px',
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        封面
-                      </button>
-                    ) : null}
-                    {it.status === 'pending' ? (
-                      <span
-                        style={{
-                          fontSize: '9px',
-                          color: '#fbbf24',
-                          background: 'rgba(0,0,0,0.55)',
-                          padding: '1px 4px',
-                          borderRadius: '3px',
-                        }}
-                      >
-                        待发布
-                      </span>
-                    ) : null}
-                    {!sortMode ? (
-                      <button
-                        type="button"
-                        onClick={() => removeAt(index)}
-                        style={{
-                          border: 'none',
-                          background: 'rgba(0,0,0,0.5)',
-                          color: '#ff7875',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          padding: '0 4px',
-                        }}
-                      >
-                        ×
-                      </button>
-                    ) : null}
-                  </div>
+                  {!sortMode ? (
+                    <button
+                      type="button"
+                      onClick={() => removeAt(index)}
+                      style={{
+                        border: 'none',
+                        background: 'rgba(0,0,0,0.5)',
+                        color: '#ff7875',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        padding: '0 4px',
+                      }}
+                    >
+                      ×
+                    </button>
+                  ) : null}
                 </div>
               </div>
             )
