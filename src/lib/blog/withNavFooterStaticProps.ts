@@ -9,6 +9,7 @@ import { getCachedNavFooter } from '../notion/getCachedMem'
 import { getWidgetPages } from '../notion/getDatabase'
 import { isTransientNotionError, isNotionBuildPhase } from '../notion/transientErrors'
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
 
 export type SharedNavFooterNotionData = {
   widgetPages: PageObjectResponse[]
@@ -52,6 +53,9 @@ export function withNavFooterStaticProps(
   return async (
     context: GetStaticPropsContext
   ): Promise<SharedNavFooterStaticProps> => {
+    // 先刷新全平台图床配置，后续 Notion/Gallery 格式化使用同一份 LKG。
+    await getImageHostConfig()
+
     let navPages: SharedNavFooterStaticProps['props']['navPages'] = []
     let siteTitle: SharedNavFooterStaticProps['props']['siteTitle'] = {
       text: 'PRO BLOG',

@@ -5,6 +5,7 @@ import {
 import { getAllBlocks } from '@/src/lib/notion/getBlocks'
 import { getPostBySlug } from '@/src/lib/notion/getBlogData'
 import { readCoverFromPageProperties } from '@/src/lib/notion/readProperty'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
 import { ApiScope } from '@/src/types/notion'
 import type { NextApiRequest, NextApiResponse } from 'next'
 
@@ -22,6 +23,8 @@ export default async function handler(
     res.setHeader('Allow', 'GET')
     return res.status(405).json({ success: false, error: '仅支持 GET' })
   }
+
+  await getImageHostConfig()
 
   const slug = String(req.query.slug || '').trim()
   if (!slug) {

@@ -1,4 +1,6 @@
 import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
+import { normalizeUploadedAssetUrl } from '@/src/lib/media/rewriteManagedAssetUrl'
 
 // ============================================================
 // 兰空图床 (Lsky Pro 2.x) 中转上传代理
@@ -23,10 +25,6 @@ const MAX_UPLOAD_MB = Math.min(
   200
 )
 const MAX_SIZE = MAX_UPLOAD_MB * 1024 * 1024
-
-// 兰空实例地址：优先读环境变量，未配置则回退到默认域名
-const LSKY_BASE = (process.env.LSKY_URL || 'https://img.x1file.top').replace(/\/+$/, '')
-const LSKY_UPLOAD_ENDPOINT = `${LSKY_BASE}/api/v1/upload`
 
 // 把请求流完整读入 Buffer
 function readRawBody(req) {
@@ -72,6 +70,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    const imageHostConfig = await getImageHostConfig()
+    const uploadEndpoint = `${imageHostConfig.uploadApiOrigin}/api/v1/upload`
+
     // 2. 读取浏览器发来的原始二进制数据
     const buffer = await readRawBody(req)
     if (!buffer || buffer.length === 0) {
@@ -97,7 +98,7 @@ export default async function handler(req, res) {
     const form = new FormData()
     form.append('file', blob, rawName)
 
-    const lskyRes = await fetch(LSKY_UPLOAD_ENDPOINT, {
+    const lskyRes = await fetch(uploadEndpoint, {
       method: 'POST',
       headers: {
         Authorization: token,
@@ -118,7 +119,6 @@ export default async function handler(req, res) {
       return res.status(502).json({
         success: false,
         error: '图片上传服务返回异常，请稍后重试',
-        raw: text.slice(0, 300),
       })
     }
 
@@ -131,7 +131,6 @@ export default async function handler(req, res) {
       return res.status(lskyRes.status || 502).json({
         success: false,
         error: `${lskyMsg}${sizeHint}`,
-        data,
       })
     }
 
@@ -140,18 +139,30 @@ export default async function handler(req, res) {
       return res.status(502).json({
         success: false,
         error: '上传失败：未获取到图片地址',
-        data,
       })
     }
 
-    // 5. 回传给前端：归一化字段 + 全量数据（方便前端按需取用）
+    let normalizedUrl
+    try {
+      normalizedUrl = normalizeUploadedAssetUrl(url, imageHostConfig)
+    } catch (error) {
+      console.error(
+        '[image-host] 兰空返回 URL 校验失败：',
+        error instanceof Error ? error.message : error
+      )
+      return res.status(502).json({
+        success: false,
+        error: '图片上传服务返回了未受信任的地址',
+      })
+    }
+
+    // 5. 只回传公开、安全字段；浏览器不接触共享配置或原始兰空响应。
     return res.status(200).json({
       success: true,
-      url,
+      url: normalizedUrl,
       name: data?.data?.origin_name || rawName,
       mimetype: data?.data?.mimetype || contentType,
-      links: data?.data?.links || {},
-      data,
+      links: { url: normalizedUrl },
     })
   } catch (error) {
     if (error.message === 'FILE_TOO_LARGE') {
@@ -161,6 +172,9 @@ export default async function handler(req, res) {
       })
     }
     console.error('Upload Proxy Error:', error)
-    return res.status(500).json({ success: false, error: error.message })
+    return res.status(500).json({
+      success: false,
+      error: '图片上传失败，请稍后重试',
+    })
   }
 }

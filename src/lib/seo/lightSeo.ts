@@ -1,5 +1,9 @@
 import CONFIG from '@/blog.config'
 import type { Page, Post } from '@/src/types/blog'
+import {
+  getRuntimeImageHostConfig,
+  rewriteManagedAssetUrl,
+} from '@/src/lib/media/rewriteManagedAssetUrl'
 
 /**
  * 轻量 SEO：仅在 getStaticProps 中从 Post/Page 提取为纯字符串，
@@ -28,6 +32,13 @@ export const SITE_KEYWORDS =
 export const DEFAULT_OG_IMAGE: string =
   CONFIG.DEFAULT_POST_COVER ||
   'https://img.x1file.top/disk_r/2026/05/31/6a1bf12f468b6.jpg'
+
+function getDefaultOgImage(): string {
+  return rewriteManagedAssetUrl(
+    DEFAULT_OG_IMAGE,
+    getRuntimeImageHostConfig()
+  )
+}
 
 function stripTrailingSlash(url: string): string {
   return url.replace(/\/+$/, '')
@@ -86,7 +97,7 @@ export function buildPostPageSeo(post: Post): PageSeoFlat {
   return {
     title: (post.title || '').trim() || '无标题',
     description: excerpt || DEFAULT_SITE_DESCRIPTION,
-    image: cover || DEFAULT_OG_IMAGE,
+    image: cover || getDefaultOgImage(),
     canonicalPath: `/post/${encodeURIComponent(post.slug)}`,
     keywords: [categoryName, ...tagNames].filter(Boolean).join(', '),
   }
@@ -99,7 +110,7 @@ export function buildNavPageSeo(page: Page): PageSeoFlat {
   return {
     title,
     description: DEFAULT_SITE_DESCRIPTION,
-    image: (page.icon || '').trim() || DEFAULT_OG_IMAGE,
+    image: (page.icon || '').trim() || getDefaultOgImage(),
     canonicalPath: slug ? `/${encodeURIComponent(slug)}` : '/',
   }
 }
@@ -109,7 +120,7 @@ export function buildHomePageSeo(): PageSeoFlat {
   return {
     title: '',
     description: DEFAULT_SITE_DESCRIPTION,
-    image: DEFAULT_OG_IMAGE,
+    image: getDefaultOgImage(),
     canonicalPath: '/',
   }
 }

@@ -5,8 +5,10 @@ import { readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties
 import { loadGalleryFeedCovers } from '@/src/lib/gallery/galleryFeedPreviews';
 import { resolveAdminListCoverSrc } from '@/src/lib/admin/resolveAdminListCover';
 import { isPostIndexedBySlug } from '@/src/lib/notion/getBlogData';
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
 
 export default async function handler(req, res) {
+  await getImageHostConfig();
   const notion = new Client({ auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN });
   const databaseId = process.env.NOTION_DATABASE_ID || process.env.NOTION_PAGE_ID;
 

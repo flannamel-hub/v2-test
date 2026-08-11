@@ -13,6 +13,8 @@ import {
   DOWNLOAD_SIZE_PROPERTY_NAMES,
 } from '@/src/lib/notion/readProperty'
 import type { CrawlerQueueRow } from '@/src/lib/ingest/crawlerQueueDb'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
+import { rewriteManagedAssetUrl } from '@/src/lib/media/rewriteManagedAssetUrl'
 
 const notion = new Client({
   auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN,
@@ -257,7 +259,10 @@ export async function processCrawlerGalleryRow(
   row: CrawlerQueueRow,
   occupiedSlugs: Set<string>
 ): Promise<ProcessCrawlerRowResult> {
-  const imageUrls = row.image_urls.filter((u) => u.startsWith('http'))
+  const imageHostConfig = await getImageHostConfig()
+  const imageUrls = row.image_urls
+    .filter((u) => u.startsWith('http'))
+    .map((url) => rewriteManagedAssetUrl(url, imageHostConfig))
   if (imageUrls.length === 0) {
     throw new Error('image_urls 至少需一张兰空图链')
   }

@@ -28,6 +28,7 @@ import {
 import { LightSeoMeta } from '@/src/components/seo/LightSeoMeta'
 import { isTweetDarkTheme, isTweetLightTheme, isTweetTheme, isTweetThemeVariantLocked } from '@/src/themes/tweet/tweetTheme'
 import { PostNavStallProvider } from '@/src/components/navigation/PostNavStallGuard'
+import { ImageHostAssetBridge } from '@/src/components/media/ImageHostAssetBridge'
 import { TweetLoadingProgress } from '@/src/themes/tweet/TweetLoadingProgress'
 import type { PageSeoFlat } from '@/src/lib/seo/lightSeo'
 import { NextPageWithLayout } from '../types/blog'
@@ -227,6 +228,7 @@ function BlogAppShell({ Component, pageProps, router }: AppPropsWithLayout) {
           <link rel="manifest" href="/site.webmanifest" />
         ) : null}
       </Head>
+      <ImageHostAssetBridge />
       <LightSeoMeta
         seo={(pageProps as { seo?: PageSeoFlat })?.seo}
         siteName={pageProps?.siteTitle?.text}

@@ -277,6 +277,7 @@
 | `GET/POST /api/admin/gallery` | 单篇图库元数据读写（Supabase） |
 | `GET /api/admin/gallery-storage` | 站点图库容量 |
 | `POST /api/admin/upload` | 服务端代理上传到兰空；路由内用 `verifyAdminRequest` 校验 Basic / `internal_auth` Cookie，失败在读取 Token、请求体和转发前返回 401 |
+| `GET /api/image-host-config` | 公开只读、`no-store` 的当前图床公开配置；只返回 version、public origin 与 legacy origins，不返回上传 origin、Token 或 service role |
 | `GET/POST/DELETE /api/admin/gallery-ad` | 内页广告条（后台在「广告位」Tab；支持 enabled 开关） |
 | `GET/POST /api/admin/friends` | 友链读写（friends 子库） |
 | `POST /api/admin/friends/batch` | 批量 upsert，可按 URL 去重 |
@@ -497,7 +498,7 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 | `migrations/011_gallery_feed_previews_rpc.sql` | `get_gallery_feed_previews` RPC |
 | `migrations/012_image_host_governance.sql` | 全平台共享图床单例、审计事件、原子激活/回滚 RPC（P3 已生产验收） |
 
-### 图床共享配置治理（P3 已生产验收）
+### 图床共享配置治理（P3 已生产验收，P5 运行时代码已完成）
 
 - 图床域名是全平台共享基础设施，不按 `BLOG_SITE_ID` 复制到每个站点；共享库使用单例 `blog_image_host_config(id=1)` 保存 `upload_api_origin`、`public_asset_origin`、`legacy_asset_origins` 和单调递增 `version`。
 - 初始配置必须保持现网行为：上传与公开 origin 都是 `https://img.x1file.top`，历史 origin 为空。`img.vlogs.cc` 只有在后续平台 Admin、BLOG 运行时和单站灰度完成后才能激活。
@@ -507,7 +508,11 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 - 候选验活摘要必须是小型 JSON object，不得包含 token、cookie、authorization、password、secret 等疑似敏感字段；配置表不保存兰空、FRP、ClouDNS 或其他 Token。
 - 数据库执行顺序固定为：`supabase/scripts/preflight-image-host-governance-p3.sql` → `supabase/migrations/012_image_host_governance.sql` → `supabase/scripts/verify-image-host-governance-p3.sql`。2026-08-09 生产已按 revision `20260809-image-host-p3-v1` 完成，preflight 与 verify 均返回 `ready=true`；正式初始态仍为 version=1、旧域名、空历史 origin、空事件表。
 - 迁移后 Supabase Advisor 未发现 P3 函数暴露或可变 `search_path`；两张表的 `RLS enabled no policy` INFO 是有意默认拒绝，事件时间索引的 `unused index` INFO 是 P4 尚未读取事件时的预期状态。不要为消除 INFO 添加浏览器 Policy 或删除后续审计查询所需索引。
-- 本阶段只建立数据库底座。BLOG 运行时 loader、上传 origin 动态读取、兰空返回 URL 规范化、Notion/Gallery 精确 origin 映射与 stale ISR 兜底属于后续 P5，不能把数据库对象存在误写成新域名已经生效。
+- P5 运行时实现位于 `src/lib/media/imageHostConfig.ts` 与 `rewriteManagedAssetUrl.ts`：服务端读取共享单例并使用 15 秒短缓存；读取异常优先使用 last-known-good，冷启动且不可读时回退 `LSKY_URL`，再回退 `https://img.x1file.top`。日志不得包含凭据或响应正文。
+- `/api/admin/upload` 仍先做路由内管理员鉴权；通过后才读取共享配置和 `LSKY_TOKEN`，上传到当前 `upload_api_origin`，并仅接受当前上传/公开/历史允许名单中的兰空返回 URL，保存前统一为 `public_asset_origin`。失败响应不再向浏览器透传兰空原始正文。
+- Notion cover、页面图标、正文图片/视频、Widget、站点 logo、友链头像、公告/广告、Gallery `url`/`thumb_url`/feed、爬虫入库与 SEO 上游均在数据格式化或保存层执行精确 origin 映射；只替换 `legacy_asset_origins` 中完全相等的 origin，保留 path/query/hash，不修改任意第三方 URL、普通文本或链接。
+- `GET /api/image-host-config` 只公开 `version`、`public_asset_origin`、`legacy_asset_origins` 并强制 `no-store`；`ImageHostAssetBridge` 在 hydration 后只修正 `img/source/video` 的 `src`、`srcset`、`poster`，用于尚未完成 ISR 的旧 HTML，不扫描正文文本、不修改 `<a href>`，也不能替代服务端映射。
+- `site-config`/内容刷新会清除图床短缓存但保留 LKG，下一次读取重新访问共享库。P5 本地测试完成不等于新域名已生产激活；单 BLOG Vercel Project 灰度通过前，平台 `BLOG_IMAGE_HOST_MUTATIONS_ENABLED` 必须继续关闭，生产配置保持 version=1 与旧域名。
 
 ---
 
@@ -529,7 +534,7 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 根 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase 服务端密钥 |
 | `GALLERY_QUOTA_GB` | 图库容量上限（默认 50） |
-| `LSKY_TOKEN` / `LSKY_URL` / `LSKY_MAX_UPLOAD_MB` | 兰空图床 |
+| `LSKY_TOKEN` / `LSKY_URL` / `LSKY_MAX_UPLOAD_MB` | 兰空图床；`LSKY_URL` 仅为共享配置不可读时的兼容回退，不再用于日常切换 |
 | `NEXT_REVALIDATE_SECONDS` | ISR 过期秒数 |
 | `DISABLE_LEGACY_URL_PASSWORD` | 关闭 URL 明文登录 |
 | `ADMIN_MAINTENANCE_PASSWORD` / `ADMIN_FULL_REDEPLOY_PASSWORD` | 维护密码锁 |
@@ -581,6 +586,7 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 - 爬虫：确认 cron 鉴权、自动整点与 vercel cron 对齐、失败重试与图库同步。
 - 密码保护：分别验证全篇密码与加密块，并清楚其安全边界。
 - 公告弹窗：确认无跳转按钮、浅/深色主题样式、「知道了」关闭后同会话不再弹；后台「广告位」Tab 含内页广告且「组件」Tab 仍含公告。
+- 图床 P5：`npm run test:image-host` 必须通过鉴权顺序、origin/允许名单、path/query/hash、异常配置与上传返回规范化；再执行针对性 ESLint、`npx tsc --noEmit`（区分既有基线）和生产构建。单站灰度前不得激活 `img.vlogs.cc`。
 
 ---
 

@@ -15,13 +15,20 @@ import { unfurl } from 'unfurl.js'
 import { satisfiesRequiredAnnotation } from '../../util'
 import { getImageInfo } from '../getImageInfo'
 import codesToHtml from './code'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
+import {
+  ImageHostRuntimeConfig,
+  rewriteManagedAssetUrl,
+} from '@/src/lib/media/rewriteManagedAssetUrl'
 
 export async function formatBlocks(blocks: BlockResponse[]) {
+  const imageHostConfig = await getImageHostConfig()
   const mergedListBlocks = mergeListItems(blocks)
 
   async function formatBlock(mergedListBlocks: BlockDataType[]) {
     for (const block of mergedListBlocks) {
       try {
+        rewriteBlockMedia(block, imageHostConfig)
         if (block.children && block.children.length > 0) {
           await formatBlock(block.children as BlockDataType[])
         }
@@ -47,6 +54,33 @@ export async function formatBlocks(blocks: BlockResponse[]) {
   const formattedBlocks = mergedListBlocks
 
   return formattedBlocks
+}
+
+function rewriteBlockMedia(
+  block: BlockDataType,
+  config: ImageHostRuntimeConfig
+) {
+  const mediaBlock = block as BlockDataType & {
+    image?: {
+      type?: string
+      external?: { url?: string }
+      file?: { url?: string }
+    }
+    video?: {
+      type?: string
+      external?: { url?: string }
+      file?: { url?: string }
+    }
+  }
+
+  for (const media of [mediaBlock.image, mediaBlock.video]) {
+    if (media?.type === 'external' && media.external?.url) {
+      media.external.url = rewriteManagedAssetUrl(media.external.url, config)
+    }
+    if (media?.type === 'file' && media.file?.url) {
+      media.file.url = rewriteManagedAssetUrl(media.file.url, config)
+    }
+  }
 }
 
 async function formatImageBlock(block: BlockDataType) {

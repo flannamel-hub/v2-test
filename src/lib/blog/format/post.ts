@@ -11,6 +11,7 @@ import {
 import { readCoverDarkFromPageProperties, readCoverFromPageProperties, readPageCoverUrl, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, isArticlePasswordProtectedFromProperties } from '../../notion/readProperty'
 import { isDefaultPostCover } from '../../gallery/postCover'
 import { getImageInfo } from '../getImageInfo'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
 
 export type FormatPostOptions = {
   /** 列表 / 路径收集时跳过远程封面探测，单篇正文页仍做完整探测 */
@@ -26,6 +27,7 @@ export const formatPosts = async (
   posts: PageObjectResponse[],
   formatOptions?: FormatPostOptions
 ): Promise<Post[]> => {
+  await getImageHostConfig()
   const formattedPosts = await Promise.all(
     posts.map(async (post) => formatPost(post, formatOptions))
   )

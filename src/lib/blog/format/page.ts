@@ -1,6 +1,7 @@
 import { ApiColor } from '@/src/types/notion'
 import { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
 import { Page } from './../../../types/blog'
+import { normalizeMediaUrl } from '../../notion/readProperty'
 
 export const formatPages = (pages: PageObjectResponse[]): Page[] => {
   return pages.map((page) => formatPage(page))
@@ -17,7 +18,7 @@ export const formatPage = (page: PageObjectResponse): Page => {
   const pageTitle =
     excerpt.type === 'rich_text' && excerpt.rich_text[0]?.plain_text
   const pageDate = date.type === 'date' && date.date && date.date.start
-  const pageCover = cover.type === 'url' && cover.url
+  const pageCover = cover.type === 'url' && normalizeMediaUrl(cover.url)
   const pageColor =
     color_title.type === 'multi_select' &&
     (color_title.multi_select[0]?.color as ApiColor)

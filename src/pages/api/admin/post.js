@@ -9,6 +9,7 @@ import {
   recordThemeSwitchIfNeeded,
 } from '@/src/lib/blog/themeSwitchQuota';
 import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCoverFromPageProperties, readPageCoverUrl, DOWNLOAD_SIZE_PROPERTY_NAMES, DOWNLOAD_COUNT_PROPERTY_NAMES, ARTICLE_PASSWORD_PROPERTY_NAMES, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readArticlePasswordFromPageProperties } from '@/src/lib/notion/readProperty';
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
 
 const notion = new Client({
   auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN,
@@ -98,8 +99,9 @@ function parseLinesToChildren(text) {
         let safeUrl = normalizeLinkUrl(urlMatch[0]);
         const isVideo = safeUrl.match(/\.(mp4|mov|webm|ogg|mkv)(\?|$)/i);
         const isImage = safeUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i);
-        if (isVideo) { blocks.push({ object: 'block', type: 'video', video: { type: 'external', external: { url: safeUrl } } }); continue; }
-        if (isImage) { blocks.push({ object: 'block', type: 'image', image: { type: 'external', external: { url: safeUrl } } }); continue; }
+        const mediaUrl = isVideo || isImage ? (normalizeMediaUrl(safeUrl) || safeUrl) : safeUrl;
+        if (isVideo) { blocks.push({ object: 'block', type: 'video', video: { type: 'external', external: { url: mediaUrl } } }); continue; }
+        if (isImage) { blocks.push({ object: 'block', type: 'image', image: { type: 'external', external: { url: mediaUrl } } }); continue; }
         if (bareUrl) { blocks.push({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ text: { content: safeUrl, link: { url: safeUrl } } }] } }); continue; }
       }
     }
@@ -215,8 +217,9 @@ function styledLinesToChildren(text, b) {
         let safeUrl = normalizeLinkUrl(urlMatch[0]);
         const isVideo = safeUrl.match(/\.(mp4|mov|webm|ogg|mkv)(\?|$)/i);
         const isImage = safeUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i);
-        if (isVideo) { out.push({ object: 'block', type: 'video', video: { type: 'external', external: { url: safeUrl } } }); continue; }
-        if (isImage) { out.push({ object: 'block', type: 'image', image: { type: 'external', external: { url: safeUrl } } }); continue; }
+        const mediaUrl = isVideo || isImage ? (normalizeMediaUrl(safeUrl) || safeUrl) : safeUrl;
+        if (isVideo) { out.push({ object: 'block', type: 'video', video: { type: 'external', external: { url: mediaUrl } } }); continue; }
+        if (isImage) { out.push({ object: 'block', type: 'image', image: { type: 'external', external: { url: mediaUrl } } }); continue; }
         // 整行就是一个非图片链接（裸 URL）→ 链接段落
         if (bareUrl) {
           out.push({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ text: { content: safeUrl, link: { url: safeUrl } }, annotations: annOf(b) }] } });
@@ -279,15 +282,17 @@ function editorBlockToNotionInner(b) {
   if (type === 'image') {
     const url = (b.content || '').trim()
     if (!url) return []
+    const mediaUrl = normalizeMediaUrl(url) || url
     const isVideo = url.match(/\.(mp4|mov|webm|ogg|mkv)(\?|$)/i)
-    if (isVideo) return [{ object: 'block', type: 'video', video: { type: 'external', external: { url } } }]
-    return [{ object: 'block', type: 'image', image: { type: 'external', external: { url } } }]
+    if (isVideo) return [{ object: 'block', type: 'video', video: { type: 'external', external: { url: mediaUrl } } }]
+    return [{ object: 'block', type: 'image', image: { type: 'external', external: { url: mediaUrl } } }]
   }
   if (type === 'lock') {
     const children = []
     children.push(...styledLinesToChildren(b.content || '', b))
     ;(b.images || []).forEach((url) => {
-      if (url) children.push({ object: 'block', type: 'image', image: { type: 'external', external: { url } } })
+      const mediaUrl = normalizeMediaUrl(url) || url
+      if (mediaUrl) children.push({ object: 'block', type: 'image', image: { type: 'external', external: { url: mediaUrl } } })
     })
     return children
   }
@@ -513,6 +518,7 @@ async function unpinAllExcept(notion, databaseId, exceptId, pinKey) {
 }
 
 export default async function handler(req, res) {
+  await getImageHostConfig();
   const { id: queryId } = req.query;
   const databaseId = process.env.NOTION_DATABASE_ID || process.env.NOTION_PAGE_ID;
 

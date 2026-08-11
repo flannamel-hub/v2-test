@@ -1,4 +1,9 @@
 import { Client } from '@notionhq/client'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
+import {
+  getRuntimeImageHostConfig,
+  rewriteManagedAssetUrl,
+} from '@/src/lib/media/rewriteManagedAssetUrl'
 
 const notion = new Client({
   auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN,
@@ -54,7 +59,10 @@ function readAvatar(prop) {
   const files = prop?.type === 'files' ? prop.files || [] : []
   const file = files[0]
   if (!file) return ''
-  return file.external?.url || file.file?.url || ''
+  return rewriteManagedAssetUrl(
+    file.external?.url || file.file?.url || '',
+    getRuntimeImageHostConfig()
+  )
 }
 
 function pickProp(props, preferred, type) {
@@ -171,7 +179,10 @@ export function buildFriendProperties(c, input) {
   const properties = {}
   const name = (input.name || '').trim()
   const url = (input.url || '').trim()
-  const avatar = (input.avatar || '').trim()
+  const avatar = rewriteManagedAssetUrl(
+    (input.avatar || '').trim(),
+    getRuntimeImageHostConfig()
+  )
   const description = (input.description || '').trim()
   const status = normalizeStatus(input.status)
 
@@ -200,6 +211,7 @@ export function buildFriendProperties(c, input) {
 }
 
 export async function listFriends() {
+  await getImageHostConfig()
   const c = await discoverFriendsDb()
   let results = []
   let cursor
@@ -226,6 +238,7 @@ export async function findFriendByUrl(c, url) {
 }
 
 export async function upsertFriend(input, options = {}) {
+  await getImageHostConfig()
   const c = await discoverFriendsDb()
   const name = (input.name || '').trim()
   const url = (input.url || '').trim()

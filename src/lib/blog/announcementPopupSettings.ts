@@ -18,6 +18,7 @@ import {
   readNotionCoverUrl,
   readRichTextPlain,
 } from '@/src/lib/notion/readProperty'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
 
 const DEFAULT_STATUS_ENABLED = false
 const BUTTON_TEXT_NAMES = [
@@ -211,6 +212,7 @@ function buildAnnouncementPopupProperties(
 export async function getAnnouncementPopupConfig(
   widgetPages?: PageObjectResponse[]
 ): Promise<AnnouncementPopupConfig> {
+  await getImageHostConfig()
   try {
     const widget = await findAnnouncementPopupWidget(widgetPages)
     if (widget) return readAnnouncementPopupFromPage(widget)

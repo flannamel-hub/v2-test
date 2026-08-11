@@ -5,6 +5,8 @@ import { getPages } from './getBlogData'
 import { joinRichTextPlain } from './readProperty'
 import { getDatabaseTitleAndIcon } from './getDatabase'
 import { isTransientNotionError, isNotionBuildPhase } from './transientErrors'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
+import { rewriteManagedAssetUrl } from '@/src/lib/media/rewriteManagedAssetUrl'
 
 const cache = new Map<string, CachedNav>()
 
@@ -37,6 +39,7 @@ function packNavResult(entry: CachedNav) {
 }
 
 async function fetchNavFromNotion(cacheTimeInSeconds: number) {
+  const imageHostConfig = await getImageHostConfig()
   const pages = await getPages()
   const formattedPages = formatPages(pages)
 
@@ -71,7 +74,19 @@ async function fetchNavFromNotion(cacheTimeInSeconds: number) {
   const cachedNav: CachedNav = {
     navPages: formattedPages,
     siteTitle: title,
-    logo: databaseIcon,
+    logo:
+      databaseIcon?.type === 'external'
+        ? {
+            ...databaseIcon,
+            external: {
+              ...databaseIcon.external,
+              url: rewriteManagedAssetUrl(
+                databaseIcon.external.url,
+                imageHostConfig
+              ),
+            },
+          }
+        : databaseIcon,
     ttl: Date.now() + cacheTimeInSeconds * 1000,
   }
 

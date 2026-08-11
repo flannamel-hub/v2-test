@@ -1,6 +1,11 @@
 import { getBlogSiteId, getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
 import { assertGalleryStorageQuota } from '@/src/lib/gallery/galleryStorage'
 import { getSupabaseAdmin } from '@/src/lib/supabase/admin'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
+import {
+  ImageHostRuntimeConfig,
+  rewriteManagedAssetUrl,
+} from '@/src/lib/media/rewriteManagedAssetUrl'
 
 export type GalleryImageRow = {
   id: string
@@ -20,6 +25,19 @@ export type GalleryMeta = {
 }
 
 const PAGE_SIZE_MAX = 48
+
+function rewriteGalleryImage(
+  image: GalleryImageRow,
+  config: ImageHostRuntimeConfig
+): GalleryImageRow {
+  return {
+    ...image,
+    url: rewriteManagedAssetUrl(image.url, config),
+    thumb_url: image.thumb_url
+      ? rewriteManagedAssetUrl(image.thumb_url, config)
+      : null,
+  }
+}
 
 export async function getGalleryMetaBySlug(
   postSlug: string
@@ -52,6 +70,7 @@ export async function listGalleryImages(
 }> {
   const safeLimit = Math.min(Math.max(limit, 1), PAGE_SIZE_MAX)
   const safePage = Math.max(page, 1)
+  const imageHostConfig = await getImageHostConfig()
   const meta = await getGalleryMetaBySlug(postSlug)
   if (!meta) {
     return {
@@ -108,7 +127,9 @@ export async function listGalleryImages(
 
   return {
     meta,
-    images: (data || []) as GalleryImageRow[],
+    images: ((data || []) as GalleryImageRow[]).map((image) =>
+      rewriteGalleryImage(image, imageHostConfig)
+    ),
     total,
     page: safePage,
     limit: safeLimit,
@@ -120,6 +141,7 @@ export async function listGalleryImages(
 export async function listAllGalleryImagesForAdmin(
   postSlug: string
 ): Promise<{ meta: GalleryMeta | null; images: GalleryImageRow[] }> {
+  const imageHostConfig = await getImageHostConfig()
   const meta = await getGalleryMetaBySlug(postSlug)
   if (!meta) return { meta: null, images: [] }
 
@@ -135,7 +157,12 @@ export async function listAllGalleryImagesForAdmin(
     .order('sort_order', { ascending: true })
 
   if (error) throw error
-  return { meta, images: (data || []) as GalleryImageRow[] }
+  return {
+    meta,
+    images: ((data || []) as GalleryImageRow[]).map((image) =>
+      rewriteGalleryImage(image, imageHostConfig)
+    ),
+  }
 }
 
 export async function syncGalleryImages(input: {
@@ -148,6 +175,7 @@ export async function syncGalleryImages(input: {
     file_size?: number | null
   }[]
 }): Promise<{ meta: GalleryMeta; imageCount: number }> {
+  const imageHostConfig = await getImageHostConfig()
   const sb = getSupabaseAdmin()
   if (!sb) {
     throw new Error('图库服务尚未配置，请联系管理')
@@ -157,9 +185,17 @@ export async function syncGalleryImages(input: {
   const slug = input.postSlug.trim()
   if (!slug) throw new Error('post_slug 不能为空')
 
+  const normalizedImages = (input.images || []).map((image) => ({
+    ...image,
+    url: rewriteManagedAssetUrl(image.url, imageHostConfig),
+    thumb_url: image.thumb_url
+      ? rewriteManagedAssetUrl(image.thumb_url, imageHostConfig)
+      : image.thumb_url,
+  }))
+
   await assertGalleryStorageQuota({
     postSlug: slug,
-    images: input.images || [],
+    images: normalizedImages,
   })
 
   const { data: galleryRow, error: upsertError } = await sb
@@ -187,9 +223,13 @@ export async function syncGalleryImages(input: {
     .eq('gallery_id', galleryId)
   if (existErr) throw existErr
 
-  const sizeByUrl = new Map(
-    (existingRows || []).map((r) => [r.url as string, r.file_size as number | null])
-  )
+  const sizeByUrl = new Map<string, number | null>()
+  for (const row of existingRows || []) {
+    const rawUrl = row.url as string
+    const size = row.file_size as number | null
+    sizeByUrl.set(rawUrl, size)
+    sizeByUrl.set(rewriteManagedAssetUrl(rawUrl, imageHostConfig), size)
+  }
 
   const { error: delError } = await sb
     .from('gallery_images')
@@ -198,7 +238,7 @@ export async function syncGalleryImages(input: {
     .eq('gallery_id', galleryId)
   if (delError) throw delError
 
-  const rows = (input.images || [])
+  const rows = normalizedImages
     .map((img, index) => ({
       gallery_id: galleryId,
       site_id: siteId,

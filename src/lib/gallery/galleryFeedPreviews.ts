@@ -2,6 +2,11 @@ import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
 import { listGalleryImages } from '@/src/lib/gallery/galleryDb'
 import { normalizeMediaUrl } from '@/src/lib/notion/readProperty'
 import { getSupabaseAdmin } from '@/src/lib/supabase/admin'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
+import {
+  ImageHostRuntimeConfig,
+  rewriteManagedAssetUrl,
+} from '@/src/lib/media/rewriteManagedAssetUrl'
 
 export type GalleryFeedPreview = {
   total: number
@@ -18,11 +23,12 @@ type GalleryFeedPreviewRow = {
 
 function normalizeThumbUrl(
   thumbUrl: string | null | undefined,
-  url: string
+  url: string,
+  config: ImageHostRuntimeConfig
 ): string {
   const raw = (thumbUrl || url || '').trim()
   if (!raw) return ''
-  return normalizeMediaUrl(raw) || raw
+  return rewriteManagedAssetUrl(normalizeMediaUrl(raw) || raw, config)
 }
 
 function isMissingGalleryFeedPreviewsRpc(error: {
@@ -41,7 +47,8 @@ function isMissingGalleryFeedPreviewsRpc(error: {
 
 async function loadGalleryFeedPreviewsLegacy(
   slugs: string[],
-  thumbLimit: number
+  thumbLimit: number,
+  imageHostConfig: ImageHostRuntimeConfig
 ): Promise<Record<string, GalleryFeedPreview>> {
   const sb = getSupabaseAdmin()
   const siteId = getBlogSiteIdOrNull()
@@ -67,7 +74,9 @@ async function loadGalleryFeedPreviewsLegacy(
       try {
         const { images, total } = await listGalleryImages(slug, 1, thumbLimit)
         const thumbs = images
-          .map((img) => normalizeThumbUrl(img.thumb_url, img.url))
+          .map((img) =>
+            normalizeThumbUrl(img.thumb_url, img.url, imageHostConfig)
+          )
           .filter(Boolean)
         if (!thumbs.length) return
         results[slug] = { total, thumbs }
@@ -90,6 +99,8 @@ export async function loadGalleryFeedPreviews(
   const uniqueSlugs = [...new Set(slugs.filter(Boolean))]
   if (!uniqueSlugs.length) return {}
 
+  const imageHostConfig = await getImageHostConfig()
+
   const sb = getSupabaseAdmin()
   const siteId = getBlogSiteIdOrNull()
   if (!sb || !siteId) return {}
@@ -103,14 +114,22 @@ export async function loadGalleryFeedPreviews(
 
   if (error) {
     if (isMissingGalleryFeedPreviewsRpc(error)) {
-      return loadGalleryFeedPreviewsLegacy(uniqueSlugs, safeThumbLimit)
+      return loadGalleryFeedPreviewsLegacy(
+        uniqueSlugs,
+        safeThumbLimit,
+        imageHostConfig
+      )
     }
     throw error
   }
 
   const results: Record<string, GalleryFeedPreview> = {}
   for (const row of (data || []) as GalleryFeedPreviewRow[]) {
-    const thumb = normalizeThumbUrl(row.thumb_url, row.url)
+    const thumb = normalizeThumbUrl(
+      row.thumb_url,
+      row.url,
+      imageHostConfig
+    )
     if (!thumb) continue
     const preview = results[row.post_slug] || {
       total: row.image_count,

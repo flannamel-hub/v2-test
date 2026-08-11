@@ -5,6 +5,8 @@ import {
   readRichTextPlain,
 } from '@/src/lib/notion/readProperty'
 import { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
+import { rewriteManagedAssetUrl } from '@/src/lib/media/rewriteManagedAssetUrl'
 
 export type GalleryAdBanner = {
   url: string
@@ -49,6 +51,7 @@ async function findGalleryAdWidget(
 export async function loadGalleryAdBanner(
   widgetPages?: PageObjectResponse[]
 ): Promise<GalleryAdBanner | null> {
+  const imageHostConfig = await getImageHostConfig()
   if (buildCache !== undefined) {
     if (buildCache !== null) return buildCache
     if (Date.now() - buildCacheNullAt < NULL_CACHE_TTL_MS) return null
@@ -76,7 +79,9 @@ export async function loadGalleryAdBanner(
     try {
       const preview = await fetchUrlPreview(url)
       imageSrc =
-        preview.image?.startsWith('http') ? preview.image : null
+        preview.image?.startsWith('http')
+          ? rewriteManagedAssetUrl(preview.image, imageHostConfig)
+          : null
     } catch {
       imageSrc = null
     }

@@ -1,4 +1,9 @@
 import { Client } from '@notionhq/client';
+import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
+import {
+  getRuntimeImageHostConfig,
+  rewriteManagedAssetUrl,
+} from '@/src/lib/media/rewriteManagedAssetUrl';
 
 const notion = new Client({
   auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN,
@@ -37,7 +42,10 @@ function readRichText(prop) {
 
 function readCover(prop) {
   if (!prop || prop.type !== 'url') return '';
-  return prop.url || '';
+  return rewriteManagedAssetUrl(
+    prop.url || '',
+    getRuntimeImageHostConfig()
+  );
 }
 
 function readEnabled(props) {
@@ -102,6 +110,7 @@ async function buildProperties(dbProps, { url, promoText, cover, enabled }) {
 }
 
 export default async function handler(req, res) {
+  await getImageHostConfig();
   try {
     if (req.method === 'GET') {
       const page = await findGalleryAdWidget();
@@ -133,7 +142,12 @@ export default async function handler(req, res) {
       const nextPromo =
         typeof promoText === 'string' ? promoText.trim() : (current.promoText || '');
       const nextCover =
-        typeof cover === 'string' ? cover.trim() : (current.cover || '');
+        typeof cover === 'string'
+          ? rewriteManagedAssetUrl(
+              cover.trim(),
+              getRuntimeImageHostConfig()
+            )
+          : (current.cover || '');
 
       if (nextEnabled && (!nextUrl || !nextUrl.startsWith('http'))) {
         return res.status(400).json({

@@ -1,5 +1,9 @@
 import { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
 import { RichTextItemResponse } from '@notionhq/client/build/src/api-endpoints'
+import {
+  getRuntimeImageHostConfig,
+  rewriteManagedAssetUrl,
+} from '@/src/lib/media/rewriteManagedAssetUrl'
 
 /** 合并 Notion rich_text / title 数组为完整 plain text（保留段内与段间空格） */
 export function joinRichTextPlain(
@@ -31,10 +35,17 @@ export function normalizeMediaUrl(
   if (!raw) return null
   const s = raw.trim()
   if (!s) return null
-  if (s.startsWith('https://') || s.startsWith('http://')) return s
-  if (s.startsWith('//')) return `https:${s}`
+  if (s.startsWith('https://') || s.startsWith('http://')) {
+    return rewriteManagedAssetUrl(s, getRuntimeImageHostConfig())
+  }
+  if (s.startsWith('//')) {
+    return rewriteManagedAssetUrl(`https:${s}`, getRuntimeImageHostConfig())
+  }
   if (/^[a-zA-Z0-9][-a-zA-Z0-9.]*(?:\/|$)/.test(s)) {
-    return `https://${s.replace(/^\/+/, '')}`
+    return rewriteManagedAssetUrl(
+      `https://${s.replace(/^\/+/, '')}`,
+      getRuntimeImageHostConfig()
+    )
   }
   return null
 }

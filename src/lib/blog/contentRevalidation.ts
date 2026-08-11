@@ -18,6 +18,7 @@ import {
   getPostsAndPieces,
   setRevalidateFreshTheme,
 } from '@/src/lib/notion/getBlogData'
+import { clearImageHostConfigCache } from '@/src/lib/media/imageHostConfig'
 import { ApiScope } from '@/src/types/notion'
 
 const { CATEGORY, TAG, ARCHIVE } = CONFIG.DEFAULT_SPECIAL_PAGES
@@ -43,6 +44,7 @@ export type RevalidateResult = {
 
 /** 清空构建期进程内缓存，确保 ISR 再生时拉取最新 Notion 数据 */
 export function clearContentBuildCaches(): void {
+  clearImageHostConfigCache()
   clearCachedNavFooter()
   clearRemoteThemeCache()
   clearGalleryAdBannerCache()

@@ -9,14 +9,24 @@ const repoRoot = path.resolve(__dirname, '..')
 const srcRoot = `${path.join(repoRoot, 'src')}${path.sep}`
 const originalResolveFilename = Module._resolveFilename
 const originalJsLoader = require.extensions['.js']
+const originalTsLoader = require.extensions['.ts']
 const originalFetch = global.fetch
-const envKeys = ['AUTH_USER', 'AUTH_PASS', 'LSKY_TOKEN', 'LSKY_URL']
+const envKeys = [
+  'AUTH_USER',
+  'AUTH_PASS',
+  'LSKY_TOKEN',
+  'LSKY_URL',
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+]
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]))
 
 process.env.AUTH_USER = 'p3-test-admin'
 process.env.AUTH_PASS = 'p3-test-password'
 process.env.LSKY_TOKEN = 'p3-test-token'
 process.env.LSKY_URL = 'https://images.example'
+delete process.env.NEXT_PUBLIC_SUPABASE_URL
+delete process.env.SUPABASE_SERVICE_ROLE_KEY
 
 Module._resolveFilename = function resolveFilename(request, parent, isMain, options) {
   const resolvedRequest = request.startsWith('@/')
@@ -43,10 +53,28 @@ require.extensions['.js'] = function transpileProjectJs(module, filename) {
   return module._compile(result.code, filename)
 }
 
+require.extensions['.ts'] = function transpileProjectTs(module, filename) {
+  const result = babel.transformFileSync(filename, {
+    babelrc: false,
+    configFile: false,
+    presets: [
+      require.resolve('@babel/preset-typescript'),
+      [
+        require.resolve('@babel/preset-env'),
+        { targets: { node: 'current' }, modules: 'commonjs' },
+      ],
+    ],
+  })
+  return module._compile(result.code, filename)
+}
+
 const uploadHandler = require('../src/pages/api/admin/upload.js').default
+const imageHostConfigHandler = require('../src/pages/api/image-host-config.ts').default
 
 Module._resolveFilename = originalResolveFilename
 require.extensions['.js'] = originalJsLoader
+if (originalTsLoader) require.extensions['.ts'] = originalTsLoader
+else delete require.extensions['.ts']
 
 let fetchCalls = []
 
@@ -139,6 +167,7 @@ test('正确 Basic 凭据可完成代理上传', async () => {
   assert.equal(res.statusCode, 200)
   assert.equal(res.body.url, 'https://images.example/test.png')
   assert.equal(fetchCalls.length, 1)
+  assert.equal(fetchCalls[0].input, 'https://images.example/api/v1/upload')
   assert.equal(fetchCalls[0].init.headers.Authorization, 'Bearer p3-test-token')
 })
 
@@ -149,4 +178,17 @@ test('正确 internal_auth Cookie 可完成代理上传', async () => {
   assert.equal(res.statusCode, 200)
   assert.equal(res.body.url, 'https://images.example/test.png')
   assert.equal(fetchCalls.length, 1)
+})
+
+test('公开配置接口只返回非敏感字段并禁用缓存', async () => {
+  const res = createResponse()
+  await imageHostConfigHandler({ method: 'GET' }, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.success, true)
+  assert.equal(res.body.public_asset_origin, 'https://images.example')
+  assert.deepEqual(res.body.legacy_asset_origins, [])
+  assert.equal('upload_api_origin' in res.body, false)
+  assert.equal('token' in res.body, false)
+  assert.match(res.headers['cache-control'], /no-store/)
 })
