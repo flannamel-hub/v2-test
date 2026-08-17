@@ -331,6 +331,7 @@
 - 子库可命名：`SocialLinks` / `Social Links` / `social-links` / `社交媒体`
 - 子库字段：`name`、`platform`(weibo/twitter/pixiv/telegram/instagram)、`status`、`url`
 - 保存时自动补齐缺失平台行，并触发 `social-links` 范围刷新
+- **自动注入**：`discoverSocialLinksDb` 检测到主库缺少 `slug=social-links` 且 `type=Widget` 的页面，或该页面内部缺少社交媒体子数据库时，会自动创建（建 Widget 页面 + 建子数据库 + 补齐 platform/url/status 字段），社媒组件开箱即用，无需手动在 Notion 建数据。
 
 ### 回收站与新文章同步
 
