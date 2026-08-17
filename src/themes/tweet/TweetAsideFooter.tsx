@@ -1,4 +1,4 @@
-const PROPLUS_URL = 'https://www.proplus.team/'
+const PROPLUS_URL = 'https://proplus.team/'
 
 export function TweetAsideFooter() {
   return (
