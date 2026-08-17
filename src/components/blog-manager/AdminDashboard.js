@@ -1156,6 +1156,10 @@ const SAVE_PHASE_META = {
     title: '正在恢复文章',
     hint: '请勿关闭页面',
   },
+  siteTitle: {
+    title: '正在更改网站名称',
+    hint: '请勿关闭页面',
+  },
 };
 
 function getGalleryLoaderHint(phase, progress) {
@@ -6317,16 +6321,34 @@ const [mounted, setMounted] = useState(false);
   const updateSiteTitle = async () => {
     const newTitle = prompt("请输入新的网站标题:", siteTitle);
     if (newTitle && newTitle !== siteTitle) {
-        setLoading(true);
-        await fetch('/api/admin/config', {
+      setLoading(true);
+      setSavePhase('siteTitle');
+      try {
+        const res = await fetch('/api/admin/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: newTitle }),
         });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) {
+          alert('更改网站名称失败：' + (data?.error || res.status));
+          return;
+        }
         setSiteTitle(newTitle);
-        const rev = await triggerShellBlogRefresh();
+        const rev = await triggerContentRevalidation({
+          scope: 'site-config',
+          clearCaches: true,
+          freshTheme: true,
+          warmPaths: true,
+          contentChange: true,
+        });
         showRevalidateFeedback(rev, showAdminToast);
+      } catch (e) {
+        alert('更改网站名称失败：' + (e.message || '未知错误'));
+      } finally {
         setLoading(false);
+        setSavePhase('');
+      }
     }
   };
 
