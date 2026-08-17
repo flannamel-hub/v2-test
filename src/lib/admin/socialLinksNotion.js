@@ -171,20 +171,14 @@ async function createSocialLinksWidget() {
 }
 
 async function createSocialLinksChildDatabase(widgetId) {
-  const resp = await withRetry(() =>
-    notion.blocks.children.append({
-      block_id: widgetId,
-      children: [
-        { type: 'child_database', child_database: { title: 'SocialLinks' } },
-      ],
-    })
-  )
-  const childDbId = resp.results.find((b) => b.type === 'child_database')?.id
-  if (!childDbId) throw new Error('创建社交媒体子数据库失败')
-  await withRetry(() =>
-    notion.databases.update({
-      database_id: childDbId,
+  // 用 databases.create（parent=page_id）在页面下建子数据库。
+  // blocks.children.append 不支持 child_database 类型（会报 body failed validation）。
+  const db = await withRetry(() =>
+    notion.databases.create({
+      parent: { page_id: widgetId },
+      title: [{ type: 'text', text: { content: 'SocialLinks' } }],
       properties: {
+        name: { title: {} },
         platform: {
           select: {
             options: [
@@ -203,7 +197,7 @@ async function createSocialLinksChildDatabase(widgetId) {
       },
     })
   )
-  return childDbId
+  return db.id
 }
 
 async function ensureSocialLinksInfrastructure() {
