@@ -1,5 +1,6 @@
 import { Client } from '@notionhq/client'
-import { queryDatabasePages } from '@/src/lib/notion/getDatabase'
+import { getDatabaseMetadata, queryDatabasePages } from '@/src/lib/notion/getDatabase'
+import { databaseId } from '@/src/lib/notion/notion'
 import { slugEqualsFilter } from '@/src/lib/notion/filter'
 
 const notion = new Client({
@@ -140,14 +141,91 @@ export function clearSocialLinksDbCache() {
   cache = null
 }
 
+async function createSocialLinksWidget() {
+  const db = await getDatabaseMetadata()
+  const props = db.properties || {}
+  const titleKey =
+    props.title?.type === 'title'
+      ? 'title'
+      : props.Page?.type === 'title'
+        ? 'Page'
+        : null
+  if (!titleKey) throw new Error('主库缺少 title 字段')
+  const statusType = props.status?.type === 'status' ? 'status' : 'select'
+  if (!databaseId) throw new Error('文章数据服务尚未配置，请联系管理')
+  const page = await withRetry(() =>
+    notion.pages.create({
+      parent: { database_id: databaseId },
+      properties: {
+        [titleKey]: { title: [{ text: { content: '社交媒体' } }] },
+        slug: { rich_text: [{ text: { content: SOCIAL_WIDGET_SLUG } }] },
+        type: { select: { name: 'Widget' } },
+        status:
+          statusType === 'status'
+            ? { status: { name: 'Published' } }
+            : { select: { name: 'Published' } },
+      },
+    })
+  )
+  return page
+}
+
+async function createSocialLinksChildDatabase(widgetId) {
+  const resp = await withRetry(() =>
+    notion.blocks.children.append({
+      block_id: widgetId,
+      children: [
+        { type: 'child_database', child_database: { title: 'SocialLinks' } },
+      ],
+    })
+  )
+  const childDbId = resp.results.find((b) => b.type === 'child_database')?.id
+  if (!childDbId) throw new Error('创建社交媒体子数据库失败')
+  await withRetry(() =>
+    notion.databases.update({
+      database_id: childDbId,
+      properties: {
+        platform: {
+          select: {
+            options: [
+              { name: 'weibo' },
+              { name: 'twitter' },
+              { name: 'pixiv' },
+              { name: 'telegram' },
+              { name: 'instagram' },
+            ],
+          },
+        },
+        url: { url: {} },
+        status: {
+          select: { options: [{ name: 'Published' }, { name: 'Hidden' }] },
+        },
+      },
+    })
+  )
+  return childDbId
+}
+
+async function ensureSocialLinksInfrastructure() {
+  let widget = await findSocialLinksWidget()
+  let created = false
+  if (!widget) {
+    widget = await createSocialLinksWidget()
+    created = true
+  }
+  let childDbId = await findSocialLinksChildDatabase(widget.id)
+  if (!childDbId) {
+    childDbId = await createSocialLinksChildDatabase(widget.id)
+    created = true
+  }
+  if (created) clearSocialLinksDbCache()
+  return { widget, childDbId }
+}
+
 export async function discoverSocialLinksDb() {
   if (cache) return cache
 
-  const widget = await findSocialLinksWidget()
-  if (!widget) throw new Error('未找到 slug=social-links 的 Widget 页面')
-
-  const childDbId = await findSocialLinksChildDatabase(widget.id)
-  if (!childDbId) throw new Error('social-links 页面内部未找到社交媒体子数据库')
+  const { widget, childDbId } = await ensureSocialLinksInfrastructure()
 
   const db = await withRetry(() => notion.databases.retrieve({ database_id: childDbId }))
   const props = db.properties || {}
