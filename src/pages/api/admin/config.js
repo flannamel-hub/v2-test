@@ -1,4 +1,5 @@
 import { Client } from '@notionhq/client';
+import { getSiteTitleQuota, recordSiteTitleChange } from '@/src/lib/blog/siteTitleQuota';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -46,12 +47,23 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, error: '标题不能为空' });
       }
 
+      const quota = await getSiteTitleQuota();
+      if (!quota.canChange) {
+        return res.status(429).json({
+          success: false,
+          error: '修改网站名称三日最多一次',
+          retryAfterSec: quota.retryAfterSec,
+        });
+      }
+
       await withRetry(() =>
         notion.databases.update({
           database_id: databaseId,
           title: [{ type: 'text', text: { content: title } }],
         })
       );
+
+      await recordSiteTitleChange();
 
       return res.status(200).json({ success: true, title });
     }
@@ -60,8 +72,9 @@ export default async function handler(req, res) {
       notion.databases.retrieve({ database_id: databaseId })
     );
     const title = joinNotionTitlePlain(response.title) || 'PROBLOG';
+    const siteTitleQuota = await getSiteTitleQuota();
 
-    res.status(200).json({ success: true, siteInfo: { title } });
+    res.status(200).json({ success: true, siteInfo: { title }, siteTitleQuota });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

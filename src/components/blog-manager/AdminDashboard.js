@@ -6319,6 +6319,18 @@ const [mounted, setMounted] = useState(false);
   };
 
   const updateSiteTitle = async () => {
+    // 点齿轮先查三日冷却，命中则直接提示，不弹输入框
+    try {
+      const qRes = await fetch('/api/admin/config');
+      const qData = await qRes.json().catch(() => null);
+      if (qData?.success && qData.siteTitleQuota && !qData.siteTitleQuota.canChange) {
+        alert('修改网站名称三日最多一次');
+        return;
+      }
+    } catch (e) {
+      /* 冷却查询失败不阻断，交由后端兜底 */
+    }
+
     const newTitle = prompt("请输入新的网站标题:", siteTitle);
     if (newTitle && newTitle !== siteTitle) {
       setLoading(true);
@@ -6335,14 +6347,26 @@ const [mounted, setMounted] = useState(false);
           return;
         }
         setSiteTitle(newTitle);
-        const rev = await triggerContentRevalidation({
-          scope: 'site-config',
-          clearCaches: true,
+
+        // 首页立即刷新（快速标记，不预热等待）
+        await triggerContentRevalidation({
+          scope: 'batch',
+          paths: ['/'],
           freshTheme: true,
-          warmPaths: true,
-          contentChange: true,
+          clearCaches: true,
         });
-        showRevalidateFeedback(rev, showAdminToast);
+
+        // 其余页面入队后台异步刷新，不阻塞遮罩
+        void triggerContentRevalidation({
+          scope: 'site-config',
+          queue: true,
+          queuePriority: 0,
+          queueDelayMs: 30000,
+          queueReason: 'site-title',
+          clearCaches: true,
+        }).catch((e) => console.warn('全站标题刷新入队失败', e));
+
+        showAdminToast('网站名称已更改，前台页面正在陆续刷新');
       } catch (e) {
         alert('更改网站名称失败：' + (e.message || '未知错误'));
       } finally {
