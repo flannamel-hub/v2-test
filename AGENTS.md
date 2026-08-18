@@ -314,6 +314,7 @@
 ### 保存、媒体与发布约定
 
 - 编辑器结构化块会转为 Notion blocks；加密内容使用 `LOCK:<password>` callout 协议。
+- 编辑器块类型：`h1`/`text`/`quote`/`note`/`link`/`image`/`lock` + `ol`（有序）/`ul`（无序）/`todo`（待办）。列表块 `content` 每行一项；`todo` 另有 `checked` 数组（按行），导出为 `numbered_list_item`/`bulleted_list_item`/`to_do`，导入时相邻同类型列表项自动合并；`serializeBlocksForSave` 白名单不含 `checked`，保存路径在 AdminDashboard 调用处按原块补回。锁块内列表以行首 `1. ` / `- ` / `[ ] ` / `[x] ` 前缀往返（`styledLinesToChildren` 识别）。
 - `contentMediaFlush.js`：正文 pending 图片/加密块图片 → 兰空上传，再进入保存。
 - `galleryFlush.js`：图库 pending → 兰空 → 写 Supabase；保存前做容量校验；并发约 4。
 - 发布时“尚未添加图片块”提示：仅当正文无图片块且当前文章也无图库图片时弹出；已有图库则视为已有封面候选。
