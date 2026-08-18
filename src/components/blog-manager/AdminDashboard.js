@@ -362,11 +362,11 @@ const GlobalStyle = () => (
     .block-minimap-scroll::-webkit-scrollbar-track { background: #252528; border-radius: 4px; }
     .block-minimap-scroll::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
     .block-minimap-scroll::-webkit-scrollbar-thumb:hover { background: #777; }
-    .block-minimap-list { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+    .block-minimap-list { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; border: 1.5px dashed rgba(173, 255, 47, 0.35); border-radius: 10px; padding: 10px 6px; box-sizing: border-box; }
     .block-minimap-add-wrap { position: relative; display: flex; justify-content: center; align-items: center; padding: 2px 0; flex-shrink: 0; width: 100%; }
     .block-minimap-add-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px dashed #555; background: #1c1c1f; color: greenyellow; font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
     .block-minimap-add-btn:hover, .block-minimap-add-btn.open { border-color: greenyellow; background: rgba(173,255,47,0.14); box-shadow: 0 3px 12px rgba(173,255,47,0.2); transform: scale(1.05); }
-    .block-builder-expanded { display: flex; flex-direction: column; gap: 72px; padding-bottom: 28px; }
+    .block-builder-expanded { display: flex; flex-direction: column; gap: 72px; padding: 10px; padding-bottom: 28px; border: 1.5px dashed rgba(173, 255, 47, 0.35); border-radius: 10px; box-sizing: border-box; }
     .block-minimap-item { position: relative; display: flex; flex-direction: column; width: 140px; min-height: 118px; flex-shrink: 0; border: 1px solid #444; border-radius: 8px; background: #1c1c1f; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s; user-select: none; cursor: grab; touch-action: none; }
     .block-minimap-item:active { cursor: grabbing; }
     .block-minimap-item:hover { border-color: #666; }
@@ -3909,11 +3909,22 @@ const BlockBuilder = ({
             )}
             {b.type === 'note' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="输入注释内容..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'80px', fontFamily: 'monospace', fontSize: '13px', ...fmtStyle(b), color: (b.color && b.color !== 'default') ? colorCss(b.color) : '#ff6b6b'}} />}
             {b.type === 'quote' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="输入引用内容..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'90px', borderLeft:'4px solid greenyellow', paddingLeft:'12px', ...fmtStyle(b)}} />}
-            {b.type === 'ol' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个列表项，自动按顺序编号" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />}
-            {b.type === 'ul' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个列表项" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />}
+            {b.type === 'ol' && (
+              <div style={{width:'100%'}}>
+                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px'}}>预览：1. 2. 3. 4. …</div>
+                <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个列表项，自动按顺序编号" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />
+              </div>
+            )}
+            {b.type === 'ul' && (
+              <div style={{width:'100%'}}>
+                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px'}}>预览：• • •</div>
+                <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个列表项" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />
+              </div>
+            )}
             {b.type === 'todo' && (
               <div style={{width:'100%'}}>
                 <div style={{fontSize:'12px', color:'#999', marginBottom:'6px'}}>每行一个待办项，勾选状态在保存后生效；行首可用 [x] / [ ] 前缀调整勾选</div>
+                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px'}}>预览：☐ ☑ ☐</div>
                 <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个待办项..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />
               </div>
             )}
@@ -5232,7 +5243,8 @@ const [mounted, setMounted] = useState(false);
     editingCategoryRef.current = null;
     editingTagsRef.current = null;
     setView('edit');
-    setExpandedStep(1);
+    // 新建文章默认全部 Step 折叠
+    setExpandedStep(0);
   };
 
   // === 🔗 友链管理 ===
@@ -7064,6 +7076,11 @@ const [mounted, setMounted] = useState(false);
     setSelectedPostIds([]);
   };
 
+  // 多选模式下清空已选，但保持多选模式开启
+  const handleClearSelection = () => {
+    setSelectedPostIds([]);
+  };
+
   const handleBulkArchivePosts = async () => {
     const ids = [...selectedPostIds];
     if (!ids.length) return;
@@ -7747,6 +7764,16 @@ const [mounted, setMounted] = useState(false);
                           : '取消选择'
                         : '选择'}
                     </button>
+                    {listSelectMode && selectedPostIds.length > 0 ? (
+                      <button
+                        type="button"
+                        className="admin-list-select-btn"
+                        onClick={handleClearSelection}
+                        disabled={loading}
+                      >
+                        取消选择
+                      </button>
+                    ) : null}
                   </>
                 ) : null}
                 <SlidingNav activeIdx={navIdx} onSelect={handleNavClick} />
@@ -7999,6 +8026,16 @@ const [mounted, setMounted] = useState(false);
                       : '取消选择'
                     : '选择'}
                 </button>
+                {listSelectMode && selectedPostIds.length > 0 ? (
+                  <button
+                    type="button"
+                    className="admin-list-select-btn"
+                    onClick={handleClearSelection}
+                    disabled={loading}
+                  >
+                    取消选择
+                  </button>
+                ) : null}
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -8778,7 +8815,7 @@ const [mounted, setMounted] = useState(false);
             ) : null}
 
             {!editingSimplePage ? (
-            <StepAccordion step={5} title={<>下载信息 <GalleryOnlyTag /></>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
+            <StepAccordion step={5} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
                <div>
                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>Gallery 主题下载弹窗中展示的链接内容，留空则显示「暂无下载」。</p>
