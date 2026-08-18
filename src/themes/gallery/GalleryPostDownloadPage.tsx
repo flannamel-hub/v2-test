@@ -101,13 +101,15 @@ export function GalleryPostDownloadPage({
                   />
                 ) : null}
 
-                <section className="mb-8 flex justify-center py-2">
-                  <GalleryPostDownloadActions
-                    postSlug={post.slug}
-                    postTitle={post.title}
-                    downloadContent={downloadValue}
-                  />
-                </section>
+                {post.options?.downloadEnabled === false ? null : (
+                  <section className="mb-8 flex justify-center py-2">
+                    <GalleryPostDownloadActions
+                      postSlug={post.slug}
+                      postTitle={post.title}
+                      downloadContent={downloadValue}
+                    />
+                  </section>
+                )}
 
                 <section className="pt-2">
                   {downloadInstructionBlocks.length > 0 ? (

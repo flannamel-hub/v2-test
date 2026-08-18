@@ -8,7 +8,7 @@ import {
   readPinnedFromNotionProperties,
   sortPostsByPinnedThenDate,
 } from '../pinnedPosts'
-import { readCoverDarkFromPageProperties, readCoverFromPageProperties, readPageCoverUrl, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, isArticlePasswordProtectedFromProperties } from '../../notion/readProperty'
+import { readCoverDarkFromPageProperties, readCoverFromPageProperties, readPageCoverUrl, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readDownloadEnabledFromPageProperties, isArticlePasswordProtectedFromProperties } from '../../notion/readProperty'
 import { isDefaultPostCover } from '../../gallery/postCover'
 import { getImageInfo } from '../getImageInfo'
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
@@ -148,6 +148,7 @@ const formatPost = async (
       '',
     downloadSize: readDownloadSizeFromPageProperties(properties),
     downloadCount: readDownloadCountFromPageProperties(properties),
+    downloadEnabled: readDownloadEnabledFromPageProperties(properties),
     isPasswordProtected: isArticlePasswordProtectedFromProperties(properties),
   }
 
@@ -187,6 +188,7 @@ const formatPost = async (
       download: postOptions.download ?? '',
       downloadSize: postOptions.downloadSize ?? '',
       downloadCount: postOptions.downloadCount ?? '',
+      downloadEnabled: postOptions.downloadEnabled,
       isPasswordProtected: postOptions.isPasswordProtected ?? false,
       useDefaultCover: isExplicitDefaultCover,
     },

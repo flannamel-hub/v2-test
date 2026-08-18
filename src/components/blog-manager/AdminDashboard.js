@@ -4197,7 +4197,7 @@ const [mounted, setMounted] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [previewData, setPreviewData] = useState(null);
-  const [form, setForm] = useState({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '' });
+  const [form, setForm] = useState({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', download_enabled: true, article_password: '' });
   const [currentId, setCurrentId] = useState(null);
   const [siteTitle, setSiteTitle] = useState('PROBLOG');
   const [navIdx, setNavIdx] = useState(1); 
@@ -5217,7 +5217,7 @@ const [mounted, setMounted] = useState(false);
     try {
       const post = await fetchPostById(p.id);
       if (post) {
-        setForm(post);
+        setForm({ ...post, download_enabled: post.download_enabled ?? true });
         const ebRaw = (Array.isArray(post.editorBlocks) && post.editorBlocks.length)
           ? normalizeLoadedEditorBlocks(post.editorBlocks)
           : normalizeLoadedEditorBlocks(parseContentToBlocks(post.content));
@@ -5263,7 +5263,7 @@ const [mounted, setMounted] = useState(false);
       revokePendingEditorMedia(prev);
       return [];
     });
-    setForm({ title: '', slug: generateAdminPostSlug(), excerpt:'', content:'', category:'', tags:'', cover:'', status:'Published', type: 'Post', date: new Date().toISOString().split('T')[0], download: '', download_size: '', download_count: '', article_password: '' });
+    setForm({ title: '', slug: generateAdminPostSlug(), excerpt:'', content:'', category:'', tags:'', cover:'', status:'Published', type: 'Post', date: new Date().toISOString().split('T')[0], download: '', download_size: '', download_count: '', download_enabled: true, article_password: '' });
     setCurrentId(null);
     editingSlugRef.current = null;
     editingCategoryRef.current = null;
@@ -6377,7 +6377,7 @@ const [mounted, setMounted] = useState(false);
     editingCategoryRef.current = null;
     editingTagsRef.current = null;
     setCurrentId(null);
-    setForm({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '' });
+    setForm({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', download_enabled: true, article_password: '' });
     setView('list');
   };
 
@@ -8844,7 +8844,8 @@ const [mounted, setMounted] = useState(false);
             {!editingSimplePage ? (
             <StepAccordion step={5} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
                <div>
-                 <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
+                  <label style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px', cursor:'pointer', fontSize:'11px', color:'#bbb'}}><input type="checkbox" checked={!!form.download_enabled} onChange={e=>setForm({...form, download_enabled:e.target.checked})} /> 开启下载按钮(关闭后前台隐藏下载入口)</label>
+                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>Gallery 主题下载弹窗中展示的链接内容，留空则显示「暂无下载」。</p>
                  <input className="glow-input" value={form.download || ''} onChange={e=>setForm({...form, download:e.target.value})} placeholder="例如：https://xxx.xxpan.com" style={{fontSize:'13px'}} />
                  <div style={{marginTop:'12px'}}>

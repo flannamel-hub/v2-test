@@ -68,7 +68,9 @@ export const GalleryPost = ({
                 className="flex-1"
               />
               <div className="shrink-0 pt-0.5">
-                <GalleryPostDownloadButton postSlug={post.slug} />
+                {post.options?.downloadEnabled === false ? null : (
+                  <GalleryPostDownloadButton postSlug={post.slug} />
+                )}
               </div>
             </div>
 

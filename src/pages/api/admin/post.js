@@ -8,7 +8,7 @@ import {
   ThemeSwitchQuotaError,
   recordThemeSwitchIfNeeded,
 } from '@/src/lib/blog/themeSwitchQuota';
-import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCoverFromPageProperties, readPageCoverUrl, DOWNLOAD_SIZE_PROPERTY_NAMES, DOWNLOAD_COUNT_PROPERTY_NAMES, ARTICLE_PASSWORD_PROPERTY_NAMES, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readArticlePasswordFromPageProperties } from '@/src/lib/notion/readProperty';
+import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCoverFromPageProperties, readPageCoverUrl, DOWNLOAD_SIZE_PROPERTY_NAMES, DOWNLOAD_COUNT_PROPERTY_NAMES, DOWNLOAD_ENABLED_PROPERTY_NAMES, ARTICLE_PASSWORD_PROPERTY_NAMES, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readDownloadEnabledFromPageProperties, readArticlePasswordFromPageProperties } from '@/src/lib/notion/readProperty';
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
 
 const notion = new Client({
@@ -620,7 +620,7 @@ export default async function handler(req, res) {
         readNotionCoverUrl(p.cover) ||
         readPageCoverUrl(page.cover) ||
         '';
-      return res.status(200).json({ success: true, post: { id: page.id, title: p.title?.title?.[0]?.plain_text || p.Page?.title?.[0]?.plain_text || '无标题', slug: p.slug?.rich_text?.[0]?.plain_text || '', excerpt: p.excerpt?.rich_text?.[0]?.plain_text || '', category: p.category?.select?.name || '', tags: (p.tags?.multi_select || []).map(t => t.name).join(','), status: p.status?.status?.name || p.status?.select?.name || 'Published', type: p.type?.select?.name || 'Post', date: p.date?.date?.start || '', cover: coverUrl, pinned: readPinnedFromNotionProperties(p), favourited: readFavouritedFromNotionProperties(p), download: readDownloadProperty(p.download), download_size: readDownloadSizeFromPageProperties(p), download_count: readDownloadCountFromPageProperties(p), article_password: readArticlePasswordFromPageProperties(p), content: cleanContent, rawBlocks: rawBlocks, editorBlocks: editorBlocks } });
+      return res.status(200).json({ success: true, post: { id: page.id, title: p.title?.title?.[0]?.plain_text || p.Page?.title?.[0]?.plain_text || '无标题', slug: p.slug?.rich_text?.[0]?.plain_text || '', excerpt: p.excerpt?.rich_text?.[0]?.plain_text || '', category: p.category?.select?.name || '', tags: (p.tags?.multi_select || []).map(t => t.name).join(','), status: p.status?.status?.name || p.status?.select?.name || 'Published', type: p.type?.select?.name || 'Post', date: p.date?.date?.start || '', cover: coverUrl, pinned: readPinnedFromNotionProperties(p), favourited: readFavouritedFromNotionProperties(p), download: readDownloadProperty(p.download), download_size: readDownloadSizeFromPageProperties(p), download_count: readDownloadCountFromPageProperties(p), download_enabled: readDownloadEnabledFromPageProperties(p), article_password: readArticlePasswordFromPageProperties(p), content: cleanContent, rawBlocks: rawBlocks, editorBlocks: editorBlocks } });
     }
 
     if (req.method === 'PATCH') {
@@ -689,7 +689,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { id, title, content, slug, excerpt, category, tags, status, date, type, cover, download, download_size, download_count, article_password, blocksData } = body;
+      const { id, title, content, slug, excerpt, category, tags, status, date, type, cover, download, download_size, download_count, download_enabled, article_password, blocksData } = body;
       const useStructured = Array.isArray(blocksData);
 
       // 1. 获取目标页面属性，用于动态判定类型
@@ -745,6 +745,12 @@ export default async function handler(req, res) {
           const countKey = findNotionPropertyKey(targetProps, DOWNLOAD_COUNT_PROPERTY_NAMES);
           if (countKey) {
               props[countKey] = buildRichTextProperty(download_count, targetProps[countKey]);
+          }
+      }
+      if (download_enabled !== undefined) {
+          const enabledKey = findNotionPropertyKey(targetProps, DOWNLOAD_ENABLED_PROPERTY_NAMES);
+          if (enabledKey) {
+              props[enabledKey] = { checkbox: !!download_enabled };
           }
       }
       if (article_password !== undefined) {

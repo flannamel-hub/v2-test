@@ -109,6 +109,8 @@ export type Post = {
     downloadSize: string
     /** 媒体数量，如 82P、50P+2v；留空则卡片封面不展示 */
     downloadCount: string
+    /** 下载按钮开关（Notion checkbox「download_enabled」）；null/未定义视为开启 */
+    downloadEnabled?: boolean | null
     /** 是否设置了全篇访问密码（不含明文密码） */
     isPasswordProtected?: boolean
     /** Notion cover 字段显式设为站点默认封面 */
