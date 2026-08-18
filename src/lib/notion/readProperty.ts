@@ -116,13 +116,6 @@ export const DOWNLOAD_COUNT_PROPERTY_NAMES = [
   '下载数量',
 ]
 
-export const DOWNLOAD_ENABLED_PROPERTY_NAMES = [
-  'download_enabled',
-  'DownloadEnabled',
-  'downloadEnabled',
-  '开启下载按钮',
-]
-
 export const ARTICLE_PASSWORD_PROPERTY_NAMES = [
   'article_password',
   'Article_password',
@@ -176,15 +169,6 @@ export function readDownloadCountFromPageProperties(
   return readRichTextPlain(
     pickNotionProperty(properties, DOWNLOAD_COUNT_PROPERTY_NAMES)
   ) ?? ''
-}
-
-/** 下载按钮开关（Notion checkbox「download_enabled」）；字段缺失返回 null，前台视为开启 */
-export function readDownloadEnabledFromPageProperties(
-  properties: PageObjectResponse['properties']
-): boolean | null {
-  const prop = pickNotionProperty(properties, DOWNLOAD_ENABLED_PROPERTY_NAMES)
-  if (!prop || prop.type !== 'checkbox') return null
-  return prop.checkbox
 }
 
 /** 文章全篇访问密码（Notion article_password）；留空表示不上锁 */
