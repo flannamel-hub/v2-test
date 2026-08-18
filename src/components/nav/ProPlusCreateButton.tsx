@@ -1,4 +1,4 @@
-const PROPLUS_SITE_URL = 'https://www.proplus.team/'
+const PROPLUS_SITE_URL = 'https://proplus.team/'
 
 type ProPlusCreateButtonProps = {
   compact?: boolean
