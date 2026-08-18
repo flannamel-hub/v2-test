@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Head from 'next/head'; // 🟢 引入 Head 组件控制浏览器标签
+import { useRouter } from 'next/router';
 import { GalleryManager } from './GalleryManager';
 import { GalleryStorageBar } from './GalleryStorageBar';
 import {
@@ -51,6 +52,13 @@ import {
   normalizeLoadedEditorBlocks,
 } from '@/src/lib/admin/editorBlockLock';
 import { generateAdminPostSlug } from '@/src/lib/blog/generateAdminPostSlug';
+import {
+  sanitizeEditorBlocksForSnapshot,
+  sanitizeGalleryItemsForSnapshot,
+  saveEditorDraftSnapshot,
+  loadEditorDraftSnapshot,
+  clearEditorDraftSnapshot,
+} from '@/src/lib/admin/editorDraftSnapshot';
 import {
   BLOG_SHELL_REFRESH_COOLDOWN_MS,
   executeListMutationWithProgress,
@@ -1462,7 +1470,12 @@ const CoverMissingModal = ({ open, closing, onConfirm, onCancel }) => {
 };
 
 /** 发布/保存前的确认弹窗（避免误点底部发布按钮） */
-const PublishConfirmModal = ({ open, closing, isUpdate, onConfirm, onCancel }) => {
+const PUBLISH_MODE_OPTIONS = [
+  { value: 'Published', label: '🚀 发布（Published）' },
+  { value: 'Draft', label: '📝 存为草稿（Draft）' },
+];
+
+const PublishConfirmModal = ({ open, closing, isUpdate, onConfirm, onCancel, publishAs, onPublishAsChange, showModeOptions = true }) => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -1479,7 +1492,7 @@ const PublishConfirmModal = ({ open, closing, isUpdate, onConfirm, onCancel }) =
   if (!open && !closing) return null;
 
   const title = isUpdate ? '确认保存修改？' : '确认发布？';
-  const confirmLabel = isUpdate ? '确认保存' : '确认发布';
+  const confirmLabel = publishAs === 'Draft' ? '存为草稿' : (isUpdate ? '确认保存' : '确认发布');
   const desc = isUpdate
     ? '请确认内容已编辑完成，确认无误后再继续。'
     : '请确认内容已编辑完成，确认无误后再继续。';
@@ -1500,12 +1513,163 @@ const PublishConfirmModal = ({ open, closing, isUpdate, onConfirm, onCancel }) =
         <div className="cover-modal-icon" aria-hidden>📤</div>
         <h3 id="publish-confirm-modal-title" className="cover-modal-title">{title}</h3>
         <p className="cover-modal-desc">{desc}</p>
+        {showModeOptions ? (
+        <div style={{ display: 'flex', gap: '8px', margin: '0 0 8px' }}>
+          {PUBLISH_MODE_OPTIONS.map((opt) => {
+            const active = publishAs === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onPublishAsChange?.(opt.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px 8px',
+                  borderRadius: '10px',
+                  border: active ? '1px solid greenyellow' : '1px solid #3a3a42',
+                  background: active ? 'rgba(173,255,47,0.14)' : '#202024',
+                  color: active ? 'greenyellow' : '#999',
+                  fontSize: '12.5px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: '0.2s',
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        ) : null}
+        {showModeOptions ? (
+        <p style={{ fontSize: '11px', color: '#777', margin: '0 0 18px', lineHeight: 1.6 }}>
+          存为草稿后内容不会出现在前台，可在内容列表中继续编辑后再发布。
+        </p>
+        ) : (
+        <p style={{ fontSize: '11px', color: '#777', margin: '0 0 18px', lineHeight: 1.6 }}>
+          组件保存后立即生效。
+        </p>
+        )}
         <div className="cover-modal-actions">
           <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onCancel}>
             继续编辑
           </button>
           <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={onConfirm}>
             {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** 未保存修改离开拦截：三选一弹窗（继续离开 / 留在编辑器 / 保存到草稿） */
+const LeaveConfirmModal = ({ open, onLeave, onStay, onSaveDraft }) => {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setVisible(false);
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setVisible(true));
+      });
+      return () => cancelAnimationFrame(id);
+    }
+    setVisible(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className={`cover-modal-backdrop ${visible ? 'is-visible' : ''}`}
+      onClick={onStay}
+      role="presentation"
+    >
+      <div
+        className="cover-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="leave-confirm-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="cover-modal-icon" aria-hidden>⚠️</div>
+        <h3 id="leave-confirm-modal-title" className="cover-modal-title">有未保存的修改</h3>
+        <p className="cover-modal-desc">
+          当前编辑内容尚未保存，直接离开将丢失这些修改。你可以保存为本地草稿后再离开，稍后回来继续编辑。
+        </p>
+        <div className="cover-modal-actions" style={{ flexWrap: 'wrap' }}>
+          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onLeave}>
+            继续离开
+          </button>
+          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onStay}>
+            留在编辑器
+          </button>
+          <button
+            type="button"
+            className="cover-modal-btn cover-modal-btn-primary"
+            onClick={onSaveDraft}
+            style={{ flexBasis: '100%' }}
+          >
+            💾 保存到草稿并离开
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** 挂载时发现本地草稿快照的恢复提示弹窗 */
+const DraftRestoreModal = ({ open, meta, onRestore, onDiscard }) => {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (open && meta) {
+      setVisible(false);
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setVisible(true));
+      });
+      return () => cancelAnimationFrame(id);
+    }
+    setVisible(false);
+  }, [open, meta]);
+
+  if (!open || !meta) return null;
+
+  const ts = Date.parse(meta.updatedAt);
+  const minutes = Number.isFinite(ts)
+    ? Math.max(1, Math.round((Date.now() - ts) / 60000))
+    : null;
+  const titleLabel = (meta.title || '').trim();
+
+  return (
+    <div
+      className={`cover-modal-backdrop ${visible ? 'is-visible' : ''}`}
+      role="presentation"
+    >
+      <div
+        className="cover-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="draft-restore-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="cover-modal-icon" aria-hidden>💾</div>
+        <h3 id="draft-restore-modal-title" className="cover-modal-title">发现本地草稿</h3>
+        <p className="cover-modal-desc">
+          检测到{minutes ? ` ${minutes} 分钟前` : ''}保存的本地草稿
+          {titleLabel ? `「${titleLabel}」` : ''}，是否恢复到编辑器？
+          <br />
+          <span style={{ fontSize: 11.5, color: '#777' }}>
+            恢复会覆盖当前编辑器内容；未上传的本地图片无法随草稿恢复。
+          </span>
+        </p>
+        <div className="cover-modal-actions">
+          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onDiscard}>
+            忽略
+          </button>
+          <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={onRestore}>
+            恢复
           </button>
         </div>
       </div>
@@ -4172,6 +4336,7 @@ function isSimpleCustomPage(slug) {
 export default function AdminDashboard() {
     // 🟢 1. 所有的 Hook (useState) 必须严格排在函数最顶部
 const [mounted, setMounted] = useState(false);
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [posts, setPosts] = useState([]);
   const [isThemeLoading, setIsThemeLoading] = useState(false);
@@ -4208,6 +4373,42 @@ const [mounted, setMounted] = useState(false);
   const editingSlugRef = useRef(null);
   const editingCategoryRef = useRef(null);
   const editingTagsRef = useRef(null);
+
+  // === Phase3: 未保存修改保护 + 本地草稿快照 ===
+  // dirty 用 ref 镜像：beforeunload / routeChangeStart / popstate 回调里必须读 ref，避免闭包读到旧值
+  const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  // 离开拦截三选一弹窗：放行动作（目标 url 或回调）暂存在 ref
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const pendingLeaveRef = useRef(null);
+  const allowNavRef = useRef(false);
+  // 发布方式：'Published' | 'Draft'（打开发布确认弹窗时重置）
+  const [publishAs, setPublishAs] = useState('Published');
+  // 本地草稿恢复提示
+  const [draftRestorable, setDraftRestorable] = useState(null);
+  const [draftRestoreOpen, setDraftRestoreOpen] = useState(false);
+
+  const markDirty = useCallback(() => {
+    if (dirtyRef.current) return;
+    dirtyRef.current = true;
+    setDirty(true);
+  }, []);
+
+  const clearDirty = useCallback(() => {
+    dirtyRef.current = false;
+    setDirty(false);
+  }, []);
+
+  // 用户修改类 setForm / setBlocks 统一走包装入口；数据加载/重置仍直接用原 setter，绝不误标 dirty
+  const setFormDirty = useCallback((next) => {
+    markDirty();
+    setForm(next);
+  }, [markDirty]);
+
+  const setEditorBlocksDirty = useCallback((next) => {
+    markDirty();
+    setEditorBlocks(next);
+  }, [markDirty]);
   const [blogRefreshBusy, setBlogRefreshBusy] = useState(false);
   const [blogRefreshCooldownSec, setBlogRefreshCooldownSec] = useState(0);
   const blogRefreshCooldownUntilRef = useRef(0);
@@ -4381,6 +4582,7 @@ const [mounted, setMounted] = useState(false);
       setGalleryItems((prev) => clearGalleryCoverFlags(prev));
     }
     setShowManualCoverInput(false);
+    markDirty();
   };
 
   const handleApplyManualCoverUrl = () => {
@@ -4401,6 +4603,7 @@ const [mounted, setMounted] = useState(false);
     if (applied.clearGallery) {
       setGalleryItems((prev) => clearGalleryCoverFlags(prev));
     }
+    markDirty();
   };
 
   const handleSetBodyCover = (blockId) => {
@@ -4411,12 +4614,14 @@ const [mounted, setMounted] = useState(false);
       setGalleryItems((prev) => clearGalleryCoverFlags(prev));
     }
     setShowManualCoverInput(false);
+    markDirty();
   };
 
   const handleClearBodyCover = () => {
     const applied = clearBodyCoverSelection(editorBlocks, coverSettings.mode);
     setEditorBlocks(applied.blocks);
     if (applied.coverSettings) setCoverSettings(applied.coverSettings);
+    markDirty();
   };
 
   const handleSetGalleryCover = (index) => {
@@ -4428,6 +4633,7 @@ const [mounted, setMounted] = useState(false);
     }
     setShowManualCoverInput(false);
     setGalleryDirty(true);
+    markDirty();
   };
 
   const handleClearGalleryCover = () => {
@@ -4435,6 +4641,7 @@ const [mounted, setMounted] = useState(false);
     setGalleryItems(applied.galleryItems);
     if (applied.coverSettings) setCoverSettings(applied.coverSettings);
     setGalleryDirty(true);
+    markDirty();
   };
 
   const leaveEditView = () => {
@@ -4597,6 +4804,164 @@ const [mounted, setMounted] = useState(false);
     }, durationMs);
   };
 
+  // === Phase3: 草稿快照 ===
+  // 把当前编辑器内容写入 localStorage（pending 本地图片无法序列化，保存时自动剔除）
+  const saveDraftSnapshot = useCallback(() => {
+    const snap = {
+      blocks: sanitizeEditorBlocksForSnapshot(editorBlocksRef.current || []),
+      form: { ...form },
+      galleryItems: sanitizeGalleryItemsForSnapshot(galleryItems),
+      cover: form?.cover || '',
+      coverSettings: { ...coverSettings },
+      updatedAt: new Date().toISOString(),
+      postId: currentId || null,
+      slug: form?.slug || '',
+    };
+    const ok = saveEditorDraftSnapshot(snap);
+    return ok;
+  }, [form, galleryItems, coverSettings, currentId]);
+
+  const handleSaveDraftClick = useCallback(() => {
+    const ok = saveDraftSnapshot();
+    if (ok) showAdminToast('💾 已保存本地草稿（可在下次进入编辑器时恢复）', 2600);
+    else alert('本地草稿保存失败（浏览器存储不可用或容量已满）');
+  }, [saveDraftSnapshot]);
+
+  const restoreDraftSnapshot = useCallback(() => {
+    const snap = loadEditorDraftSnapshot();
+    setDraftRestoreOpen(false);
+    if (!snap) {
+      setDraftRestorable(null);
+      showAdminToast('本地草稿已不存在');
+      return;
+    }
+    setForm(snap.form || {});
+    setEditorBlocks(Array.isArray(snap.blocks) ? snap.blocks : []);
+    setGalleryItems(Array.isArray(snap.galleryItems) ? snap.galleryItems : []);
+    if (snap.coverSettings && typeof snap.coverSettings === 'object') {
+      setCoverSettings({ ...createInitialCoverSettings(), ...snap.coverSettings });
+      setShowManualCoverInput(snap.coverSettings.mode === COVER_MODE_URL);
+    }
+    if (snap.postId) {
+      setCurrentId(snap.postId);
+      editingSlugRef.current = snap.slug || null;
+      editingCategoryRef.current = snap.form?.category || null;
+      editingTagsRef.current = snap.form?.tags || null;
+    }
+    setGalleryDirty(false);
+    markDirty();
+    showAdminToast('已恢复本地草稿，请及时保存', 3200);
+  }, [markDirty]);
+
+  const discardDraftSnapshot = useCallback(() => {
+    clearEditorDraftSnapshot();
+    setDraftRestoreOpen(false);
+    setDraftRestorable(null);
+  }, []);
+
+  // 保存/发布成功后，若本地快照对应同一篇文章，则删除快照
+  const maybeClearSnapshotAfterSave = useCallback((payload) => {
+    const snap = loadEditorDraftSnapshot();
+    if (!snap) return;
+    const samePost = snap.postId && snap.postId === payload.currentId;
+    const sameSlug = !snap.postId && snap.slug && snap.slug === (payload.form?.slug || '');
+    if (samePost || sameSlug) clearEditorDraftSnapshot();
+  }, []);
+
+  // === Phase3: 离开拦截（三选一弹窗） ===
+  const closeLeaveConfirm = () => {
+    pendingLeaveRef.current = null;
+    setLeaveConfirmOpen(false);
+  };
+
+  const executePendingLeave = useCallback(() => {
+    const pending = pendingLeaveRef.current;
+    pendingLeaveRef.current = null;
+    setLeaveConfirmOpen(false);
+    clearDirty();
+    if (!pending) return;
+    if (pending.type === 'url') {
+      allowNavRef.current = true;
+      router.push(pending.url);
+    } else if (typeof pending.action === 'function') {
+      pending.action();
+    }
+  }, [router, clearDirty]);
+
+  const leaveConfirmLeaveAnyway = () => executePendingLeave();
+
+  const leaveConfirmSaveDraft = () => {
+    const ok = saveDraftSnapshot();
+    if (!ok) {
+      alert('本地草稿保存失败（浏览器存储不可用或容量已满），已留在编辑器');
+      closeLeaveConfirm();
+      return;
+    }
+    executePendingLeave();
+    showAdminToast('💾 已保存本地草稿并离开', 2600);
+  };
+
+  // 编辑视图内离开（返回列表等）：dirty 时先弹三选一
+  const guardLeaveEditor = (action) => {
+    if (!dirtyRef.current) {
+      action();
+      return;
+    }
+    pendingLeaveRef.current = { type: 'action', action };
+    setLeaveConfirmOpen(true);
+  };
+
+  // 浏览器刷新/关闭：原生 beforeunload 提示（浏览器不允许自定义文案）
+  useEffect(() => {
+    const handler = (e) => {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // next/router 路由级导航拦截：dirty 时中止导航并弹三选一；
+  // 放行时置 allowNavRef 跳过下一次拦截，避免死循环；同路径 hash 变化不拦截
+  useEffect(() => {
+    if (!router) return undefined;
+    const handleRouteChangeStart = (url) => {
+      if (!dirtyRef.current) return;
+      if (allowNavRef.current) {
+        allowNavRef.current = false;
+        return;
+      }
+      const current = router.asPath || window.location.pathname;
+      if (typeof url === 'string' && url.split('#')[0] === String(current).split('#')[0]) return;
+      pendingLeaveRef.current = { type: 'url', url };
+      setLeaveConfirmOpen(true);
+      throw new Error('EDITOR_UNSAVED_CHANGES');
+    };
+    const resetAllowNav = () => {
+      allowNavRef.current = false;
+    };
+    router.events.on('routeChangeStart', handleRouteChangeStart);
+    router.events.on('routeChangeComplete', resetAllowNav);
+    return () => {
+      router.events.off('routeChangeStart', handleRouteChangeStart);
+      router.events.off('routeChangeComplete', resetAllowNav);
+    };
+  }, [router]);
+
+  // 编辑页挂载后：检测本地草稿快照，弹恢复提示
+  useEffect(() => {
+    if (!mounted || view !== 'edit') return;
+    const snap = loadEditorDraftSnapshot();
+    if (!snap) return;
+    setDraftRestorable({
+      title: (snap.form?.title || '').trim(),
+      slug: snap.slug || '',
+      updatedAt: snap.updatedAt || '',
+    });
+    setDraftRestoreOpen(true);
+  }, [mounted, view]);
+
   // 刷新后提示：上次会话中可能有未完成的发布任务
   useEffect(() => {
     try {
@@ -4645,6 +5010,7 @@ const [mounted, setMounted] = useState(false);
   const attemptSave = () => {
     const msg = getMissingFieldMsg();
     if (msg) { alert('⚠️ ' + msg); return; }
+    setPublishAs('Published');
     setPublishConfirmClosing(false);
     setPublishConfirmOpen(true);
   };
@@ -5073,7 +5439,17 @@ const [mounted, setMounted] = useState(false);
     } else {
       if (window.location.search.includes('mode=edit')) window.history.back();
     }
-    const onPopState = () => { if (view === 'edit') leaveEditView(); };
+    // Phase3: 浏览器返回键离开编辑器时，dirty 则把 URL 推回编辑态并弹三选一
+    const onPopState = () => {
+      if (view !== 'edit') return;
+      if (dirtyRef.current) {
+        window.history.pushState({ view: 'edit' }, '', '?mode=edit');
+        pendingLeaveRef.current = { type: 'action', action: () => leaveEditView() };
+        setLeaveConfirmOpen(true);
+        return;
+      }
+      leaveEditView();
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [view]);
@@ -5210,6 +5586,8 @@ const [mounted, setMounted] = useState(false);
   const handleEdit = async (p) => {
     setLoading(true);
     resetGalleryItems();
+    // Phase3: 打开文章 = 数据加载/重置，确保未保存标记干净（不误标）
+    clearDirty();
     setEditorBlocks((prev) => {
       revokePendingEditorMedia(prev);
       return [];
@@ -5259,6 +5637,8 @@ const [mounted, setMounted] = useState(false);
   const handleCreate = () => {
     resetGalleryItems();
     resetCoverSettings();
+    // Phase3: 新建 = 数据重置，确保未保存标记干净（不误标）
+    clearDirty();
     setEditorBlocks((prev) => {
       revokePendingEditorMedia(prev);
       return [];
@@ -5946,7 +6326,7 @@ const [mounted, setMounted] = useState(false);
   const uploadCover = async (file) => {
     if (!file) return;
     setCoverUploading(true);
-    try { const url = await uploadAvatarFile(file); setForm(prev => ({ ...prev, cover: url })); }
+    try { const url = await uploadAvatarFile(file); setFormDirty(prev => ({ ...prev, cover: url })); }
     catch (e) { alert('头像上传失败：' + e.message); }
     finally { setCoverUploading(false); }
   };
@@ -6060,6 +6440,8 @@ const [mounted, setMounted] = useState(false);
         if (bailIfCancelled()) return;
         if (!d.success) throw new Error(d.error || '保存失败');
         updateJob(job.id, { status: 'success', phase: '', progress: null });
+        clearDirty();
+        maybeClearSnapshotAfterSave(payload);
         fetchPosts({ silent: true });
         void triggerContentRevalidation({
           scope: 'widget',
@@ -6130,7 +6512,7 @@ const [mounted, setMounted] = useState(false);
         body: JSON.stringify({
           ...payload.form,
           cover: coverForSave,
-          status: 'Published',
+          status: payload.form.status || 'Published',
           content: fullContent,
           blocksData,
           id: payload.currentId,
@@ -6145,11 +6527,13 @@ const [mounted, setMounted] = useState(false);
       const newId = d.id || payload.currentId;
       const saveSlug = payload.form.slug || '';
       const saveType = payload.form.type || 'Post';
+      const saveStatus = payload.form.status || 'Published';
+      const isDraftSave = saveStatus === 'Draft';
       const saveScope = resolveSaveRevalidateScope(saveType, saveSlug);
       const previousSlug = payload.previousSlug || '';
       const isNewPost = !payload.currentId;
 
-      if (isNewPost && newId && saveType === 'Post') {
+      if (isNewPost && newId && saveType === 'Post' && !isDraftSave) {
         const optimisticPost = {
           id: newId,
           title: payload.form.title || '无标题',
@@ -6157,7 +6541,7 @@ const [mounted, setMounted] = useState(false);
           excerpt: payload.form.excerpt || '',
           category: payload.form.category || '',
           tags: payload.form.tags || '',
-          status: 'Published',
+          status: saveStatus,
           type: 'Post',
           date: payload.form.date || '',
           cover: coverForSave || '',
@@ -6209,7 +6593,7 @@ const [mounted, setMounted] = useState(false);
             queue: true,
             queueDelayMs: isNewPost ? 60_000 : 30_000,
             clearCaches: true,
-            warmPaths: isNewPost,
+            warmPaths: isNewPost && !isDraftSave,
             contentChange: true,
             queueReason: isNewPost
               ? `new-post:${encodeURIComponent(saveSlug)}`
@@ -6276,6 +6660,9 @@ const [mounted, setMounted] = useState(false);
       }
 
       updateJob(job.id, { status: 'success', phase: '', progress: null });
+      // Phase3: 发布（含存为草稿）成功后清除未保存标记，并清理同文章本地快照
+      clearDirty();
+      maybeClearSnapshotAfterSave(payload);
       // 后台静默刷新列表，完成的文章无感知出现在内容列表中
       fetchPosts({ silent: true });
       loadGalleryStorage();
@@ -6291,7 +6678,7 @@ const [mounted, setMounted] = useState(false);
         error: e?.message || '发布失败',
       });
     }
-  }, [updateJob, dismissJob, registerPendingPostSync]);
+  }, [updateJob, dismissJob, registerPendingPostSync, clearDirty, maybeClearSnapshotAfterSave]);
 
   // 检测长时间无进度心跳的任务（图库大批量上传可持续数分钟，不误判）
   useEffect(() => {
@@ -6350,7 +6737,11 @@ const [mounted, setMounted] = useState(false);
       payload: {
         isWidget,
         // 注意：保留对象/File 引用，不做 JSON 克隆（pending 图片含 File，无法序列化）
-        form: { ...form },
+        // Phase3: 发布确认弹窗选择「存为草稿」时，以 Draft 状态提交 API（post.js 已支持 status 透传）
+        form: {
+          ...form,
+          status: publishAs === 'Draft' ? 'Draft' : (form.status || 'Published'),
+        },
         blocks: isWidget ? [] : blocks.slice(),
         galleryItems: isWidget ? [] : galleryItems.slice(),
         currentId,
@@ -6365,12 +6756,17 @@ const [mounted, setMounted] = useState(false);
     };
 
     setPublishQueue((q) => [...q, job]);
-    showAdminToast(`已加入发布队列：${job.title}`);
+    showAdminToast(
+      publishAs === 'Draft'
+        ? `已加入队列（存为草稿）：${job.title}`
+        : `已加入发布队列：${job.title}`
+    );
 
     // 清空编辑器，准备下一篇。
     // 不撤销 blob 预览 URL：后台任务仍持有这些 File/预览引用，撤销会影响兜底读取。
     setGalleryItems([]);
     setGalleryDirty(false);
+    clearDirty();
     resetCoverSettings();
     setEditorBlocks([]);
     editingSlugRef.current = null;
@@ -6850,7 +7246,7 @@ const [mounted, setMounted] = useState(false);
     e.stopPropagation();
     const currentTags = form.tags ? form.tags.split(',').filter(t => t.trim()) : [];
     const newTags = currentTags.filter(t => t.trim() !== tagToDelete).join(',');
-    setForm({ ...form, tags: newTags });
+    setFormDirty({ ...form, tags: newTags });
   };
 
   const handleNavClick = (idx) => { setNavIdx(idx); const modes = ['folder','covered','text','gallery']; setViewMode(modes[idx]); setSelectedFolder(null); };
@@ -7385,16 +7781,16 @@ const [mounted, setMounted] = useState(false);
   })();
   const displayTags = (options.tags && options.tags.length > 0) ? (showAllTags ? options.tags : options.tags.slice(0, 12)) : [];
   const selectedTags = (form.tags || '').split(',').map(t => t.trim()).filter(Boolean);
-  const addTag = (name) => { const n = (name || '').trim(); if (!n || selectedTags.includes(n)) return; setForm({ ...form, tags: [...selectedTags, n].join(',') }); };
-  const removeTag = (name) => { setForm({ ...form, tags: selectedTags.filter(t => t !== name).join(',') }); };
+  const addTag = (name) => { const n = (name || '').trim(); if (!n || selectedTags.includes(n)) return; setFormDirty({ ...form, tags: [...selectedTags, n].join(',') }); };
+  const removeTag = (name) => { setFormDirty({ ...form, tags: selectedTags.filter(t => t !== name).join(',') }); };
   const setCategory = (name) => {
     const n = (name || '').trim();
     if (!n) {
-      setForm((f) => ({ ...f, category: '' }));
+      setFormDirty((f) => ({ ...f, category: '' }));
       return;
     }
     if (isSystemReservedCategory(n)) return;
-    setForm({ ...form, category: n });
+    setFormDirty({ ...form, category: n });
     setOptions(o => ({
       ...o,
       categories: o.categories.includes(n) ? o.categories : [...o.categories, n].sort((a, b) => a.localeCompare(b, 'zh-CN')),
@@ -7438,7 +7834,7 @@ const [mounted, setMounted] = useState(false);
       ),
     }));
     if ((form.category || '').trim() === n) {
-      setForm((f) => ({ ...f, category: FALLBACK_CATEGORY }));
+      setFormDirty((f) => ({ ...f, category: FALLBACK_CATEGORY }));
     }
     setPosts((prev) =>
       prev.map((p) => (p.category === n ? { ...p, category: FALLBACK_CATEGORY } : p))
@@ -7491,7 +7887,7 @@ const [mounted, setMounted] = useState(false);
       ),
     }));
     if ((form.category || '').trim() === from) {
-      setForm((f) => ({ ...f, category: to }));
+      setFormDirty((f) => ({ ...f, category: to }));
     }
     if (selectedFolder === from) setSelectedFolder(to);
     setPosts((prev) =>
@@ -7510,7 +7906,7 @@ const [mounted, setMounted] = useState(false);
     }));
     const currentTags = (form.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
     if (currentTags.includes(n)) {
-      setForm((f) => ({
+      setFormDirty((f) => ({
         ...f,
         tags: currentTags.filter((t) => t !== n).join(','),
       }));
@@ -7560,8 +7956,23 @@ const [mounted, setMounted] = useState(false);
         open={publishConfirmOpen}
         closing={publishConfirmClosing}
         isUpdate={!!currentId}
+        publishAs={publishAs}
+        onPublishAsChange={setPublishAs}
+        showModeOptions={form.type !== 'Widget'}
         onConfirm={proceedPublishAfterConfirm}
         onCancel={closePublishConfirmModal}
+      />
+      <LeaveConfirmModal
+        open={leaveConfirmOpen}
+        onLeave={leaveConfirmLeaveAnyway}
+        onStay={closeLeaveConfirm}
+        onSaveDraft={leaveConfirmSaveDraft}
+      />
+      <DraftRestoreModal
+        open={draftRestoreOpen}
+        meta={draftRestorable}
+        onRestore={restoreDraftSnapshot}
+        onDiscard={discardDraftSnapshot}
       />
       <TaxonomyConfirmModal
         open={taxonomyConfirmOpen}
@@ -7639,20 +8050,20 @@ const [mounted, setMounted] = useState(false);
                  onOpenIngestList={openCrawlerIngestView}
                />
              </div>
-             {view === 'list' ? (
-               <AnimatedBtn text="发布新内容" onClick={handleCreate} />
-             ) : (
-               <AnimatedBtn
-                 text="返回列表"
-                 onClick={
-                   view === 'crawler-ingest'
-                     ? leaveCrawlerIngestView
-                     : view === 'recycle'
-                       ? leaveRecycleView
-                       : leaveEditView
-                 }
-               />
-             )}
+              {view === 'list' ? (
+                <AnimatedBtn text="发布新内容" onClick={handleCreate} />
+              ) : (
+                <AnimatedBtn
+                  text="返回列表"
+                  onClick={() =>
+                    view === 'crawler-ingest'
+                      ? leaveCrawlerIngestView()
+                      : view === 'recycle'
+                        ? leaveRecycleView()
+                        : guardLeaveEditor(leaveEditView)
+                  }
+                />
+              )}
            </div>
         </header>
 
@@ -8697,11 +9108,12 @@ const [mounted, setMounted] = useState(false);
                 </label>
               </div>
               <div style={{flex:1, minWidth:'260px', display:'flex', flexDirection:'column', gap:'16px'}}>
-                <div><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color:'#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder="组件标题..." /></div>
-                <div><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><textarea className="glow-input" value={form.excerpt} onChange={e=>setForm({...form, excerpt:e.target.value})} placeholder="组件简介..." style={{minHeight:'90px'}} /></div>
+                <div><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color:'#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="组件标题..." /></div>
+                <div><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><textarea className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="组件简介..." style={{minHeight:'90px'}} /></div>
               </div>
             </div>
-            <button onClick={attemptSave} title={isFormValid ? '' : (getMissingFieldMsg() || '')} style={{width:'100%', padding:'20px', background:isFormValid?'#fff':'#222', color:isFormValid?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'40px', cursor:'pointer', transition:'0.3s'}}>保存修改</button>
+            <button type="button" onClick={handleSaveDraftClick} style={{width:'100%', padding:'13px', background:'#303030', color:'greenyellow', border:'1px solid rgba(173,255,47,0.45)', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', marginTop:'40px', cursor:'pointer', transition:'0.3s'}}>💾 存草稿（仅保存到本机，不上传）</button>
+            <button onClick={attemptSave} title={isFormValid ? '' : (getMissingFieldMsg() || '')} style={{width:'100%', padding:'20px', background:isFormValid?'#fff':'#222', color:isFormValid?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor:'pointer', transition:'0.3s'}}>保存修改</button>
           </div>
         ) : (
           /* 这里是之前的表单编辑代码... */
@@ -8715,15 +9127,16 @@ const [mounted, setMounted] = useState(false);
                      showManualCoverInput={showManualCoverInput}
                      onToggleDefaultCover={handleToggleDefaultCover}
                      onToggleManualInput={() => setShowManualCoverInput((v) => !v)}
-                     onManualUrlChange={(url) =>
-                       setCoverSettings((prev) => ({ ...prev, manualUrl: url }))
-                     }
+                      onManualUrlChange={(url) => {
+                        markDirty();
+                        setCoverSettings((prev) => ({ ...prev, manualUrl: url }));
+                      }}
                      onApplyManualUrl={handleApplyManualCoverUrl}
                    />
                  </div>
                ) : null}
-               <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder="输入标题" /></div>
-               <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setForm({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>
+                <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
+                <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>
                {!editingSimplePage ? (
                <div style={{marginTop:'4px', marginBottom:'0', paddingTop:'16px', borderTop:'1px solid #333'}}>
                  <label style={{display:'block', fontSize:'11px', color:'#fbbf24', marginBottom:'6px', fontWeight:'bold'}}>🔒 文章访问密码</label>
@@ -8732,7 +9145,7 @@ const [mounted, setMounted] = useState(false);
                    className="glow-input"
                    type="password"
                    value={form.article_password || ''}
-                   onChange={e=>setForm({...form, article_password:e.target.value})}
+                   onChange={e=>setFormDirty({...form, article_password:e.target.value})}
                    placeholder="留空 = 不上锁"
                    style={{fontSize:'13px', maxWidth:'320px'}}
                    autoComplete="new-password"
@@ -8769,7 +9182,7 @@ const [mounted, setMounted] = useState(false);
                    )}
                  </div>
                  ) : null}
-                 <div className="editor-date-field"><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>发布日期 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} /></div>
+                  <div className="editor-date-field"><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>发布日期 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" type="date" value={form.date} onChange={e=>setFormDirty({...form, date:e.target.value})} /></div>
                </div>
             </StepAccordion>
 {!editingSimplePage ? (
@@ -8832,7 +9245,7 @@ const [mounted, setMounted] = useState(false);
                 postNotionId={currentId}
                 items={galleryItems}
                 onItemsChange={setGalleryItems}
-                onGalleryMutated={() => setGalleryDirty(true)}
+                onGalleryMutated={() => { setGalleryDirty(true); markDirty(); }}
                 coverMode={coverSettings.mode}
                 coverIndex={galleryCoverIndex}
                 onSetCover={handleSetGalleryCover}
@@ -8846,15 +9259,15 @@ const [mounted, setMounted] = useState(false);
                <div>
                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>Gallery 主题下载弹窗中展示的链接内容，留空则显示「暂无下载」。</p>
-                 <input className="glow-input" value={form.download || ''} onChange={e=>setForm({...form, download:e.target.value})} placeholder="例如：https://xxx.xxpan.com" style={{fontSize:'13px'}} />
+                  <input className="glow-input" value={form.download || ''} onChange={e=>setFormDirty({...form, download:e.target.value})} placeholder="例如：https://xxx.xxpan.com" style={{fontSize:'13px'}} />
                  <div style={{marginTop:'12px'}}>
                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载信息（数量） <GalleryOnlyTag /></label>
-                   <input className="glow-input" value={form.download_count || ''} onChange={e=>setForm({...form, download_count:e.target.value})} placeholder="例如：82P、50P+2v" style={{fontSize:'13px'}} />
+                    <input className="glow-input" value={form.download_count || ''} onChange={e=>setFormDirty({...form, download_count:e.target.value})} placeholder="例如：82P、50P+2v" style={{fontSize:'13px'}} />
                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>填写后显示在首页卡片封面右下角，留空则不显示。</p>
                  </div>
                  <div style={{marginTop:'12px'}}>
                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>资源包大小 <GalleryOnlyTag /></label>
-                   <input className="glow-input" value={form.download_size || ''} onChange={e=>setForm({...form, download_size:e.target.value})} placeholder="例如：639 MB、1.2 GB" style={{fontSize:'13px'}} />
+                    <input className="glow-input" value={form.download_size || ''} onChange={e=>setFormDirty({...form, download_size:e.target.value})} placeholder="例如：639 MB、1.2 GB" style={{fontSize:'13px'}} />
                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>填写后显示在下载页标题栏右侧，留空则不显示。</p>
                  </div>
                </div>
@@ -8863,7 +9276,7 @@ const [mounted, setMounted] = useState(false);
 
             <BlockBuilder
               blocks={editorBlocks}
-              setBlocks={setEditorBlocks}
+              setBlocks={setEditorBlocksDirty}
               coverMode={coverSettings.mode}
               coverImageBlockId={editorBodyCoverBlockId}
               onSetBodyCover={handleSetBodyCover}
@@ -8875,7 +9288,8 @@ const [mounted, setMounted] = useState(false);
               <div className="fab-btn" onClick={() => scrollEditView('bottom')}><Icons.ArrowDown /></div>
             </div>
 
-            <button onClick={attemptSave} disabled={loading} title={isFormValid ? '' : (getMissingFieldMsg() || '')} style={{width:'100%', padding:'20px', background:isFormValid && !loading?'#fff':'#222', color:isFormValid && !loading?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'56px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>
+            <button type="button" onClick={handleSaveDraftClick} disabled={loading} style={{width:'100%', padding:'13px', background:'#303030', color:'greenyellow', border:'1px solid rgba(173,255,47,0.45)', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', marginTop:'56px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>💾 存草稿（仅保存到本机，不上传）</button>
+            <button onClick={attemptSave} disabled={loading} title={isFormValid ? '' : (getMissingFieldMsg() || '')} style={{width:'100%', padding:'20px', background:isFormValid && !loading?'#fff':'#222', color:isFormValid && !loading?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>
               {currentId ? '保存修改' : '确认发布'}
             </button>
           </div>
