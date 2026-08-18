@@ -362,11 +362,12 @@ const GlobalStyle = () => (
     .block-minimap-scroll::-webkit-scrollbar-track { background: #252528; border-radius: 4px; }
     .block-minimap-scroll::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
     .block-minimap-scroll::-webkit-scrollbar-thumb:hover { background: #777; }
-    .block-minimap-list { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; border: 1.5px dashed rgba(173, 255, 47, 0.35); border-radius: 10px; padding: 10px 6px; box-sizing: border-box; }
+    .block-minimap-list { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
     .block-minimap-add-wrap { position: relative; display: flex; justify-content: center; align-items: center; padding: 2px 0; flex-shrink: 0; width: 100%; }
     .block-minimap-add-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px dashed #555; background: #1c1c1f; color: greenyellow; font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
     .block-minimap-add-btn:hover, .block-minimap-add-btn.open { border-color: greenyellow; background: rgba(173,255,47,0.14); box-shadow: 0 3px 12px rgba(173,255,47,0.2); transform: scale(1.05); }
-    .block-builder-expanded { display: flex; flex-direction: column; gap: 72px; padding: 10px; padding-bottom: 28px; border: 1.5px dashed rgba(173, 255, 47, 0.35); border-radius: 10px; box-sizing: border-box; }
+    .block-builder-shell { border: 1.5px dashed rgba(173, 255, 47, 0.35); border-radius: 10px; padding: 12px 10px 16px; box-sizing: border-box; }
+    .block-builder-expanded { display: flex; flex-direction: column; gap: 72px; padding-bottom: 28px; }
     .block-minimap-item { position: relative; display: flex; flex-direction: column; width: 140px; min-height: 118px; flex-shrink: 0; border: 1px solid #444; border-radius: 8px; background: #1c1c1f; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s; user-select: none; cursor: grab; touch-action: none; }
     .block-minimap-item:active { cursor: grabbing; }
     .block-minimap-item:hover { border-color: #666; }
@@ -3645,7 +3646,7 @@ const BlockBuilder = ({
   const lockModalBlock = lockModal ? blocks.find((b) => b.id === lockModal.blockId) : null;
   const lockModalIsDedicated = lockModalBlock?.type === 'lock';
   return (
-    <div style={{marginTop:'30px'}}>
+    <div className="block-builder-shell" style={{marginTop:'30px'}}>
       {renderFloatingBlockTypeMenu()}
       {lockModal && (
         <div
@@ -3911,20 +3912,40 @@ const BlockBuilder = ({
             {b.type === 'quote' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="输入引用内容..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'90px', borderLeft:'4px solid greenyellow', paddingLeft:'12px', ...fmtStyle(b)}} />}
             {b.type === 'ol' && (
               <div style={{width:'100%'}}>
-                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px'}}>预览：1. 2. 3. 4. …</div>
+                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px', lineHeight:1.7, maxHeight:'96px', overflow:'auto', border:'1px dashed #444', borderRadius:'6px', padding:'6px 8px', background:'rgba(0,0,0,0.18)'}}>
+                  {(b.content || '').split(/\r?\n/).some((l) => l.trim()) ? (b.content || '').split(/\r?\n/).map((line, i) => (
+                    <div key={i}><span style={{color:'greenyellow', fontWeight:'bold'}}>{i+1}.</span> {line}</div>
+                  )) : <span style={{color:'#666', fontStyle:'italic'}}>(空列表，每行输入一个列表项，保存后自动编号)</span>}
+                </div>
                 <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个列表项，自动按顺序编号" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />
               </div>
             )}
             {b.type === 'ul' && (
               <div style={{width:'100%'}}>
-                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px'}}>预览：• • •</div>
+                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px', lineHeight:1.7, maxHeight:'96px', overflow:'auto', border:'1px dashed #444', borderRadius:'6px', padding:'6px 8px', background:'rgba(0,0,0,0.18)'}}>
+                  {(b.content || '').split(/\r?\n/).some((l) => l.trim()) ? (b.content || '').split(/\r?\n/).map((line, i) => (
+                    <div key={i}><span style={{color:'greenyellow', fontWeight:'bold'}}>•</span> {line}</div>
+                  )) : <span style={{color:'#666', fontStyle:'italic'}}>(空列表，每行输入一个列表项)</span>}
+                </div>
                 <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个列表项" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />
               </div>
             )}
             {b.type === 'todo' && (
               <div style={{width:'100%'}}>
                 <div style={{fontSize:'12px', color:'#999', marginBottom:'6px'}}>每行一个待办项，勾选状态在保存后生效；行首可用 [x] / [ ] 前缀调整勾选</div>
-                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px'}}>预览：☐ ☑ ☐</div>
+                <div style={{fontSize:'12px', color:'#888', marginBottom:'6px', lineHeight:1.7, maxHeight:'96px', overflow:'auto', border:'1px dashed #444', borderRadius:'6px', padding:'6px 8px', background:'rgba(0,0,0,0.18)'}}>
+                  {(b.content || '').split(/\r?\n/).some((l) => l.trim()) ? (b.content || '').split(/\r?\n/).map((line, i) => {
+                    const m = line.match(/^\[([xX ])\]\s?/);
+                    const checked = m ? m[1].toLowerCase() === 'x' : !!(b.checked && b.checked[i]);
+                    const text = m ? line.slice(m[0].length) : line;
+                    return (
+                      <div key={i}>
+                        <span style={{color:'greenyellow', fontWeight:'bold'}}>{checked ? '☑' : '☐'}</span>{' '}
+                        <span style={checked ? {textDecoration:'line-through', opacity:0.55} : undefined}>{text}</span>
+                      </div>
+                    );
+                  }) : <span style={{color:'#666', fontStyle:'italic'}}>(空列表，每行输入一个待办项)</span>}
+                </div>
                 <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个待办项..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />
               </div>
             )}
@@ -7076,9 +7097,10 @@ const [mounted, setMounted] = useState(false);
     setSelectedPostIds([]);
   };
 
-  // 多选模式下清空已选，但保持多选模式开启
+  // 取消选择：清空已选并直接退出多选模式
   const handleClearSelection = () => {
     setSelectedPostIds([]);
+    setListSelectMode(false);
   };
 
   const handleBulkArchivePosts = async () => {
