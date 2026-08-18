@@ -2729,6 +2729,9 @@ const BLOCK_TYPE_SHORT = {
   link: '链接',
   note: '注释',
   lock: '加密',
+  ol: '有序',
+  ul: '无序',
+  todo: '待办',
 };
 
 const BlockMinimapItem = ({
@@ -2840,6 +2843,9 @@ const BLOCK_TYPE_OPTIONS = [
   { type: 'link', label: '🔗 超链文字' },
   { type: 'note', label: '💬 注释块' },
   { type: 'lock', label: '🔒 加密块' },
+  { type: 'ol', label: '🔢 有序列表' },
+  { type: 'ul', label: '• 无序列表' },
+  { type: 'todo', label: '☑️ 待办列表' },
 ];
 
 /** 块类型菜单预估高度，用于判断向上/向下弹出 */
@@ -3630,6 +3636,9 @@ const BlockBuilder = ({
       if (type === 'image') return '🖼️ 图片块';
       if (type === 'quote') return '❝ 引用';
       if (type === 'link') return '🔗 超链文字';
+      if (type === 'ol') return '🔢 有序列表';
+      if (type === 'ul') return '• 无序列表';
+      if (type === 'todo') return '☑️ 待办列表';
       return '📄 内容块';
   };
   const linkModalValid = !!(linkModal && (linkModal.label || '').trim() && (linkModal.url || '').trim() && (linkModal.url || '').trim() !== 'https://');
@@ -3737,6 +3746,9 @@ const BlockBuilder = ({
           <div className="neo-btn" onClick={()=>addBlock('link')}>🔗 超链文字</div>
           <div className="neo-btn" onClick={()=>addBlock('note')}>💬 注释块</div>
           <div className="neo-btn" onClick={()=>addBlock('lock')}>🔒 加密块</div>
+          <div className="neo-btn" onClick={()=>addBlock('ol')}>🔢 有序列表</div>
+          <div className="neo-btn" onClick={()=>addBlock('ul')}>• 无序列表</div>
+          <div className="neo-btn" onClick={()=>addBlock('todo')}>☑️ 待办列表</div>
       </div>
       <div className="block-view-toolbar">
         <div className="block-view-toggle">
@@ -3897,6 +3909,14 @@ const BlockBuilder = ({
             )}
             {b.type === 'note' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="输入注释内容..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'80px', fontFamily: 'monospace', fontSize: '13px', ...fmtStyle(b), color: (b.color && b.color !== 'default') ? colorCss(b.color) : '#ff6b6b'}} />}
             {b.type === 'quote' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="输入引用内容..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'90px', borderLeft:'4px solid greenyellow', paddingLeft:'12px', ...fmtStyle(b)}} />}
+            {b.type === 'ol' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个列表项，自动按顺序编号" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />}
+            {b.type === 'ul' && <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个列表项" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />}
+            {b.type === 'todo' && (
+              <div style={{width:'100%'}}>
+                <div style={{fontSize:'12px', color:'#999', marginBottom:'6px'}}>每行一个待办项，勾选状态在保存后生效；行首可用 [x] / [ ] 前缀调整勾选</div>
+                <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个待办项..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />
+              </div>
+            )}
             {b.type === 'link' && (
                <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                  <input className="glow-input" placeholder="显示文字（如：点此查看官网）" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{...fmtStyle(b)}} />
@@ -6054,7 +6074,12 @@ const [mounted, setMounted] = useState(false);
       // 3) 写入 Notion 文章
       updateJob(job.id, { phase: 'post', progress: null });
       const fullContent = blocksToMarkdown(blocksForSave);
-      const blocksData = serializeBlocksForSave(blocksForSave);
+      // serializeBlocksForSave 白名单不含 todo 的 checked，此处按原块补回，避免保存丢失勾选状态
+      const blocksData = serializeBlocksForSave(blocksForSave).map((b, i) => (
+        b.type === 'todo' && Array.isArray(blocksForSave[i] && blocksForSave[i].checked)
+          ? { ...b, checked: blocksForSave[i].checked }
+          : b
+      ));
       const coverForSave = resolveNotionCoverForSave({
         coverMode: payload.coverSettings?.mode || 'auto',
         manualCoverUrl: payload.coverSettings?.manualUrl || '',

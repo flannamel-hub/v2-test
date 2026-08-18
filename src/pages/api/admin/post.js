@@ -227,6 +227,13 @@ function styledLinesToChildren(text, b) {
         }
       }
     }
+    // 行首列表前缀（仅 1. / - / [ ] / [x] 四种，前缀后须跟空白，避免误伤正文普通文本）→ 列表块
+    const olPrefix = trimmed.match(/^1\.[ \t]+(.*)$/);
+    if (olPrefix) { out.push({ object: 'block', type: 'numbered_list_item', numbered_list_item: { rich_text: inlineToRichRuns(olPrefix[1], annOf(b)) } }); continue; }
+    const ulPrefix = trimmed.match(/^-[ \t]+(.*)$/);
+    if (ulPrefix) { out.push({ object: 'block', type: 'bulleted_list_item', bulleted_list_item: { rich_text: inlineToRichRuns(ulPrefix[1], annOf(b)) } }); continue; }
+    const todoPrefix = trimmed.match(/^\[([ xX])\][ \t]+(.*)$/);
+    if (todoPrefix) { out.push({ object: 'block', type: 'to_do', to_do: { rich_text: inlineToRichRuns(todoPrefix[2], annOf(b)), checked: todoPrefix[1].toLowerCase() === 'x' } }); continue; }
     // 普通文本行（可能含行内 [文字](url)）
     out.push({ object: 'block', type: 'paragraph', paragraph: { rich_text: inlineToRichRuns(line, annOf(b)) } });
   }
@@ -286,6 +293,31 @@ function editorBlockToNotionInner(b) {
     const isVideo = url.match(/\.(mp4|mov|webm|ogg|mkv)(\?|$)/i)
     if (isVideo) return [{ object: 'block', type: 'video', video: { type: 'external', external: { url: mediaUrl } } }]
     return [{ object: 'block', type: 'image', image: { type: 'external', external: { url: mediaUrl } } }]
+  }
+  if (type === 'ol' || type === 'ul' || type === 'todo') {
+    // 列表块：content 每行一个列表项（空行跳过）；todo 的 checked 按行取值，缺省 false；
+    // todo 行首若有 [x] / [ ] 前缀约定，则去前缀并按前缀状态覆盖勾选
+    const lines = String(b.content || '').split(/\r?\n/);
+    const checkedArr = Array.isArray(b.checked) ? b.checked : [];
+    const items = [];
+    lines.forEach((line, i) => {
+      let text = line.trim();
+      if (!text) return;
+      if (type === 'ol') {
+        items.push({ object: 'block', type: 'numbered_list_item', numbered_list_item: { rich_text: inlineToRichRuns(text, annOf(b)) } });
+      } else if (type === 'ul') {
+        items.push({ object: 'block', type: 'bulleted_list_item', bulleted_list_item: { rich_text: inlineToRichRuns(text, annOf(b)) } });
+      } else {
+        let checked = !!checkedArr[i];
+        const todoPrefix = text.match(/^\[([ xX])\][ \t]+(.*)$/);
+        if (todoPrefix) {
+          text = todoPrefix[2];
+          checked = todoPrefix[1].toLowerCase() === 'x';
+        }
+        items.push({ object: 'block', type: 'to_do', to_do: { rich_text: inlineToRichRuns(text, annOf(b)), checked } });
+      }
+    });
+    return items;
   }
   if (type === 'lock') {
     const children = []
@@ -362,6 +394,19 @@ function lockCalloutToEditorBlock(kids, pwd) {
         textLines.push(p)
         if (!lockAnn) lockAnn = annFrom(rt)
       }
+    } else if (k.type === 'numbered_list_item' || k.type === 'bulleted_list_item' || k.type === 'to_do') {
+      // 锁块内列表项：以带前缀文本行（1. / - / [ ] [x]）进 textLines，保存时 styledLinesToChildren 可还原为列表块
+      const listRts = (k[k.type] && k[k.type].rich_text) || []
+      const p = richTextHasLink(listRts) ? richToInlineMd(listRts) : plainText(listRts)
+      if (!p) continue
+      if (k.type === 'numbered_list_item') {
+        textLines.push(`1. ${p}`)
+      } else if (k.type === 'bulleted_list_item') {
+        textLines.push(`- ${p}`)
+      } else {
+        textLines.push(`${k.to_do && k.to_do.checked ? '[x]' : '[ ]'} ${p}`)
+      }
+      if (!lockAnn) lockAnn = annFrom(listRts[0])
     }
   }
 
@@ -451,10 +496,18 @@ async function notionToEditorBlocks(blocks) {
         out.push({ type: 'text', content: txt, ...annFrom(rt[0]) });
       }
     } else if (t === 'numbered_list_item' || t === 'bulleted_list_item' || t === 'to_do') {
-      // 列表项：作为文本块导入，保留行内链接（之前落到 else 用 plainText 会丢链接）
+      // 列表项：按类型收集为列表块候选（相邻同类型稍后合并），保留行内链接
       const rts = blk[t].rich_text || [];
       const content = richTextHasLink(rts) ? richToInlineMd(rts) : plainText(rts);
-      if (content) out.push({ type: 'text', content, ...annFrom(rts[0]) });
+      if (content) {
+        if (t === 'numbered_list_item') {
+          out.push({ type: 'ol', content, checked: null, ...annFrom(rts[0]) });
+        } else if (t === 'bulleted_list_item') {
+          out.push({ type: 'ul', content, checked: null, ...annFrom(rts[0]) });
+        } else {
+          out.push({ type: 'todo', content, checked: [!!(blk.to_do && blk.to_do.checked)], ...annFrom(rts[0]) });
+        }
+      }
     } else if (t === 'divider') {
       // 分割线跳过 (加密块内部的分隔已在 lock 处理)
     } else {
@@ -464,11 +517,21 @@ async function notionToEditorBlocks(blocks) {
       if (content) out.push({ type: 'text', content, ...annFrom(rts[0]) });
     }
   }
-  // 合并相邻、同样式的纯文本块，避免按行碎片化（不合并已加密块）
+  // 合并相邻、同样式的纯文本块，避免按行碎片化（不合并已加密块）；
+  // 相邻同类型列表块（ol/ul/todo）合并为一个多行列表块，中间出现其他类型块即断开
   const merged = [];
   for (const b of out) {
     const last = merged[merged.length - 1];
     if (
+      (b.type === 'ol' || b.type === 'ul' || b.type === 'todo') &&
+      last &&
+      last.type === b.type
+    ) {
+      last.content = last.content + '\n' + b.content;
+      if (b.type === 'todo' && Array.isArray(last.checked) && Array.isArray(b.checked)) {
+        last.checked.push(...b.checked);
+      }
+    } else if (
       b.type === 'text' &&
       last &&
       last.type === 'text' &&
