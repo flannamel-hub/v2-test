@@ -366,9 +366,10 @@ const GlobalStyle = () => (
     .block-minimap-add-wrap { position: relative; display: flex; justify-content: center; align-items: center; padding: 2px 0; flex-shrink: 0; width: 100%; }
     .block-minimap-add-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px dashed #555; background: #1c1c1f; color: greenyellow; font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
     .block-minimap-add-btn:hover, .block-minimap-add-btn.open { border-color: greenyellow; background: rgba(173,255,47,0.14); box-shadow: 0 3px 12px rgba(173,255,47,0.2); transform: scale(1.05); }
-    .block-builder-shell { border: 2px dashed rgba(173, 255, 47, 0.55); border-radius: 12px; padding: 12px 10px 16px; box-sizing: border-box; box-shadow: 0 0 0 1px rgba(173,255,47,0.08) inset; transition: background-color 0.25s ease; }
-    .block-builder-shell:hover { background-color: rgba(173, 255, 47, 0.05); }
-    .block-builder-area-title { font-size: 13px; font-weight: bold; letter-spacing: 2px; color: rgba(173, 255, 47, 0.5); margin-bottom: 12px; user-select: none; display: flex; align-items: center; gap: 6px; }
+    .block-builder-shell { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 10px 16px; box-sizing: border-box; background: rgba(255, 255, 255, 0.015); box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.03), 0 8px 32px rgba(0, 0, 0, 0.35); transition: background-color 0.3s ease, border-color 0.3s ease; }
+    .block-builder-shell:hover { border-color: rgba(255, 255, 255, 0.14); background-color: rgba(255, 255, 255, 0.025); }
+    .block-builder-area-title { font-size: 11px; letter-spacing: 3px; color: rgba(255, 255, 255, 0.35); margin-bottom: 14px; user-select: none; display: flex; align-items: center; gap: 8px; }
+    .block-builder-area-title::before { content: ''; width: 2px; height: 14px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); flex-shrink: 0; }
     .block-builder-expanded { display: flex; flex-direction: column; gap: 72px; padding-bottom: 28px; }
     .block-minimap-item { position: relative; display: flex; flex-direction: column; width: 140px; min-height: 118px; flex-shrink: 0; border: 1px solid #444; border-radius: 8px; background: #1c1c1f; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s; user-select: none; cursor: grab; touch-action: none; }
     .block-minimap-item:active { cursor: grabbing; }
