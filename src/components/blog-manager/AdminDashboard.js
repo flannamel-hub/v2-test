@@ -6487,7 +6487,7 @@ const [mounted, setMounted] = useState(false);
     draftPromptSkipRef.current = true;
     setView('edit');
     setExpandedStep(0);
-    showAdminToast('已把失败任务恢复到编辑器（内容尚未保存到 Notion）', 3200);
+    showAdminToast('已把失败任务恢复到编辑器（内容尚未保存到云端）', 3200);
   }, [publishQueue, restoreSnapshotToEditor, dismissJob]);
 
   // 取消/移除某条任务：排队中或进行中则标记取消（进行中为协作式取消，到下个阶段停止）
@@ -8197,7 +8197,7 @@ const [mounted, setMounted] = useState(false);
                 <button
                   type="button"
                   onClick={() => (view === 'edit' ? guardLeaveEditor(openDraftsView) : openDraftsView())}
-                  title="本地草稿与 Notion 草稿"
+                  title="本地草稿与云端草稿"
                   style={{ background: '#3a3a3a', color: '#d6d6d6', border: '1px solid #4d4d4d', padding: '10px 16px', borderRadius: '12px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', flexShrink: 0, transition: '0.3s' }}
                 >
                   🗂 草稿箱
@@ -9266,7 +9266,7 @@ const [mounted, setMounted] = useState(false);
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'24px', gap:'12px', flexWrap:'wrap'}}>
               <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🗂 草稿箱</div>
-              <div style={{fontSize:'12px', color:'#888'}}>本地草稿 {draftSnapshots.length} 份 · Notion 草稿 {notionDraftPosts.length} 篇</div>
+              <div style={{fontSize:'12px', color:'#888'}}>本地草稿 {draftSnapshots.length} 份 · 云端草稿 {notionDraftPosts.length} 篇</div>
             </div>
 
             {draftSnapshots.length === 0 && notionDraftPosts.length === 0 ? (
@@ -9274,7 +9274,7 @@ const [mounted, setMounted] = useState(false);
             ) : (
               <>
                 {/* 本地草稿区（localStorage 快照） */}
-                <div style={{fontSize:'13px', color:'greenyellow', marginBottom:'14px', fontWeight:'bold'}}>💾 本地草稿（保存在本机浏览器，未上传 Notion）</div>
+                <div style={{fontSize:'13px', color:'greenyellow', marginBottom:'14px', fontWeight:'bold'}}>💾 本地草稿</div>
                 {draftSnapshots.length === 0 ? (
                   <div style={{textAlign:'center', color:'#666', padding:'26px', border:'2px dashed #444', borderRadius:'12px', marginBottom:'28px'}}>暂无本地草稿</div>
                 ) : (
@@ -9304,9 +9304,9 @@ const [mounted, setMounted] = useState(false);
                 )}
 
                 {/* Notion 草稿区（status=Draft 的文章） */}
-                <div style={{fontSize:'13px', color:'#7ec8ff', marginBottom:'14px', fontWeight:'bold'}}>📝 Notion 草稿（已保存到 Notion，状态为草稿）</div>
+                <div style={{fontSize:'13px', color:'#7ec8ff', marginBottom:'14px', fontWeight:'bold'}}>📝 云端草稿</div>
                 {notionDraftPosts.length === 0 ? (
-                  <div style={{textAlign:'center', color:'#666', padding:'26px', border:'2px dashed #444', borderRadius:'12px'}}>暂无 Notion 草稿</div>
+                  <div style={{textAlign:'center', color:'#666', padding:'26px', border:'2px dashed #444', borderRadius:'12px'}}>暂无云端草稿</div>
                 ) : (
                   <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
                     {notionDraftPosts.map((p) => (
