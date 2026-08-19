@@ -2936,6 +2936,8 @@ const BLOCK_TYPE_SHORT = {
   ol: '有序',
   ul: '无序',
   todo: '待办',
+  toggle: '折叠',
+  code: '代码',
 };
 
 const BlockMinimapItem = ({
@@ -2956,7 +2958,10 @@ const BlockMinimapItem = ({
   onRemove,
 }) => {
   const previewText = (() => {
-    const raw = (block.content || '').trim();
+    // toggle/code 的 content 为行数组，统一转成多行字符串再取预览
+    const raw = String(
+      Array.isArray(block.content) ? block.content.join('\n') : (block.content || '')
+    ).trim();
     if (block.type === 'link') return raw || block.url || '';
     if (block.type === 'lock') return raw || (block.images?.length ? `${block.images.length} 张加密图片` : '');
     return raw;
@@ -3050,6 +3055,8 @@ const BLOCK_TYPE_OPTIONS = [
   { type: 'ol', label: '🔢 有序列表' },
   { type: 'ul', label: '• 无序列表' },
   { type: 'todo', label: '☑️ 待办列表' },
+  { type: 'toggle', label: '▶ 折叠块' },
+  { type: 'code', label: '{ } 代码块' },
 ];
 
 /** 块类型菜单预估高度，用于判断向上/向下弹出 */
@@ -3146,6 +3153,49 @@ const isFileDragEvent = (e) => {
   return Array.from(dt.types).includes('Files');
 };
 
+// Phase5 粘贴自动分块：识别多行统一前缀（有序/无序/待办/标题）或代码围栏
+// 规则：粘贴文本 ≥2 行且 ≥2 行匹配同一前缀才转换；不满足返回 null（按普通文本粘贴）
+const PASTE_PREFIX_RULES = [
+  { type: 'todo', re: /^\[([xX ])\][ \t]+/ },
+  { type: 'ol', re: /^\d+[.、)][ \t]+/ },
+  { type: 'ul', re: /^[-*•][ \t]+/ },
+  { type: 'h1', re: /^#[ \t]+/ },
+];
+function detectPastedBlockConversion(text) {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.replace(/\r\n?/g, '\n').trim();
+  if (!trimmed) return null;
+  const lines = trimmed.split('\n');
+  if (lines.length < 2) return null;
+  // 代码围栏优先：以 ``` 开头即转代码块（首行 ``` 后为语言，去掉结尾围栏行）
+  if (trimmed.startsWith('```')) {
+    const language = lines[0].slice(3).trim();
+    let body = lines.slice(1);
+    if (body.length && body[body.length - 1].trim().startsWith('```')) {
+      body = body.slice(0, -1);
+    }
+    return { type: 'code', language, lines: body };
+  }
+  const matched = PASTE_PREFIX_RULES.map((rule) => ({
+    ...rule,
+    count: lines.filter((l) => rule.re.test(l)).length,
+  })).sort((a, b) => b.count - a.count);
+  const best = matched[0];
+  if (!best || best.count < 2) return null;
+  const res = { type: best.type, lines: [], checked: [] };
+  lines.forEach((l) => {
+    const m = l.match(best.re);
+    if (m) {
+      res.lines.push(l.slice(m[0].length));
+      if (best.type === 'todo') res.checked.push(m[1].toLowerCase() === 'x');
+    } else {
+      res.lines.push(l);
+      if (best.type === 'todo') res.checked.push(false);
+    }
+  });
+  return res;
+}
+
 const BlockBuilder = ({
   blocks,
   setBlocks,
@@ -3153,6 +3203,7 @@ const BlockBuilder = ({
   coverImageBlockId,
   onSetBodyCover,
   onClearBodyCover,
+  onToast,
 }) => {
   const [movingId, setMovingId] = useState(null);
   const [blockViewMode, setBlockViewMode] = useState('expanded');
@@ -3168,6 +3219,8 @@ const BlockBuilder = ({
   // 行内超链接弹窗：{ blockId, start, end, label, url }，为 null 时关闭
   const [linkModal, setLinkModal] = useState(null);
   const [lockModal, setLockModal] = useState(null);
+  // Phase5 折叠块预览展开状态：{ [blockId]: true }
+  const [toggleOpenMap, setToggleOpenMap] = useState({});
 
   const scrollToBlock = (id, delay = 100) => {
     setTimeout(() => {
@@ -3323,6 +3376,41 @@ const BlockBuilder = ({
     );
   };
   const updateBlock = (id, val, key='content') => { setBlocks(blocks.map(b => b.id === id ? { ...b, [key]: val } : b)); };
+
+  // Phase5 待办行内勾选：点击行首符号切换 checked[i]；行内 [x]/[ ] 前缀剥离，状态统一存 checked 数组
+  const toggleTodoChecked = (blockId, lineIndex) => {
+    setBlocks(prev => prev.map((blk) => {
+      if (blk.id !== blockId || blk.type !== 'todo') return blk;
+      const lines = String(blk.content || '').split(/\r?\n/);
+      const checkedArr = Array.isArray(blk.checked) ? [...blk.checked] : [];
+      const m = String(lines[lineIndex] || '').match(/^\[([xX ])\][ \t]?/);
+      const current = m ? m[1].toLowerCase() === 'x' : !!checkedArr[lineIndex];
+      if (m) lines[lineIndex] = String(lines[lineIndex] || '').slice(m[0].length);
+      checkedArr[lineIndex] = !current;
+      return { ...blk, content: lines.join('\n'), checked: checkedArr };
+    }));
+  };
+
+  // Phase5 粘贴自动分块：把当前 text 块转为识别出的块类型
+  const applyPastedBlockConversion = (blockId, conv) => {
+    if (!conv) return;
+    setBlocks(prev => prev.map((b) => {
+      if (b.id !== blockId || b.type !== 'text') return b;
+      if (conv.type === 'code') {
+        return { ...b, type: 'code', content: conv.lines, language: conv.language || '' };
+      }
+      if (conv.type === 'todo') {
+        return { ...b, type: 'todo', content: conv.lines.join('\n'), checked: conv.checked };
+      }
+      if (conv.type === 'h1') {
+        return { ...b, type: 'h1', content: conv.lines.join('\n') };
+      }
+      return { ...b, type: conv.type, content: conv.lines.join('\n') };
+    }));
+    if (onToast) {
+      onToast(conv.type === 'code' ? '已识别为代码块' : conv.type === 'h1' ? '已识别为标题块' : '已识别为列表');
+    }
+  };
 
   // 给当前块（h1/正文/引用/注释）选中的文字插入行内超链接，写成 [文字](url)
   // 点击「🔗 链接」时先捕获当前选区，再弹出页内弹窗（而非浏览器 prompt）
@@ -3843,6 +3931,8 @@ const BlockBuilder = ({
       if (type === 'ol') return '🔢 有序列表';
       if (type === 'ul') return '• 无序列表';
       if (type === 'todo') return '☑️ 待办列表';
+      if (type === 'toggle') return '▶ 折叠块';
+      if (type === 'code') return '{ } 代码块';
       return '📄 内容块';
   };
   const linkModalValid = !!(linkModal && (linkModal.label || '').trim() && (linkModal.url || '').trim() && (linkModal.url || '').trim() !== 'https://');
@@ -3954,6 +4044,8 @@ const BlockBuilder = ({
           <div className="neo-btn" onClick={()=>addBlock('ol')}>🔢 有序列表</div>
           <div className="neo-btn" onClick={()=>addBlock('ul')}>• 无序列表</div>
           <div className="neo-btn" onClick={()=>addBlock('todo')}>☑️ 待办列表</div>
+          <div className="neo-btn" onClick={()=>addBlock('toggle')}>▶ 折叠块</div>
+          <div className="neo-btn" onClick={()=>addBlock('code')}>{'{ } 代码块'}</div>
       </div>
       <div className="block-view-toolbar">
         <div className="block-view-toggle">
@@ -4104,10 +4196,17 @@ const BlockBuilder = ({
                 }}
                 onPaste={e => {
                   const imgs = extractImageFilesFromClipboard(e.clipboardData);
-                  if (!imgs.length) return;
+                  if (imgs.length) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    insertImageBlocksAfter(b.id, imgs);
+                    return;
+                  }
+                  const conv = detectPastedBlockConversion(e.clipboardData ? e.clipboardData.getData('text/plain') : '');
+                  if (!conv) return;
                   e.preventDefault();
                   e.stopPropagation();
-                  insertImageBlocksAfter(b.id, imgs);
+                  applyPastedBlockConversion(b.id, conv);
                 }}
                 style={{minHeight:'200px', ...fmtStyle(b)}}
               />
@@ -4144,7 +4243,10 @@ const BlockBuilder = ({
                     const text = m ? line.slice(m[0].length) : line;
                     return (
                       <div key={i}>
-                        <span style={{color:'greenyellow', fontWeight:'bold'}}>{checked ? '☑' : '☐'}</span>{' '}
+                        <span
+                          onClick={() => toggleTodoChecked(b.id, i)}
+                          title="点击切换勾选"
+                          style={{color:'greenyellow', fontWeight:'bold', cursor:'pointer', userSelect:'none'}}>{checked ? '☑' : '☐'}</span>{' '}
                         <span style={checked ? {textDecoration:'line-through', opacity:0.55} : undefined}>{text}</span>
                       </div>
                     );
@@ -4153,6 +4255,50 @@ const BlockBuilder = ({
                 <textarea id={'editfield-' + b.id} className="glow-input" placeholder="每行一个待办项..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{minHeight:'120px', ...fmtStyle(b)}} />
               </div>
             )}
+            {b.type === 'toggle' && (() => {
+              const lines = Array.isArray(b.content) ? b.content : String(b.content || '').split(/\r?\n/);
+              const open = !!toggleOpenMap[b.id];
+              return (
+                <div style={{width:'100%'}}>
+                  <div style={{fontSize:'12px', color:'#888', marginBottom:'6px', lineHeight:1.7}}>第 1 行为折叠标题，其余每行为展开后的内容</div>
+                  <div style={{marginBottom:'6px', border:'1px dashed #444', borderRadius:'6px', padding:'6px 10px', background:'rgba(0,0,0,0.18)', fontSize:'13px', color:'#ccc'}}>
+                    <div
+                      onClick={() => setToggleOpenMap(prev => ({ ...prev, [b.id]: !open }))}
+                      style={{cursor:'pointer', display:'flex', alignItems:'center', gap:'6px', fontWeight:'bold'}}
+                    >
+                      <span style={{display:'inline-block', transition:'transform 0.2s', transform: open ? 'rotate(90deg)' : 'none', color:'greenyellow'}}>▶</span>
+                      <span>{lines[0] || '（无标题）'}</span>
+                    </div>
+                    {open ? (
+                      <div style={{marginTop:'6px', paddingLeft:'18px', lineHeight:1.7}}>
+                        {lines.slice(1).some((l) => l.trim())
+                          ? lines.slice(1).map((line, i) => (<div key={i}>{line || ' '}</div>))
+                          : <span style={{color:'#666', fontStyle:'italic'}}>(无展开内容)</span>}
+                      </div>
+                    ) : null}
+                  </div>
+                  <textarea id={'editfield-' + b.id} className="glow-input" placeholder={'折叠标题\n展开内容行1\n展开内容行2'} value={lines.join('\n')} onChange={e=>updateBlock(b.id, e.target.value.split(/\r?\n/))} style={{minHeight:'100px', ...fmtStyle(b)}} />
+                </div>
+              );
+            })()}
+            {b.type === 'code' && (() => {
+              const codeText = Array.isArray(b.content) ? b.content.join('\n') : String(b.content || '');
+              const lang = b.language || '';
+              return (
+                <div style={{width:'100%'}}>
+                  <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'6px'}}>
+                    <input className="glow-input" placeholder="语言，可留空" value={lang} onChange={e=>updateBlock(b.id, e.target.value, 'language')} style={{width:'150px', fontSize:'12px'}} />
+                  </div>
+                  <div style={{position:'relative', background:'#0d1117', border:'1px solid #30363d', borderRadius:'8px', padding:'10px 12px', marginBottom:'6px', maxHeight:'220px', overflow:'auto'}}>
+                    {lang ? (
+                      <span style={{position:'absolute', top:'6px', right:'10px', fontSize:'10px', color:'#8b949e', background:'#161b22', border:'1px solid #30363d', borderRadius:'10px', padding:'1px 8px'}}>{lang}</span>
+                    ) : null}
+                    <pre style={{margin:0, fontFamily:'ui-monospace, SFMono-Regular, Consolas, Menlo, monospace', fontSize:'13px', lineHeight:1.6, color:'#e6edf3', whiteSpace:'pre-wrap', wordBreak:'break-word', paddingRight: lang ? '70px' : undefined}}>{codeText || '（空代码块）'}</pre>
+                  </div>
+                  <textarea id={'editfield-' + b.id} className="glow-input" placeholder="输入代码内容，换行会保留..." value={codeText} onChange={e=>updateBlock(b.id, e.target.value.split(/\r?\n/))} style={{minHeight:'120px', fontFamily:'ui-monospace, SFMono-Regular, Consolas, Menlo, monospace', fontSize:'13px'}} />
+                </div>
+              );
+            })()}
             {b.type === 'link' && (
                <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                  <input className="glow-input" placeholder="显示文字（如：点此查看官网）" value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{...fmtStyle(b)}} />
@@ -6627,12 +6773,17 @@ const [mounted, setMounted] = useState(false);
       // 3) 写入 Notion 文章
       updateJob(job.id, { phase: 'post', progress: null });
       const fullContent = blocksToMarkdown(blocksForSave);
-      // serializeBlocksForSave 白名单不含 todo 的 checked，此处按原块补回，避免保存丢失勾选状态
-      const blocksData = serializeBlocksForSave(blocksForSave).map((b, i) => (
-        b.type === 'todo' && Array.isArray(blocksForSave[i] && blocksForSave[i].checked)
-          ? { ...b, checked: blocksForSave[i].checked }
-          : b
-      ));
+      // serializeBlocksForSave 白名单不含 todo 的 checked 与 code 的 language，此处按原块补回，避免保存丢失
+      const blocksData = serializeBlocksForSave(blocksForSave).map((b, i) => {
+        const origin = blocksForSave[i];
+        if (b.type === 'todo' && Array.isArray(origin && origin.checked)) {
+          return { ...b, checked: origin.checked };
+        }
+        if (b.type === 'code' && origin && typeof origin.language === 'string' && origin.language) {
+          return { ...b, language: origin.language };
+        }
+        return b;
+      });
       const coverForSave = resolveNotionCoverForSave({
         coverMode: payload.coverSettings?.mode || 'auto',
         manualCoverUrl: payload.coverSettings?.manualUrl || '',
@@ -9516,6 +9667,7 @@ const [mounted, setMounted] = useState(false);
               coverImageBlockId={editorBodyCoverBlockId}
               onSetBodyCover={handleSetBodyCover}
               onClearBodyCover={handleClearBodyCover}
+              onToast={showAdminToast}
             />
             
             <div className="fab-scroll">

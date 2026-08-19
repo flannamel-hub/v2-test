@@ -93,7 +93,11 @@ export function serializeBlocksForSave(blocks) {
 
 export function blocksToMarkdown(blocks) {
   return (blocks || [])
-    .map((b) => {
+    .map((raw) => {
+      // code/toggle 的 content 为行数组：先归一化为多行字符串，保证下方各分支（含加密分支）统一按字符串处理
+      const b = raw && (raw.type === 'code' || raw.type === 'toggle') && Array.isArray(raw.content)
+        ? { ...raw, content: raw.content.join('\n') }
+        : raw;
       if (b.type === 'h1') return `# ${b.content}`
       if (b.type === 'note') return `\`${b.content}\``
       if (b.type === 'quote') {
@@ -124,6 +128,30 @@ export function blocksToMarkdown(blocks) {
         return `:::lock ${pwd}\n${parts.join('\n')}\n:::`
       }
       if (b.type === 'image') return b.content ? `![](${b.content})` : ''
+      // Phase5 序列化补齐：ol/ul/todo/code/toggle/text
+      if (b.type === 'ol') {
+        return String(b.content || '').split(/\r?\n/).map((l, i) => `${i + 1}. ${l}`).join('\n')
+      }
+      if (b.type === 'ul') {
+        return String(b.content || '').split(/\r?\n/).map((l) => `- ${l}`).join('\n')
+      }
+      if (b.type === 'todo') {
+        return String(b.content || '')
+          .split(/\r?\n/)
+          .map((l, i) => `${Array.isArray(b.checked) && b.checked[i] ? '[x]' : '[ ]'} ${l}`)
+          .join('\n')
+      }
+      if (b.type === 'code') {
+        const codeText = Array.isArray(b.content) ? b.content.join('\n') : String(b.content || '')
+        return `\`\`\`${b.language || ''}\n${codeText}\n\`\`\``
+      }
+      if (b.type === 'toggle') {
+        const lines = Array.isArray(b.content) ? b.content : String(b.content || '').split(/\r?\n/)
+        const head = `**${lines[0] || ''}**`
+        const body = lines.slice(1).map((l) => `    ${l}`)
+        return [head, ...body].join('\n')
+      }
+      if (b.type === 'text') return b.content
       return b.content
     })
     .filter((s) => s !== '')

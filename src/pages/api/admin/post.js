@@ -146,6 +146,31 @@ function annOf(b, extra = {}) {
   return { bold: !!(b && b.bold), italic: !!(b && b.italic), color, ...extra };
 }
 
+// Phase5 代码块：Notion code.language 只接受固定枚举，别名映射 + 未知值兜底 plain text
+const NOTION_CODE_LANGUAGES = new Set([
+  'abap','agda','arduino','assembly','bash','basic','bnf','c','c#','c++','clojure','coffeescript',
+  'css','dart','diff','docker','ebnf','elixir','elm','erlang','f#','flow','fortran','gherkin','glsl',
+  'go','graphql','groovy','haskell','html','java','javascript','json','julia','kotlin','latex','less',
+  'lisp','livescript','llvm ir','lua','makefile','markdown','markup','matlab','mermaid','nix',
+  'notion formula','objective-c','ocaml','pascal','perl','php','plain text','powershell','prolog',
+  'protobuf','python','r','reason','ruby','rust','sass','scala','scheme','scss','shell','sql','swift',
+  'typescript','vb.net','verilog','vhdl','visual basic','webassembly','xml','yaml',
+]);
+const NOTION_CODE_LANGUAGE_ALIASES = {
+  js: 'javascript', ts: 'typescript', py: 'python', rb: 'ruby', sh: 'shell', zsh: 'shell',
+  yml: 'yaml', md: 'markdown', cs: 'c#', golang: 'go',
+  react: 'javascript', node: 'javascript', 'node.js': 'javascript', shellscript: 'shell',
+  plaintext: 'plain text', text: 'plain text', txt: 'plain text', none: 'plain text',
+};
+function normalizeNotionCodeLanguage(lang) {
+  const raw = String(lang || '').trim().toLowerCase();
+  if (!raw) return 'plain text';
+  if (NOTION_CODE_LANGUAGES.has(raw)) return raw;
+  const aliased = NOTION_CODE_LANGUAGE_ALIASES[raw];
+  if (aliased && NOTION_CODE_LANGUAGES.has(aliased)) return aliased;
+  return 'plain text';
+}
+
 function normalizeLinkUrl(url) {
   let u = (url || '').trim();
   if (!u) return '';
@@ -318,6 +343,36 @@ function editorBlockToNotionInner(b) {
       }
     });
     return items;
+  }
+  if (type === 'toggle') {
+    // 折叠块（Phase5）：扁平模型，第 1 行为折叠标题，其余每行一个子段落
+    const lines = Array.isArray(b.content)
+      ? b.content.map((l) => String(l))
+      : String(b.content || '').split(/\r?\n/);
+    const title = lines.length ? lines[0] : '';
+    const children = lines.slice(1).map((line) => ({
+      object: 'block',
+      type: 'paragraph',
+      paragraph: { rich_text: inlineToRichRuns(line, annOf(b)) },
+    }));
+    // 整块判空：标题空白且所有子段落均为空白行时不导出（子行本身的空行语义在正常导出时保留）
+    if (!title.trim() && children.every((c) => (c.paragraph.rich_text[0]?.text?.content || '').trim() === '')) return [];
+    return [{
+      object: 'block',
+      type: 'toggle',
+      toggle: { rich_text: inlineToRichRuns(title, annOf(b)), children },
+    }];
+  }
+  if (type === 'code') {
+    // 代码块（Phase5）：content 为代码行数组，language 空或不受支持时用 plain text
+    const text = Array.isArray(b.content) ? b.content.join('\n') : String(b.content || '');
+    if (!text.trim()) return [];
+    const language = normalizeNotionCodeLanguage(b.language);
+    return [{
+      object: 'block',
+      type: 'code',
+      code: { rich_text: [{ text: { content: text } }], language },
+    }];
   }
   if (type === 'lock') {
     const children = []
@@ -508,6 +563,30 @@ async function notionToEditorBlocks(blocks) {
           out.push({ type: 'todo', content, checked: [!!(blk.to_do && blk.to_do.checked)], ...annFrom(rts[0]) });
         }
       }
+    } else if (t === 'toggle') {
+      // 折叠块（Phase5）：标题行 = toggle.rich_text；子内容 = children 中 paragraph 逐行，其他子块降级取文本行
+      const rts = blk.toggle.rich_text || [];
+      const title = richTextHasLink(rts) ? richToInlineMd(rts) : plainText(rts);
+      let kids = [];
+      if (blk.has_children && blk.id) {
+        try { const r = await withRetry(() => notion.blocks.children.list({ block_id: blk.id })); kids = r.results; } catch (e) {}
+      }
+      const lines = [title];
+      for (const k of kids) {
+        const kd = k[k.type];
+        const krts = (kd && kd.rich_text) || [];
+        const p = richTextHasLink(krts) ? richToInlineMd(krts) : plainText(krts);
+        // paragraph 逐行保留（含空行）；其他子块类型降级取文本行（空文本跳过）
+        if (k.type === 'paragraph' || p) {
+          lines.push(p);
+        }
+      }
+      out.push({ type: 'toggle', content: lines, ...annFrom(rts[0]) });
+    } else if (t === 'code') {
+      // 代码块（Phase5）：content 按 \n 拆行，language 缺省为空字符串
+      const rts = (blk.code && blk.code.rich_text) || [];
+      const text = plainText(rts);
+      out.push({ type: 'code', content: text.split('\n'), language: (blk.code && blk.code.language) || '' });
     } else if (t === 'divider') {
       // 分割线跳过 (加密块内部的分隔已在 lock 处理)
     } else {
