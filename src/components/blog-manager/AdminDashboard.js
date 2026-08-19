@@ -57,7 +57,9 @@ import {
   sanitizeGalleryItemsForSnapshot,
   saveEditorDraftSnapshot,
   loadEditorDraftSnapshot,
-  clearEditorDraftSnapshot,
+  listEditorDraftSnapshots,
+  removeEditorDraftSnapshot,
+  clearEditorDraftSnapshotsForPost,
 } from '@/src/lib/admin/editorDraftSnapshot';
 import {
   BLOG_SHELL_REFRESH_COOLDOWN_MS,
@@ -1253,14 +1255,24 @@ const FullScreenLoader = ({ phase, progress }) => {
   );
 };
 
-/** 发布队列：每篇任务的阶段文案 */
+/** 发布队列：各阶段文案；失败阶段名（Phase4 保留 phase 后展示） */
+const PUBLISH_QUEUE_PHASE_LABELS = {
+  media: '正文图片上传',
+  gallery: '图库上传/同步',
+  post: '写入文章',
+  refresh: '前台刷新',
+};
+
 function pubqStateText(job) {
   const elapsed = formatJobElapsed(job.startedAt);
   const elapsedSuffix = elapsed ? ` · 已运行 ${elapsed}` : '';
 
   if (job.status === 'queued') return '队列中';
   if (job.status === 'success') return '已完成';
-  if (job.status === 'error') return '发布失败';
+  if (job.status === 'error') {
+    const failedLabel = PUBLISH_QUEUE_PHASE_LABELS[job.phase];
+    return failedLabel ? `发布失败（${failedLabel}）` : '发布失败';
+  }
   if (job.stalled) {
     return `长时间无进度更新${elapsed ? `（已运行 ${elapsed}）` : ''}`;
   }
@@ -1283,7 +1295,14 @@ function pubqStateText(job) {
 }
 
 /** 发布队列面板：固定在右上角，后台逐条处理，不阻塞编辑 */
-const PublishQueuePanel = ({ jobs, onRetry, onRemove, onForceComplete }) => {
+const PublishQueuePanel = ({
+  jobs,
+  onRetry,
+  onRetryFromPhase,
+  onRestoreToEditor,
+  onRemove,
+  onForceComplete,
+}) => {
   const [, setElapsedTick] = useState(0);
 
   useEffect(() => {
@@ -1325,6 +1344,12 @@ const PublishQueuePanel = ({ jobs, onRetry, onRemove, onForceComplete }) => {
                 <div className="pubq-actions">
                   {job.status === 'error' && (
                     <button className="pubq-retry" onClick={() => onRetry(job.id)}>重试</button>
+                  )}
+                  {job.status === 'error' && !job.payload?.isWidget && onRetryFromPhase && (
+                    <button className="pubq-retry" onClick={() => onRetryFromPhase(job.id)}>仅重试失败步骤</button>
+                  )}
+                  {job.status === 'error' && !job.payload?.isWidget && onRestoreToEditor && (
+                    <button className="pubq-retry" onClick={() => onRestoreToEditor(job.id)}>恢复到编辑器</button>
                   )}
                   {job.status === 'running' && job.stalled && onForceComplete && (
                     <button className="pubq-retry" onClick={() => onForceComplete(job.id)}>标记完成</button>
@@ -1619,8 +1644,17 @@ const LeaveConfirmModal = ({ open, onLeave, onStay, onSaveDraft }) => {
   );
 };
 
-/** 挂载时发现本地草稿快照的恢复提示弹窗 */
-const DraftRestoreModal = ({ open, meta, onRestore, onDiscard }) => {
+/** 草稿箱卡片时间格式化 */
+function formatDraftSnapshotTime(iso) {
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return '时间未知';
+  const d = new Date(ts);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 挂载时发现本地草稿：引导前往草稿箱（Phase4，恢复操作统一在草稿箱完成） */
+const DraftRestoreModal = ({ open, meta, onOpenDrafts, onIgnore }) => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -1636,11 +1670,12 @@ const DraftRestoreModal = ({ open, meta, onRestore, onDiscard }) => {
 
   if (!open || !meta) return null;
 
-  const ts = Date.parse(meta.updatedAt);
+  const count = Number.isFinite(meta.count) && meta.count > 0 ? meta.count : 1;
+  const ts = meta.latest?.createdAt ? Date.parse(meta.latest.createdAt) : NaN;
   const minutes = Number.isFinite(ts)
     ? Math.max(1, Math.round((Date.now() - ts) / 60000))
     : null;
-  const titleLabel = (meta.title || '').trim();
+  const titleLabel = (meta.latest?.title || '').trim();
 
   return (
     <div
@@ -1654,22 +1689,22 @@ const DraftRestoreModal = ({ open, meta, onRestore, onDiscard }) => {
         aria-labelledby="draft-restore-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="cover-modal-icon" aria-hidden>💾</div>
-        <h3 id="draft-restore-modal-title" className="cover-modal-title">发现本地草稿</h3>
+        <div className="cover-modal-icon" aria-hidden>🗂</div>
+        <h3 id="draft-restore-modal-title" className="cover-modal-title">发现 {count} 份本地草稿</h3>
         <p className="cover-modal-desc">
-          检测到{minutes ? ` ${minutes} 分钟前` : ''}保存的本地草稿
-          {titleLabel ? `「${titleLabel}」` : ''}，是否恢复到编辑器？
+          {count > 1 && minutes ? `最近一份 ${minutes} 分钟前保存` : '存在本地保存的草稿'}
+          {titleLabel ? `「${titleLabel}」` : ''}，可前往草稿箱查看、恢复或删除。
           <br />
           <span style={{ fontSize: 11.5, color: '#777' }}>
             恢复会覆盖当前编辑器内容；未上传的本地图片无法随草稿恢复。
           </span>
         </p>
         <div className="cover-modal-actions">
-          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onDiscard}>
+          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onIgnore}>
             忽略
           </button>
-          <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={onRestore}>
-            恢复
+          <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={onOpenDrafts}>
+            前往草稿箱
           </button>
         </div>
       </div>
@@ -4384,9 +4419,13 @@ const [mounted, setMounted] = useState(false);
   const allowNavRef = useRef(false);
   // 发布方式：'Published' | 'Draft'（打开发布确认弹窗时重置）
   const [publishAs, setPublishAs] = useState('Published');
-  // 本地草稿恢复提示
+  // 本地草稿恢复提示（Phase4：改为引导去草稿箱）
   const [draftRestorable, setDraftRestorable] = useState(null);
   const [draftRestoreOpen, setDraftRestoreOpen] = useState(false);
+  // 草稿箱：本地快照 meta 列表
+  const [draftSnapshots, setDraftSnapshots] = useState([]);
+  // 刚从草稿箱/失败任务恢复进编辑器时，跳过一次「发现本地草稿」提示
+  const draftPromptSkipRef = useRef(false);
 
   const markDirty = useCallback(() => {
     if (dirtyRef.current) return;
@@ -4501,6 +4540,8 @@ const [mounted, setMounted] = useState(false);
   const [publishQueue, setPublishQueue] = useState([]); // 后台发布队列
   const [pendingPostSyncs, setPendingPostSyncs] = useState([]); // Notion 已创建、等待索引与前台刷新的新文章
   const queueRunningRef = useRef(false);
+  // Phase4: 发布任务各阶段成功后的中间产物（blocks / galleryItems），失败时写入 job.resumeData 供断点续跑
+  const jobProgressRef = useRef({});
   const cancelledJobsRef = useRef(new Set()); // 已请求取消的任务 id
   const pendingPostSyncsRef = useRef([]);
   const pendingPostSyncPollingRef = useRef(new Set());
@@ -4817,7 +4858,12 @@ const [mounted, setMounted] = useState(false);
       postId: currentId || null,
       slug: form?.slug || '',
     };
-    const ok = saveEditorDraftSnapshot(snap);
+    const ok = !!saveEditorDraftSnapshot(snap, {
+      kind: 'manual',
+      title: (form?.title || '').trim() || '未命名',
+      postId: currentId || null,
+      slug: form?.slug || '',
+    });
     return ok;
   }, [form, galleryItems, coverSettings, currentId]);
 
@@ -4827,14 +4873,9 @@ const [mounted, setMounted] = useState(false);
     else alert('本地草稿保存失败（浏览器存储不可用或容量已满）');
   }, [saveDraftSnapshot]);
 
-  const restoreDraftSnapshot = useCallback(() => {
-    const snap = loadEditorDraftSnapshot();
-    setDraftRestoreOpen(false);
-    if (!snap) {
-      setDraftRestorable(null);
-      showAdminToast('本地草稿已不存在');
-      return;
-    }
+  // Phase4: 统一的「恢复快照到编辑器」——草稿箱恢复 / 失败任务恢复到编辑器共用
+  const restoreSnapshotToEditor = useCallback((snap) => {
+    if (!snap) return false;
     setForm(snap.form || {});
     setEditorBlocks(Array.isArray(snap.blocks) ? snap.blocks : []);
     setGalleryItems(Array.isArray(snap.galleryItems) ? snap.galleryItems : []);
@@ -4850,22 +4891,18 @@ const [mounted, setMounted] = useState(false);
     }
     setGalleryDirty(false);
     markDirty();
-    showAdminToast('已恢复本地草稿，请及时保存', 3200);
+    return true;
   }, [markDirty]);
 
-  const discardDraftSnapshot = useCallback(() => {
-    clearEditorDraftSnapshot();
+  // Phase4: 弹窗「忽略」只关闭提示，不删快照（删除统一在草稿箱操作）
+  const ignoreDraftPrompt = useCallback(() => {
     setDraftRestoreOpen(false);
     setDraftRestorable(null);
   }, []);
 
-  // 保存/发布成功后，若本地快照对应同一篇文章，则删除快照
+  // 保存/发布成功后，清理该文章（postId 或 slug）的全部本地快照
   const maybeClearSnapshotAfterSave = useCallback((payload) => {
-    const snap = loadEditorDraftSnapshot();
-    if (!snap) return;
-    const samePost = snap.postId && snap.postId === payload.currentId;
-    const sameSlug = !snap.postId && snap.slug && snap.slug === (payload.form?.slug || '');
-    if (samePost || sameSlug) clearEditorDraftSnapshot();
+    clearEditorDraftSnapshotsForPost(payload.currentId || (payload.form?.slug || ''));
   }, []);
 
   // === Phase3: 离开拦截（三选一弹窗） ===
@@ -4949,18 +4986,56 @@ const [mounted, setMounted] = useState(false);
     };
   }, [router]);
 
-  // 编辑页挂载后：检测本地草稿快照，弹恢复提示
+  // 编辑页挂载后：检测本地草稿，提示前往草稿箱（恢复操作统一在草稿箱完成）
   useEffect(() => {
     if (!mounted || view !== 'edit') return;
-    const snap = loadEditorDraftSnapshot();
-    if (!snap) return;
-    setDraftRestorable({
-      title: (snap.form?.title || '').trim(),
-      slug: snap.slug || '',
-      updatedAt: snap.updatedAt || '',
-    });
+    if (draftPromptSkipRef.current) {
+      draftPromptSkipRef.current = false;
+      return;
+    }
+    const metas = listEditorDraftSnapshots();
+    if (!metas.length) return;
+    setDraftRestorable({ count: metas.length, latest: metas[0] });
     setDraftRestoreOpen(true);
   }, [mounted, view]);
+
+  // === Phase4: 草稿箱 ===
+  const refreshDraftSnapshots = useCallback(() => {
+    setDraftSnapshots(listEditorDraftSnapshots());
+  }, []);
+
+  const openDraftsView = useCallback(() => {
+    refreshDraftSnapshots();
+    setView('drafts');
+  }, [refreshDraftSnapshots]);
+
+  // DraftRestoreModal「前往草稿箱」：编辑器有未保存修改时仍走三选一拦截
+  const draftPromptGoToBox = useCallback(() => {
+    setDraftRestoreOpen(false);
+    setDraftRestorable(null);
+    guardLeaveEditor(openDraftsView);
+  }, [openDraftsView]);
+
+  // 草稿箱「恢复编辑」：回填编辑器 + markDirty；保留原快照（成功保存后才由 maybeClearSnapshotAfterSave 清理）
+  const restoreDraftFromBox = useCallback((id) => {
+    const snap = loadEditorDraftSnapshot(id);
+    if (!snap) {
+      showAdminToast('本地草稿已不存在或已损坏');
+      refreshDraftSnapshots();
+      return;
+    }
+    if (!restoreSnapshotToEditor(snap)) return;
+    draftPromptSkipRef.current = true;
+    setView('edit');
+    setExpandedStep(0);
+    showAdminToast('已恢复本地草稿，请及时保存', 3200);
+  }, [restoreSnapshotToEditor, refreshDraftSnapshots]);
+
+  const deleteDraftSnapshot = useCallback((id) => {
+    removeEditorDraftSnapshot(id);
+    refreshDraftSnapshots();
+    showAdminToast('已删除该本地草稿', 2000);
+  }, [refreshDraftSnapshots]);
 
   // 刷新后提示：上次会话中可能有未完成的发布任务
   useEffect(() => {
@@ -6365,11 +6440,55 @@ const [mounted, setMounted] = useState(false);
               stalled: false,
               startedAt: null,
               lastActivityAt: null,
+              // 全量重试从零开始，丢弃断点续跑产物
+              resumeData: null,
             }
           : job
       )
     );
   }, []);
+
+  // Phase4: 仅重试失败步骤（断点续跑）——phase 保持失败时刻的阶段，resumeData 保留在 job 上
+  const retryJobFromPhase = useCallback((id) => {
+    cancelledJobsRef.current.delete(id);
+    setPublishQueue((q) =>
+      q.map((job) =>
+        job.id === id
+          ? {
+              ...job,
+              status: 'queued',
+              progress: null,
+              error: '',
+              stalled: false,
+              startedAt: null,
+              lastActivityAt: null,
+            }
+          : job
+      )
+    );
+  }, []);
+
+  // Phase4: 失败任务「恢复到编辑器」——payload 回填编辑器后移除队列任务（仅普通文章，Widget 不提供）
+  const restoreJobToEditor = useCallback((id) => {
+    const job = publishQueue.find((j) => j.id === id);
+    if (!job || job.status !== 'error') return;
+    const payload = job.payload || {};
+    if (payload.isWidget) return;
+    const ok = restoreSnapshotToEditor({
+      blocks: Array.isArray(payload.blocks) ? payload.blocks : [],
+      form: payload.form || {},
+      galleryItems: Array.isArray(payload.galleryItems) ? payload.galleryItems : [],
+      coverSettings: payload.coverSettings,
+      postId: payload.currentId || null,
+      slug: payload.previousSlug || payload.form?.slug || '',
+    });
+    if (!ok) return;
+    dismissJob(id);
+    draftPromptSkipRef.current = true;
+    setView('edit');
+    setExpandedStep(0);
+    showAdminToast('已把失败任务恢复到编辑器（内容尚未保存到 Notion）', 3200);
+  }, [publishQueue, restoreSnapshotToEditor, dismissJob]);
 
   // 取消/移除某条任务：排队中或进行中则标记取消（进行中为协作式取消，到下个阶段停止）
   const removeJob = useCallback((job) => {
@@ -6403,6 +6522,8 @@ const [mounted, setMounted] = useState(false);
   // 实际执行一条发布任务：完全基于任务快照 payload，不依赖当前编辑器状态
   const runPublishJob = useCallback(async (job) => {
     const { payload } = job;
+    // Phase4: 断点续跑——读取上次失败前已完成阶段的中间产物（有则跳过对应上传阶段）
+    const resumeData = job.resumeData || null;
     const isCancelled = () => cancelledJobsRef.current.has(job.id);
     const bailIfCancelled = () => {
       if (!isCancelled()) return false;
@@ -6458,10 +6579,10 @@ const [mounted, setMounted] = useState(false);
         return;
       }
 
-      let blocksForSave = payload.blocks;
+      let blocksForSave = resumeData?.blocks || payload.blocks;
 
-      // 1) 上传正文图片
-      if (payload.pendingMediaCount > 0) {
+      // 1) 上传正文图片（断点重试：已有上传产物则跳过）
+      if (payload.pendingMediaCount > 0 && !resumeData?.blocks) {
         updateJob(job.id, {
           phase: 'media',
           progress: { done: 0, total: payload.pendingMediaCount },
@@ -6470,12 +6591,20 @@ const [mounted, setMounted] = useState(false);
           onProgress: ({ done, total }) =>
             updateJob(job.id, { progress: { done, total } }),
         });
+        jobProgressRef.current[job.id] = {
+          ...(jobProgressRef.current[job.id] || {}),
+          blocks: blocksForSave,
+        };
       }
       if (bailIfCancelled()) return;
 
-      // 2) 若有 pending 图库，先上传以便解析图库封面 URL
-      let galleryItemsForSave = payload.galleryItems || [];
-      if (payload.pendingGalleryCount > 0 && galleryItemsForSave.length > 0) {
+      // 2) 若有 pending 图库，先上传以便解析图库封面 URL（断点重试：已有上传产物则跳过）
+      let galleryItemsForSave = resumeData?.galleryItems || payload.galleryItems || [];
+      if (
+        payload.pendingGalleryCount > 0 &&
+        galleryItemsForSave.length > 0 &&
+        !resumeData?.galleryItems
+      ) {
         updateJob(job.id, {
           phase: 'gallery',
           progress: { done: 0, total: payload.pendingGalleryCount },
@@ -6488,6 +6617,10 @@ const [mounted, setMounted] = useState(false);
           onProgress: ({ done, total }) =>
             updateJob(job.id, { progress: { done, total } }),
         });
+        jobProgressRef.current[job.id] = {
+          ...(jobProgressRef.current[job.id] || {}),
+          galleryItems: galleryItemsForSave,
+        };
       }
       if (bailIfCancelled()) return;
 
@@ -6523,6 +6656,12 @@ const [mounted, setMounted] = useState(false);
       const d = await res.json();
       if (bailIfCancelled()) return;
       if (!d.success) throw new Error(d.error || '保存失败');
+      // Phase4: post 阶段成功，回写中间产物（断点续跑时 refresh/gallery 同步失败可免重传）
+      jobProgressRef.current[job.id] = {
+        ...(jobProgressRef.current[job.id] || {}),
+        blocks: blocksForSave,
+        galleryItems: galleryItemsForSave,
+      };
 
       const newId = d.id || payload.currentId;
       const saveSlug = payload.form.slug || '';
@@ -6671,12 +6810,33 @@ const [mounted, setMounted] = useState(false);
       setTimeout(() => dismissJob(job.id), 6000);
     } catch (e) {
       if (bailIfCancelled()) return;
+      // Phase4: 保留失败时刻的 phase（不再清空），并把已完成阶段的中间产物写入 job.resumeData 供断点续跑
       updateJob(job.id, {
         status: 'error',
-        phase: '',
         progress: null,
         error: e?.message || '发布失败',
+        resumeData: jobProgressRef.current[job.id] || null,
       });
+      // Phase4: 失败自动入草稿箱（仅普通文章；取消/Widget 不入库）——刷新页面后仍可从草稿箱找回
+      if (!payload.isWidget) {
+        saveEditorDraftSnapshot(
+          {
+            blocks: payload.blocks,
+            form: payload.form,
+            galleryItems: payload.galleryItems,
+            coverSettings: payload.coverSettings,
+          },
+          {
+            kind: 'failed',
+            title: (payload.form?.title || '').trim() || '未命名',
+            postId: payload.currentId || null,
+            slug: payload.form?.slug || '',
+          }
+        );
+      }
+    } finally {
+      // 任务结束（成功/失败/取消）清理中间产物引用
+      delete jobProgressRef.current[job.id];
     }
   }, [updateJob, dismissJob, registerPendingPostSync, clearDirty, maybeClearSnapshotAfterSave]);
 
@@ -7935,6 +8095,7 @@ const [mounted, setMounted] = useState(false);
   if (!mounted) return null;
 
   const adminLocked = isThemeLoading;
+  const notionDraftPosts = posts.filter((p) => p.type === 'Post' && p.status === 'Draft');
 
   return (
     <div style={{ minHeight: '100vh', background: '#303030', padding: '40px 20px' }}>
@@ -7971,8 +8132,8 @@ const [mounted, setMounted] = useState(false);
       <DraftRestoreModal
         open={draftRestoreOpen}
         meta={draftRestorable}
-        onRestore={restoreDraftSnapshot}
-        onDiscard={discardDraftSnapshot}
+        onOpenDrafts={draftPromptGoToBox}
+        onIgnore={ignoreDraftPrompt}
       />
       <TaxonomyConfirmModal
         open={taxonomyConfirmOpen}
@@ -8015,6 +8176,8 @@ const [mounted, setMounted] = useState(false);
       <PublishQueuePanel
         jobs={publishQueue}
         onRetry={retryJob}
+        onRetryFromPhase={retryJobFromPhase}
+        onRestoreToEditor={restoreJobToEditor}
         onRemove={removeJob}
         onForceComplete={forceCompleteJob}
       />
@@ -8029,8 +8192,18 @@ const [mounted, setMounted] = useState(false);
              </div>
            </div>
            
-           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexShrink: 0 }}>
-             <div ref={headerActionsMenuRef}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexShrink: 0 }}>
+              {view !== 'drafts' && (
+                <button
+                  type="button"
+                  onClick={() => (view === 'edit' ? guardLeaveEditor(openDraftsView) : openDraftsView())}
+                  title="本地草稿与 Notion 草稿"
+                  style={{ background: '#3a3a3a', color: '#d6d6d6', border: '1px solid #4d4d4d', padding: '10px 16px', borderRadius: '12px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', flexShrink: 0, transition: '0.3s' }}
+                >
+                  🗂 草稿箱
+                </button>
+              )}
+              <div ref={headerActionsMenuRef}>
                <AdminHeaderActionsMenu
                  open={headerActionsMenuOpen}
                  onToggle={() => setHeaderActionsMenuOpen((v) => !v)}
@@ -9087,6 +9260,68 @@ const [mounted, setMounted] = useState(false);
               ))}
               {!friendsLoading && friends.length === 0 && <div style={{textAlign:'center', color:'#666', padding:'40px', border:'2px dashed #444', borderRadius:'12px'}}>还没有友链，在上方添加吧</div>}
             </div>
+          </div>
+        ) : view === 'drafts' ? (
+          /* 🗂 Phase4: 统一草稿箱——本地快照 + Notion 草稿 */
+          <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'24px', gap:'12px', flexWrap:'wrap'}}>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🗂 草稿箱</div>
+              <div style={{fontSize:'12px', color:'#888'}}>本地草稿 {draftSnapshots.length} 份 · Notion 草稿 {notionDraftPosts.length} 篇</div>
+            </div>
+
+            {draftSnapshots.length === 0 && notionDraftPosts.length === 0 ? (
+              <div style={{textAlign:'center', color:'#666', padding:'40px', border:'2px dashed #444', borderRadius:'12px'}}>暂无草稿</div>
+            ) : (
+              <>
+                {/* 本地草稿区（localStorage 快照） */}
+                <div style={{fontSize:'13px', color:'greenyellow', marginBottom:'14px', fontWeight:'bold'}}>💾 本地草稿（保存在本机浏览器，未上传 Notion）</div>
+                {draftSnapshots.length === 0 ? (
+                  <div style={{textAlign:'center', color:'#666', padding:'26px', border:'2px dashed #444', borderRadius:'12px', marginBottom:'28px'}}>暂无本地草稿</div>
+                ) : (
+                  <div style={{display:'flex', flexDirection:'column', gap:'12px', marginBottom:'28px'}}>
+                    {draftSnapshots.map((s) => (
+                      <div key={s.id} style={{display:'flex', gap:'14px', alignItems:'center', background:'#333', padding:'14px 16px', borderRadius:'10px', flexWrap:'wrap'}}>
+                        <div style={{flex:1, minWidth:'220px', display:'flex', flexDirection:'column', gap:'6px'}}>
+                          <div style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
+                            <span style={{fontWeight:'bold', color:'#fff', fontSize:'14px', wordBreak:'break-all'}}>{s.title || '未命名'}</span>
+                            {s.kind === 'failed' ? (
+                              <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(251,191,36,0.15)', color:'#fbbf24', border:'1px solid rgba(251,191,36,0.45)'}}>⚠️ 发布失败</span>
+                            ) : (
+                              <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(173,255,47,0.12)', color:'#9acd32', border:'1px solid rgba(173,255,47,0.35)'}}>💾 手动保存</span>
+                            )}
+                          </div>
+                          <div style={{fontSize:'11.5px', color:'#888'}}>
+                            {formatDraftSnapshotTime(s.createdAt)}{s.slug ? ` · ${s.slug}` : ''}{s.postId ? ' · 已关联文章' : ' · 新文章'}
+                          </div>
+                        </div>
+                        <div style={{display:'flex', gap:'8px'}}>
+                          <button onClick={() => restoreDraftFromBox(s.id)} style={{background:'greenyellow', color:'#000', border:'none', padding:'7px 16px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>恢复编辑</button>
+                          <button onClick={() => deleteDraftSnapshot(s.id)} style={{background:'#555', color:'#eee', border:'none', padding:'7px 16px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>删除</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Notion 草稿区（status=Draft 的文章） */}
+                <div style={{fontSize:'13px', color:'#7ec8ff', marginBottom:'14px', fontWeight:'bold'}}>📝 Notion 草稿（已保存到 Notion，状态为草稿）</div>
+                {notionDraftPosts.length === 0 ? (
+                  <div style={{textAlign:'center', color:'#666', padding:'26px', border:'2px dashed #444', borderRadius:'12px'}}>暂无 Notion 草稿</div>
+                ) : (
+                  <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
+                    {notionDraftPosts.map((p) => (
+                      <div key={p.id} style={{display:'flex', gap:'14px', alignItems:'center', background:'#333', padding:'14px 16px', borderRadius:'10px', flexWrap:'wrap'}}>
+                        <div style={{flex:1, minWidth:'220px'}}>
+                          <div style={{fontWeight:'bold', color:'#fff', fontSize:'14px', wordBreak:'break-all'}}>{p.title || '无标题'}</div>
+                          <div style={{fontSize:'11.5px', color:'#888', marginTop:'4px'}}>{p.date || ''}{p.slug ? ` · ${p.slug}` : ''}{p.category ? ` · ${p.category}` : ''}</div>
+                        </div>
+                        <button onClick={() => handleEdit(p)} style={{background:'#7ec8ff', color:'#000', border:'none', padding:'7px 16px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>继续编辑</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         ) : form.type === 'Widget' ? (
           /* 🧩 组件编辑：精简界面，仅 标题 / 摘要 / 头像 */
