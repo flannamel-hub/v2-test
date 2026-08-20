@@ -378,7 +378,7 @@ const GlobalStyle = () => (
     .block-minimap-add-btn:hover, .block-minimap-add-btn.open { border-color: greenyellow; background: rgba(173,255,47,0.14); box-shadow: 0 3px 12px rgba(173,255,47,0.2); transform: scale(1.05); }
     .block-builder-shell { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 10px 16px; box-sizing: border-box; background: rgba(255, 255, 255, 0.015); box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.03), 0 8px 32px rgba(0, 0, 0, 0.35); transition: background-color 0.3s ease, border-color 0.3s ease; }
     .block-builder-shell:hover { border-color: rgba(255, 255, 255, 0.14); background-color: rgba(255, 255, 255, 0.025); }
-    .block-builder-area-title { font-size: 11px; letter-spacing: 3px; color: rgba(255, 255, 255, 0.35); margin-bottom: 14px; user-select: none; display: flex; align-items: center; gap: 8px; }
+    .block-builder-area-title { font-size: 15px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.55); margin-bottom: 14px; user-select: none; display: flex; align-items: center; gap: 8px; }
     .block-builder-area-title::before { content: ''; width: 2px; height: 14px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); flex-shrink: 0; }
     .block-builder-expanded { display: flex; flex-direction: column; gap: 72px; padding-bottom: 28px; }
     .block-minimap-item { position: relative; display: flex; flex-direction: column; width: 140px; min-height: 118px; flex-shrink: 0; border: 1px solid #444; border-radius: 8px; background: #1c1c1f; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s; user-select: none; cursor: grab; touch-action: none; }
@@ -493,7 +493,7 @@ const GlobalStyle = () => (
     .editor-step-grid--single { grid-template-columns: 1fr; }
     .editor-date-field { min-width: 0; }
     .editor-date-field input[type="date"] { width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
-    .block-add-toolbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 25px; }
+    .block-add-toolbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 25px; }
     .block-add-toolbar .neo-btn { width: 100%; padding: 0.8em 0.4em; font-size: 13px; white-space: nowrap; box-sizing: border-box; justify-content: center; }
     .category-picker-wrap { position: relative; margin-bottom: 10px; min-width: 0; }
     .category-picker-trigger { display: flex; align-items: stretch; min-width: 0; }
@@ -4032,13 +4032,13 @@ const BlockBuilder = ({
           </div>
         </div>
       )}
-      <div className="block-builder-area-title">📝 正文区域</div>
+      <div className="block-builder-area-title">正文区域</div>
       <div className="block-add-toolbar">
           <div className="neo-btn" onClick={()=>addBlock('h1')}>正文标题</div>
-          <div className="neo-btn" onClick={()=>addBlock('text')}>📝 内容块</div>
-          <div className="neo-btn" onClick={()=>addBlock('image')}>🖼️ 图片块</div>
+          <div className="neo-btn" onClick={()=>addBlock('text')}>正文内容</div>
+          <div className="neo-btn" onClick={()=>addBlock('image')}>正文图片</div>
+          <div className="neo-btn" onClick={()=>addBlock('link')}>超链文字</div>
           <div className="neo-btn" onClick={()=>addBlock('quote')}>❝ 引用</div>
-          <div className="neo-btn" onClick={()=>addBlock('link')}>🔗 超链文字</div>
           <div className="neo-btn" onClick={()=>addBlock('note')}>💬 注释块</div>
           <div className="neo-btn" onClick={()=>addBlock('lock')}>🔒 加密块</div>
           <div className="neo-btn" onClick={()=>addBlock('ol')}>🔢 有序列表</div>
@@ -8361,7 +8361,7 @@ const [mounted, setMounted] = useState(false);
                   title="本地草稿与云端草稿"
                   style={{ background: '#3a3a3a', color: '#d6d6d6', border: '1px solid #4d4d4d', padding: '10px 16px', borderRadius: '12px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', flexShrink: 0, transition: '0.3s' }}
                 >
-                  🗂 草稿箱
+                  草稿
                 </button>
               )}
               <div ref={headerActionsMenuRef}>
@@ -9514,7 +9514,7 @@ const [mounted, setMounted] = useState(false);
         ) : (
           /* 这里是之前的表单编辑代码... */
           <div className="editor-form-panel" style={{background: '#424242', padding: 30, borderRadius: 20}}>
-            <StepAccordion step={1} title="基础信息" isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
+            <StepAccordion step={1} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>基础信息<span style={{fontSize:'10px', color:'#ff4d4f', border:'1px solid rgba(255,77,79,0.5)', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>必填</span></span>} isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
                {!editingSimplePage ? (
                  <div style={{ marginBottom: '20px', padding: '14px', borderRadius: '10px', border: '1px solid #3a3a42', background: '#1a1a1e' }}>
                    <BlockCoverHint
@@ -9552,7 +9552,7 @@ const [mounted, setMounted] = useState(false);
                </div>
                ) : null}
             </StepAccordion>
-            <StepAccordion step={2} title={editingSimplePage ? '发布时间' : '分类与时间'} isOpen={expandedStep === 2} onToggle={()=>setExpandedStep(expandedStep===2?0:2)}>
+            <StepAccordion step={2} title={editingSimplePage ? '发布时间' : (<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>分类与时间<span style={{fontSize:'10px', color:'#ff4d4f', border:'1px solid rgba(255,77,79,0.5)', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>必填</span></span>)} isOpen={expandedStep === 2} onToggle={()=>setExpandedStep(expandedStep===2?0:2)}>
                <div className={`editor-step-grid ${editingSimplePage ? 'editor-step-grid--single' : 'editor-step-grid--dual'}`}>
                  {!editingSimplePage ? (
                  <div>
