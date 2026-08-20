@@ -4572,6 +4572,8 @@ const [mounted, setMounted] = useState(false);
   const [draftSnapshots, setDraftSnapshots] = useState([]);
   // 刚从草稿箱/失败任务恢复进编辑器时，跳过一次「发现本地草稿」提示
   const draftPromptSkipRef = useRef(false);
+  // 新建文章进入编辑视图时，跳过一次「发现本地草稿」提示（编辑已有文章不跳过）
+  const enteringEditorNewRef = useRef(false);
 
   const markDirty = useCallback(() => {
     if (dirtyRef.current) return;
@@ -5137,6 +5139,10 @@ const [mounted, setMounted] = useState(false);
     if (!mounted || view !== 'edit') return;
     if (draftPromptSkipRef.current) {
       draftPromptSkipRef.current = false;
+      return;
+    }
+    if (enteringEditorNewRef.current) {
+      enteringEditorNewRef.current = false;
       return;
     }
     const metas = listEditorDraftSnapshots();
@@ -5806,6 +5812,8 @@ const [mounted, setMounted] = useState(false);
 
   const handleEdit = async (p) => {
     setLoading(true);
+    // 编辑已有文章：保留本地草稿提示
+    enteringEditorNewRef.current = false;
     resetGalleryItems();
     // Phase3: 打开文章 = 数据加载/重置，确保未保存标记干净（不误标）
     clearDirty();
@@ -5869,6 +5877,8 @@ const [mounted, setMounted] = useState(false);
     editingSlugRef.current = null;
     editingCategoryRef.current = null;
     editingTagsRef.current = null;
+    // 新建文章：进入编辑视图时跳过一次本地草稿提示
+    enteringEditorNewRef.current = true;
     setView('edit');
     // 新建文章默认全部 Step 折叠
     setExpandedStep(0);
