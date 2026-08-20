@@ -15,8 +15,8 @@ export function createEditorBlock(type) {
   return {
     id: Date.now() + Math.random(),
     type,
-    // Phase5：toggle/code 的 content 为行数组
-    content: type === 'toggle' || type === 'code' ? [] : '',
+    // Phase5：toggle 的 content 为行数组
+    content: type === 'toggle' ? [] : '',
     pwd: '',
     lockPwd: '',
     locked: false,
@@ -27,7 +27,6 @@ export function createEditorBlock(type) {
     color: 'default',
     checked: [],
     isCover: false,
-    language: '',
   }
 }
 

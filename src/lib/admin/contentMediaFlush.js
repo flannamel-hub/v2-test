@@ -94,8 +94,8 @@ export function serializeBlocksForSave(blocks) {
 export function blocksToMarkdown(blocks) {
   return (blocks || [])
     .map((raw) => {
-      // code/toggle 的 content 为行数组：先归一化为多行字符串，保证下方各分支（含加密分支）统一按字符串处理
-      const b = raw && (raw.type === 'code' || raw.type === 'toggle') && Array.isArray(raw.content)
+      // toggle 的 content 为行数组：先归一化为多行字符串，保证下方各分支（含加密分支）统一按字符串处理
+      const b = raw && raw.type === 'toggle' && Array.isArray(raw.content)
         ? { ...raw, content: raw.content.join('\n') }
         : raw;
       if (b.type === 'h1') return `# ${b.content}`
@@ -128,7 +128,7 @@ export function blocksToMarkdown(blocks) {
         return `:::lock ${pwd}\n${parts.join('\n')}\n:::`
       }
       if (b.type === 'image') return b.content ? `![](${b.content})` : ''
-      // Phase5 序列化补齐：ol/ul/todo/code/toggle/text
+      // Phase5 序列化补齐：ol/ul/todo/toggle/text
       if (b.type === 'ol') {
         return String(b.content || '').split(/\r?\n/).map((l, i) => `${i + 1}. ${l}`).join('\n')
       }
@@ -140,10 +140,6 @@ export function blocksToMarkdown(blocks) {
           .split(/\r?\n/)
           .map((l, i) => `${Array.isArray(b.checked) && b.checked[i] ? '[x]' : '[ ]'} ${l}`)
           .join('\n')
-      }
-      if (b.type === 'code') {
-        const codeText = Array.isArray(b.content) ? b.content.join('\n') : String(b.content || '')
-        return `\`\`\`${b.language || ''}\n${codeText}\n\`\`\``
       }
       if (b.type === 'toggle') {
         const lines = Array.isArray(b.content) ? b.content : String(b.content || '').split(/\r?\n/)

@@ -2937,7 +2937,6 @@ const BLOCK_TYPE_SHORT = {
   ul: '无序',
   todo: '待办',
   toggle: '折叠',
-  code: '代码',
 };
 
 const BlockMinimapItem = ({
@@ -2958,7 +2957,7 @@ const BlockMinimapItem = ({
   onRemove,
 }) => {
   const previewText = (() => {
-    // toggle/code 的 content 为行数组，统一转成多行字符串再取预览
+    // toggle 的 content 为行数组，统一转成多行字符串再取预览
     const raw = String(
       Array.isArray(block.content) ? block.content.join('\n') : (block.content || '')
     ).trim();
@@ -3056,7 +3055,6 @@ const BLOCK_TYPE_OPTIONS = [
   { type: 'ul', label: '• 无序列表' },
   { type: 'todo', label: '☑️ 待办列表' },
   { type: 'toggle', label: '▶ 折叠块' },
-  { type: 'code', label: '{ } 代码块' },
 ];
 
 /** 块类型菜单预估高度，用于判断向上/向下弹出 */
@@ -3153,7 +3151,7 @@ const isFileDragEvent = (e) => {
   return Array.from(dt.types).includes('Files');
 };
 
-// Phase5 粘贴自动分块：识别多行统一前缀（有序/无序/待办/标题）或代码围栏
+// Phase5 粘贴自动分块：识别多行统一前缀（有序/无序/待办/标题）
 // 规则：粘贴文本 ≥2 行且 ≥2 行匹配同一前缀才转换；不满足返回 null（按普通文本粘贴）
 const PASTE_PREFIX_RULES = [
   { type: 'todo', re: /^\[([xX ])\][ \t]+/ },
@@ -3167,15 +3165,6 @@ function detectPastedBlockConversion(text) {
   if (!trimmed) return null;
   const lines = trimmed.split('\n');
   if (lines.length < 2) return null;
-  // 代码围栏优先：以 ``` 开头即转代码块（首行 ``` 后为语言，去掉结尾围栏行）
-  if (trimmed.startsWith('```')) {
-    const language = lines[0].slice(3).trim();
-    let body = lines.slice(1);
-    if (body.length && body[body.length - 1].trim().startsWith('```')) {
-      body = body.slice(0, -1);
-    }
-    return { type: 'code', language, lines: body };
-  }
   const matched = PASTE_PREFIX_RULES.map((rule) => ({
     ...rule,
     count: lines.filter((l) => rule.re.test(l)).length,
@@ -3396,9 +3385,6 @@ const BlockBuilder = ({
     if (!conv) return;
     setBlocks(prev => prev.map((b) => {
       if (b.id !== blockId || b.type !== 'text') return b;
-      if (conv.type === 'code') {
-        return { ...b, type: 'code', content: conv.lines, language: conv.language || '' };
-      }
       if (conv.type === 'todo') {
         return { ...b, type: 'todo', content: conv.lines.join('\n'), checked: conv.checked };
       }
@@ -3408,7 +3394,7 @@ const BlockBuilder = ({
       return { ...b, type: conv.type, content: conv.lines.join('\n') };
     }));
     if (onToast) {
-      onToast(conv.type === 'code' ? '已识别为代码块' : conv.type === 'h1' ? '已识别为标题块' : '已识别为列表');
+      onToast(conv.type === 'h1' ? '已识别为标题块' : '已识别为列表');
     }
   };
 
@@ -3932,7 +3918,6 @@ const BlockBuilder = ({
       if (type === 'ul') return '• 无序列表';
       if (type === 'todo') return '☑️ 待办列表';
       if (type === 'toggle') return '▶ 折叠块';
-      if (type === 'code') return '{ } 代码块';
       return '📄 内容块';
   };
   const linkModalValid = !!(linkModal && (linkModal.label || '').trim() && (linkModal.url || '').trim() && (linkModal.url || '').trim() !== 'https://');
@@ -4045,7 +4030,6 @@ const BlockBuilder = ({
           <div className="neo-btn" onClick={()=>addBlock('ul')}>• 无序列表</div>
           <div className="neo-btn" onClick={()=>addBlock('todo')}>☑️ 待办列表</div>
           <div className="neo-btn" onClick={()=>addBlock('toggle')}>▶ 折叠块</div>
-          <div className="neo-btn" onClick={()=>addBlock('code')}>{'{ } 代码块'}</div>
       </div>
       <div className="block-view-toolbar">
         <div className="block-view-toggle">
@@ -4278,24 +4262,6 @@ const BlockBuilder = ({
                     ) : null}
                   </div>
                   <textarea id={'editfield-' + b.id} className="glow-input" placeholder={'折叠标题\n展开内容行1\n展开内容行2'} value={lines.join('\n')} onChange={e=>updateBlock(b.id, e.target.value.split(/\r?\n/))} style={{minHeight:'100px', ...fmtStyle(b)}} />
-                </div>
-              );
-            })()}
-            {b.type === 'code' && (() => {
-              const codeText = Array.isArray(b.content) ? b.content.join('\n') : String(b.content || '');
-              const lang = b.language || '';
-              return (
-                <div style={{width:'100%'}}>
-                  <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'6px'}}>
-                    <input className="glow-input" placeholder="语言，可留空" value={lang} onChange={e=>updateBlock(b.id, e.target.value, 'language')} style={{width:'150px', fontSize:'12px'}} />
-                  </div>
-                  <div style={{position:'relative', background:'#0d1117', border:'1px solid #30363d', borderRadius:'8px', padding:'10px 12px', marginBottom:'6px', maxHeight:'220px', overflow:'auto'}}>
-                    {lang ? (
-                      <span style={{position:'absolute', top:'6px', right:'10px', fontSize:'10px', color:'#8b949e', background:'#161b22', border:'1px solid #30363d', borderRadius:'10px', padding:'1px 8px'}}>{lang}</span>
-                    ) : null}
-                    <pre style={{margin:0, fontFamily:'ui-monospace, SFMono-Regular, Consolas, Menlo, monospace', fontSize:'13px', lineHeight:1.6, color:'#e6edf3', whiteSpace:'pre-wrap', wordBreak:'break-word', paddingRight: lang ? '70px' : undefined}}>{codeText || '（空代码块）'}</pre>
-                  </div>
-                  <textarea id={'editfield-' + b.id} className="glow-input" placeholder="输入代码内容，换行会保留..." value={codeText} onChange={e=>updateBlock(b.id, e.target.value.split(/\r?\n/))} style={{minHeight:'120px', fontFamily:'ui-monospace, SFMono-Regular, Consolas, Menlo, monospace', fontSize:'13px'}} />
                 </div>
               );
             })()}
@@ -6783,14 +6749,11 @@ const [mounted, setMounted] = useState(false);
       // 3) 写入 Notion 文章
       updateJob(job.id, { phase: 'post', progress: null });
       const fullContent = blocksToMarkdown(blocksForSave);
-      // serializeBlocksForSave 白名单不含 todo 的 checked 与 code 的 language，此处按原块补回，避免保存丢失
+      // serializeBlocksForSave 白名单不含 todo 的 checked，此处按原块补回，避免保存丢失
       const blocksData = serializeBlocksForSave(blocksForSave).map((b, i) => {
         const origin = blocksForSave[i];
         if (b.type === 'todo' && Array.isArray(origin && origin.checked)) {
           return { ...b, checked: origin.checked };
-        }
-        if (b.type === 'code' && origin && typeof origin.language === 'string' && origin.language) {
-          return { ...b, language: origin.language };
         }
         return b;
       });

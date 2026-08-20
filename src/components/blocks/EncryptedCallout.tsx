@@ -1,6 +1,38 @@
 import React, { useState, useEffect } from 'react'
 import { Callout } from './BasicBlock'
 
+const LockIcon = ({ className = '' }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <rect x="5" y="11" width="14" height="9.5" rx="2.5" />
+    <path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
+  </svg>
+)
+
+const LockOpenIcon = ({ className = '' }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <rect x="5" y="11" width="14" height="9.5" rx="2.5" />
+    <path d="M8.5 11V8a3.5 3.5 0 0 1 6.9-.9" />
+  </svg>
+)
+
 export const EncryptedCallout = ({ block, children }: { block: any; children: any }) => {
   // 1. 获取内容与解析
   const richText = block.callout?.rich_text || [];
@@ -44,72 +76,73 @@ export const EncryptedCallout = ({ block, children }: { block: any; children: an
     localStorage.setItem(`unlocked-${block.id}`, 'true');
   };
 
-  // 🎨 预处理 Block (解锁后)
-  // 我们只清空标题文字 "LOCK:xxx"，保留图标，确保 Callout 结构完整
-  const cleanBlock = {
-    ...block,
-    callout: {
-      ...block.callout,
-      rich_text: [] 
-    }
-  };
-
-  // --- 状态 A: 已解锁 ---
+  // --- 状态 A: 已解锁（精致内容容器：细实线边框 + 内微光 + 柔和投影 + 顶部渐变细线） ---
   if (isUnlocked) {
     return (
-      <div className="relative animate-fade-in group">
-        <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-           <button 
-             onClick={() => {
-               localStorage.removeItem(`unlocked-${block.id}`);
-               setIsUnlocked(false);
-               setInput('');
-             }}
-             className="text-xs bg-neutral-200 dark:bg-neutral-800/80 hover:bg-red-500 hover:text-white px-2 py-1 rounded-md text-neutral-500 backdrop-blur-sm transition-colors"
-           >
-             {hasPassword ? '🔒 锁定' : '🙈 折叠'}
-           </button>
+      <div className="gallery-encrypted-unlocked group relative my-6 animate-fade-in overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-16px_rgba(0,0,0,0.14)] dark:border-neutral-700/60 dark:bg-[#1b1b1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_32px_-16px_rgba(0,0,0,0.6)]">
+        {/* 顶部渐变细线：自主色渐隐到透明 */}
+        <div className="gallery-encrypted-unlocked__line absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-blue-500/70 via-blue-400/25 to-transparent dark:from-blue-400/60 dark:via-blue-400/20" />
+        <div className="relative flex items-center justify-between px-4 pt-3 sm:px-6">
+          <span className="gallery-encrypted-unlocked__badge flex items-center gap-1.5 font-gallery text-[11px] font-medium tracking-wide text-neutral-400 dark:text-neutral-500">
+            <LockOpenIcon className="h-3.5 w-3.5" />
+            已解锁
+          </span>
+          <button
+            onClick={() => {
+              localStorage.removeItem(`unlocked-${block.id}`);
+              setIsUnlocked(false);
+              setInput('');
+            }}
+            className="gallery-encrypted-unlocked__toggle rounded-full border border-neutral-200/80 bg-white/70 px-3 py-1 font-gallery text-xs font-medium text-neutral-500 opacity-0 shadow-sm backdrop-blur-sm transition-all duration-300 group-hover:opacity-100 hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-95 dark:border-neutral-700/70 dark:bg-neutral-800/60 dark:text-neutral-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+          >
+            {hasPassword ? '锁定' : '折叠'}
+          </button>
         </div>
-        {/* 直接渲染原本的 Callout，不切割 children，保证内容绝对显示 */}
-        <Callout block={cleanBlock}>{children}</Callout>
+        {/* 内容区：不切割 children，保证内容绝对显示 */}
+        <div className="gallery-encrypted-unlocked__content relative px-4 pb-5 pt-3 sm:px-6 sm:pb-6">
+          {children}
+        </div>
       </div>
     );
   }
 
-  // --- 状态 B: 未解锁 (稳定版 UI) ---
+  // --- 状态 B: 未解锁（统一风格的密码面板） ---
   return (
-    <div className="gallery-encrypted-panel relative my-8 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:border-neutral-800 dark:bg-[#181818] dark:shadow-xl">
-      
-      {/* 静态背景 (移除复杂动画，防止闪烁) */}
-      <div className="gallery-encrypted-panel__bg absolute inset-0 bg-neutral-50 dark:bg-[#121212]"></div>
-      <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 rounded-full blur-[80px] pointer-events-none"></div>
+    <div className="gallery-encrypted-panel relative my-8 overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-16px_rgba(0,0,0,0.14)] dark:border-neutral-800 dark:bg-[#181818] dark:shadow-[0_12px_32px_-16px_rgba(0,0,0,0.6)]">
 
-      <div className="relative z-10 py-10 px-6 flex flex-col items-center justify-center text-center select-none">
-        
-        <h3 className="font-gallery mb-3 text-xl font-semibold text-neutral-900 dark:text-white sm:text-2xl">
-          {hasPassword ? '受保护的内容' : '敏感内容'}
-        </h3>
-        
-        <p className="font-gallery mb-6 max-w-xs text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-          {hasPassword 
-            ? '该区域包含加密内容，请输入密码解锁。' 
+      {/* 静态柔和底光 */}
+      <div className="gallery-encrypted-panel__bg absolute inset-0 bg-neutral-50 dark:bg-[#121212]"></div>
+      <div className="pointer-events-none absolute -top-16 right-[-10%] h-52 w-52 rounded-full bg-blue-500/[0.07] blur-[70px] dark:bg-blue-500/10"></div>
+      <div className="pointer-events-none absolute -bottom-16 left-[-10%] h-52 w-52 rounded-full bg-purple-500/[0.06] blur-[70px] dark:bg-purple-500/10"></div>
+
+      <div className="relative z-10 flex select-none flex-col items-center justify-center px-6 py-9 text-center sm:px-8 sm:py-10">
+
+        <div className="gallery-encrypted-panel__title mb-2 flex items-center gap-2">
+          <LockIcon className="gallery-encrypted-panel__lock-icon h-[18px] w-[18px] text-neutral-400 dark:text-neutral-500" />
+          <h3 className="font-gallery text-lg font-semibold text-neutral-900 dark:text-white sm:text-xl">
+            {hasPassword ? '受保护的内容' : '敏感内容'}
+          </h3>
+        </div>
+
+        <p className="gallery-encrypted-panel__desc font-gallery mb-6 max-w-xs text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+          {hasPassword
+            ? '该区域包含加密内容，请输入密码解锁。'
             : '该区域可能包含敏感内容。'}
         </p>
-        
-        <div className="w-full max-w-sm flex flex-col sm:flex-row gap-3 items-stretch justify-center">
-          
+
+        <div className="flex w-full max-w-sm flex-col items-stretch justify-center gap-3 sm:flex-row">
+
           {/* 只有在有密码时，才显示输入框 */}
           {hasPassword && (
-            <input 
-              type="password" 
+            <input
+              type="password"
               placeholder="请输入密码..."
               className={`
-                flex-1 rounded-xl border-2 bg-white px-4 py-2.5 font-gallery text-neutral-900 outline-none transition-all
-                dark:bg-neutral-900 dark:text-white
-                ${error 
-                  ? 'border-red-500 focus:border-red-500' 
-                  : 'border-neutral-200 focus:border-neutral-900 hover:border-neutral-300 dark:border-transparent dark:focus:border-blue-500 dark:hover:bg-neutral-800'
+                gallery-encrypted-panel__input font-gallery flex-1 rounded-xl border bg-white px-4 py-2.5 text-sm text-neutral-900 shadow-sm outline-none transition-all placeholder:text-neutral-400
+                dark:bg-neutral-900/70 dark:text-white
+                ${error
+                  ? 'border-red-400/80 ring-4 ring-red-500/10 dark:border-red-500/70'
+                  : 'border-neutral-200 hover:border-neutral-300 focus:border-neutral-400 focus:ring-4 focus:ring-neutral-900/[0.06] dark:border-neutral-700/80 dark:hover:border-neutral-600 dark:focus:border-neutral-500 dark:focus:ring-blue-500/10'
                 }
               `}
               value={input}
@@ -122,11 +155,11 @@ export const EncryptedCallout = ({ block, children }: { block: any; children: an
           )}
 
           {/* 解锁按钮 */}
-          <button 
+          <button
             onClick={handleUnlock}
             className={`
-              gallery-encrypted-panel__unlock whitespace-nowrap rounded-xl bg-neutral-900 px-6 py-2.5 font-gallery text-sm font-semibold text-white shadow-sm transition-all
-              hover:bg-neutral-700 active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-500
+              gallery-encrypted-panel__unlock font-gallery whitespace-nowrap rounded-xl bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all
+              hover:bg-neutral-700 active:scale-[0.98] dark:bg-blue-600 dark:hover:bg-blue-500
               ${!hasPassword ? 'w-full sm:w-auto' : ''}
             `}
           >
@@ -137,10 +170,10 @@ export const EncryptedCallout = ({ block, children }: { block: any; children: an
         {/* 错误提示 */}
         {hasPassword && (
           <div className={`
-            mt-4 text-sm font-medium text-red-500 transition-all duration-300
-            ${error ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none h-0'}
+            gallery-encrypted-panel__error font-gallery mt-3.5 text-sm font-medium text-red-500 transition-all duration-300
+            ${error ? 'translate-y-0 opacity-100' : 'pointer-events-none h-0 -translate-y-2 opacity-0'}
           `}>
-            <span>🚫 密码错误</span>
+            <span>密码错误</span>
           </div>
         )}
       </div>

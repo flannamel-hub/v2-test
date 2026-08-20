@@ -261,35 +261,83 @@
   color: #171717 !important;
 }
 
-/* —— 加密块 —— */
+/* —— 加密块（与 EncryptedCallout 新设计同步；gallery 主题为纯浅色，覆盖 dark: 变体） —— */
+/* 未解锁密码面板 */
 .prose-gallery .gallery-encrypted-panel {
+  background-color: #ffffff !important;
+  border: 1px solid #e8e8e8 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 12px 32px -16px rgba(0, 0, 0, 0.12) !important;
+}
+
+.prose-gallery .gallery-encrypted-panel__bg {
   background-color: #fafafa !important;
-  border: 1px solid #e5e5e5 !important;
-  border-radius: 0.5rem;
-  box-shadow: none !important;
 }
 
-.prose-gallery .gallery-encrypted-panel__bg,
-.prose-gallery .gallery-encrypted-panel .dark\:bg-\[\#121212\] {
-  background-color: #f5f5f5 !important;
-}
-
-.prose-gallery .gallery-encrypted-panel h3 {
+.prose-gallery .gallery-encrypted-panel__title h3 {
   color: #171717 !important;
 }
 
-.prose-gallery .gallery-encrypted-panel p {
+.prose-gallery .gallery-encrypted-panel__title svg {
+  color: #a3a3a3 !important;
+}
+
+.prose-gallery .gallery-encrypted-panel__desc {
   color: #525252 !important;
 }
 
-.prose-gallery .gallery-encrypted-panel input {
-  background-color: #fff !important;
+.prose-gallery .gallery-encrypted-panel__input {
+  background-color: #ffffff !important;
   color: #171717 !important;
   border-color: #e5e5e5 !important;
 }
 
+.prose-gallery .gallery-encrypted-panel__input:hover {
+  border-color: #d4d4d4 !important;
+}
+
+.prose-gallery .gallery-encrypted-panel__input:focus {
+  border-color: #a3a3a3 !important;
+}
+
+.prose-gallery .gallery-encrypted-panel__input.border-red-400\/80 {
+  border-color: #f87171 !important;
+}
+
 .prose-gallery .gallery-encrypted-panel__unlock {
   background-color: #171717 !important;
+  color: #ffffff !important;
+}
+
+.prose-gallery .gallery-encrypted-panel__unlock:hover {
+  background-color: #000000 !important;
+}
+
+/* 解锁后内容容器 */
+.prose-gallery .gallery-encrypted-unlocked {
+  background-color: #ffffff !important;
+  border: 1px solid #e8e8e8 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 2px rgba(0, 0, 0, 0.03), 0 12px 32px -16px rgba(0, 0, 0, 0.12) !important;
+}
+
+.prose-gallery .gallery-encrypted-unlocked__line {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.65) 0%, rgba(59, 130, 246, 0.22) 45%, transparent 100%) !important;
+}
+
+.prose-gallery .gallery-encrypted-unlocked__badge,
+.prose-gallery .gallery-encrypted-unlocked__badge svg {
+  color: #a3a3a3 !important;
+}
+
+.prose-gallery .gallery-encrypted-unlocked__toggle {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  border-color: #e5e5e5 !important;
+  color: #737373 !important;
+}
+
+.prose-gallery .gallery-encrypted-unlocked__toggle:hover {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #ef4444 !important;
 }
 
 /* —— 修正全站 dark 误入的正文色 —— */

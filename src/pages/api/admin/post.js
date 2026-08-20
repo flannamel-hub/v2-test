@@ -146,31 +146,6 @@ function annOf(b, extra = {}) {
   return { bold: !!(b && b.bold), italic: !!(b && b.italic), color, ...extra };
 }
 
-// Phase5 代码块：Notion code.language 只接受固定枚举，别名映射 + 未知值兜底 plain text
-const NOTION_CODE_LANGUAGES = new Set([
-  'abap','agda','arduino','assembly','bash','basic','bnf','c','c#','c++','clojure','coffeescript',
-  'css','dart','diff','docker','ebnf','elixir','elm','erlang','f#','flow','fortran','gherkin','glsl',
-  'go','graphql','groovy','haskell','html','java','javascript','json','julia','kotlin','latex','less',
-  'lisp','livescript','llvm ir','lua','makefile','markdown','markup','matlab','mermaid','nix',
-  'notion formula','objective-c','ocaml','pascal','perl','php','plain text','powershell','prolog',
-  'protobuf','python','r','reason','ruby','rust','sass','scala','scheme','scss','shell','sql','swift',
-  'typescript','vb.net','verilog','vhdl','visual basic','webassembly','xml','yaml',
-]);
-const NOTION_CODE_LANGUAGE_ALIASES = {
-  js: 'javascript', ts: 'typescript', py: 'python', rb: 'ruby', sh: 'shell', zsh: 'shell',
-  yml: 'yaml', md: 'markdown', cs: 'c#', golang: 'go',
-  react: 'javascript', node: 'javascript', 'node.js': 'javascript', shellscript: 'shell',
-  plaintext: 'plain text', text: 'plain text', txt: 'plain text', none: 'plain text',
-};
-function normalizeNotionCodeLanguage(lang) {
-  const raw = String(lang || '').trim().toLowerCase();
-  if (!raw) return 'plain text';
-  if (NOTION_CODE_LANGUAGES.has(raw)) return raw;
-  const aliased = NOTION_CODE_LANGUAGE_ALIASES[raw];
-  if (aliased && NOTION_CODE_LANGUAGES.has(aliased)) return aliased;
-  return 'plain text';
-}
-
 function normalizeLinkUrl(url) {
   let u = (url || '').trim();
   if (!u) return '';
@@ -361,17 +336,6 @@ function editorBlockToNotionInner(b) {
       object: 'block',
       type: 'toggle',
       toggle: { rich_text: inlineToRichRuns(title, annOf(b)), children },
-    }];
-  }
-  if (type === 'code') {
-    // 代码块（Phase5）：content 为代码行数组，language 空或不受支持时用 plain text
-    const text = Array.isArray(b.content) ? b.content.join('\n') : String(b.content || '');
-    if (!text.trim()) return [];
-    const language = normalizeNotionCodeLanguage(b.language);
-    return [{
-      object: 'block',
-      type: 'code',
-      code: { rich_text: [{ text: { content: text } }], language },
     }];
   }
   if (type === 'lock') {
@@ -583,10 +547,9 @@ async function notionToEditorBlocks(blocks) {
       }
       out.push({ type: 'toggle', content: lines, ...annFrom(rts[0]) });
     } else if (t === 'code') {
-      // 代码块（Phase5）：content 按 \n 拆行，language 缺省为空字符串
+      // 代码块降级为文本块：代码全文原样保留（含换行），语言信息丢弃
       const rts = (blk.code && blk.code.rich_text) || [];
-      const text = plainText(rts);
-      out.push({ type: 'code', content: text.split('\n'), language: (blk.code && blk.code.language) || '' });
+      out.push({ type: 'text', content: plainText(rts), ...annFrom(rts[0]) });
     } else if (t === 'divider') {
       // 分割线跳过 (加密块内部的分隔已在 lock 处理)
     } else {
