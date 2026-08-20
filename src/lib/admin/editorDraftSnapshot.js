@@ -7,7 +7,8 @@
  *
  * Phase4 存储结构：
  * - key：`blog_admin_draft_snapshots`，值为数组；
- * - 条目：{ id, version:2, kind:'manual'|'failed', title, postId, slug, createdAt, blocks, form, galleryItems, coverSettings }；
+ * - 条目：{ id, version:2, kind:'manual'|'failed', title, postId, slug, createdAt, blocks, form, galleryItems, coverSettings, droppedMediaCount }；
+ * - droppedMediaCount：保存时被净化丢弃的未上传媒体数（pending 图片块 + 非 remote 图库项），旧快照无此字段按 0 处理；
  * - 读取时自动迁移 Phase3 旧单份 key（`blog_admin_editor_snapshot`，version 1）并删除旧 key。
  */
 
@@ -175,6 +176,23 @@ export function saveEditorDraftSnapshot(snapshot, meta = {}) {
       }
       return true;
     });
+    // 净化前统计将被丢弃的未上传媒体数（正文 pending 图片块 + 非 remote 图库项）
+    const rawBlocks =
+      snapshot && Array.isArray(snapshot.blocks) ? snapshot.blocks : [];
+    const rawGalleryItems =
+      snapshot && Array.isArray(snapshot.galleryItems)
+        ? snapshot.galleryItems
+        : [];
+    const droppedMediaCount =
+      rawBlocks.filter(
+        (b) =>
+          b &&
+          typeof b === 'object' &&
+          b.type === 'image' &&
+          (b.pendingFile ||
+            (typeof b.content === 'string' && b.content.startsWith('blob:')))
+      ).length +
+      rawGalleryItems.filter((it) => it && it.status !== 'remote').length;
     const entry = {
       id: createSnapshotId(),
       version: 2,
@@ -192,6 +210,7 @@ export function saveEditorDraftSnapshot(snapshot, meta = {}) {
         snapshot && snapshot.coverSettings && typeof snapshot.coverSettings === 'object'
           ? snapshot.coverSettings
           : {},
+      droppedMediaCount,
     };
     deduped.push(entry);
     return writeSnapshotArray(deduped) ? entry.id : null;

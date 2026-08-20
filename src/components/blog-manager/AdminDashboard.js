@@ -5005,6 +5005,16 @@ const [mounted, setMounted] = useState(false);
     }
     setGalleryDirty(false);
     markDirty();
+    if (snap && snap.droppedMediaCount > 0) {
+      const droppedCount = snap.droppedMediaCount;
+      // 调用方恢复成功后会立刻弹标准 toast（单槽位会顶掉本条），延后到其后展示
+      setTimeout(() => {
+        showAdminToast(
+          `该草稿有 ${droppedCount} 个未上传的图片，恢复后需重新添加`,
+          4200
+        );
+      }, 3500);
+    }
     return true;
   }, [markDirty]);
 
