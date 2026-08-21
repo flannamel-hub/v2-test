@@ -415,6 +415,9 @@ const GlobalStyle = () => (
     .neo-btn { --bg: #000; --hover-bg: #ff90e8; --hover-text: #000; color: #fff; cursor: pointer; border: 1px solid var(--bg); border-radius: 4px; padding: 0.8em 2em; background: var(--bg); transition: 0.2s; display: flex; justify-content: center; align-items: center; font-weight: bold; gap: 8px; }
     .neo-btn:hover { color: var(--hover-text); transform: translate(-0.25rem, -0.25rem); background: var(--hover-bg); box-shadow: 0.25rem 0.25rem var(--bg); border-color: var(--hover-bg); }
     .neo-btn:active { transform: translate(0); box-shadow: none; }
+    .admin-top-action-btn { background: #3a3a3a; color: #d6d6d6; border: 1px solid #4d4d4d; padding: 10px 16px; border-radius: 12px; font-weight: bold; font-size: 13px; cursor: pointer; flex-shrink: 0; transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
+    .admin-top-action-btn:hover { background: #45454a; border-color: #5a5a62; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+    .admin-top-action-btn:active { transform: scale(0.96); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
     .group { display: flex; line-height: 28px; align-items: center; position: relative; max-width: 240px; }
     .input { font-family: "Montserrat", sans-serif; width: 100%; height: 45px; padding-left: 2.5rem; box-shadow: 0 0 0 1.5px #2b2c37, 0 0 25px -17px #000; border: 0; border-radius: 12px; background-color: #16171d; outline: none; color: #bdbecb; transition: all 0.25s cubic-bezier(0.19, 1, 0.22, 1); cursor: text; z-index: 0; }
     .input::placeholder { color: #bdbecb; }
@@ -8343,9 +8346,9 @@ const [mounted, setMounted] = useState(false);
                   type="button"
                   onClick={() => (view === 'edit' ? guardLeaveEditor(openDraftsView) : openDraftsView())}
                   title="本地草稿与云端草稿"
-                  style={{ background: '#3a3a3a', color: '#d6d6d6', border: '1px solid #4d4d4d', padding: '10px 16px', borderRadius: '12px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', flexShrink: 0, transition: '0.3s' }}
+                  className="admin-top-action-btn"
                 >
-                  草稿
+                  草稿箱
                 </button>
               )}
               {view !== 'lsky' && (
@@ -8353,7 +8356,7 @@ const [mounted, setMounted] = useState(false);
                   type="button"
                   onClick={() => (view === 'edit' ? guardLeaveEditor(openLskyStorageView) : openLskyStorageView())}
                   title="存储空间"
-                  style={{ background: '#3a3a3a', color: '#d6d6d6', border: '1px solid #4d4d4d', padding: '10px 16px', borderRadius: '12px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', flexShrink: 0, transition: '0.3s' }}
+                  className="admin-top-action-btn"
                 >
                   🗂 存储空间
                 </button>

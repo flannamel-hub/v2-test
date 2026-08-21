@@ -86,6 +86,7 @@ export function GalleryStorageBar({ stats, loading, error }) {
     stats.usedPercent
   )
   const pctLabel = formatUsagePercent(stats.usedBytes, pct)
+  const full = pct >= 100
 
   return (
     <div
@@ -97,6 +98,21 @@ export function GalleryStorageBar({ stats, loading, error }) {
         border: '1px solid #444',
       }}
     >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '10px',
+        }}
+      >
+        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#ccc' }}>
+          图库容量
+        </span>
+        <span style={{ fontSize: '12px', color: '#999' }}>
+          {stats.imageCount} 张
+        </span>
+      </div>
       <div
         style={{
           height: '10px',
@@ -129,6 +145,19 @@ export function GalleryStorageBar({ stats, loading, error }) {
       >
         {pctLabel} 已用
       </div>
+
+      {full && (
+        <div
+          style={{
+            marginTop: '6px',
+            fontSize: '11px',
+            color: '#ff7875',
+            textAlign: 'right',
+          }}
+        >
+          已达容量上限，无法继续上传图库图片
+        </div>
+      )}
     </div>
   )
 }
