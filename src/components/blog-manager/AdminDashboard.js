@@ -4,7 +4,6 @@ import Head from 'next/head'; // 🟢 引入 Head 组件控制浏览器标签
 import { useRouter } from 'next/router';
 import { GalleryManager } from './GalleryManager';
 import { GalleryStorageBar } from './GalleryStorageBar';
-import { LskyStoragePanel } from './LskyStoragePanel';
 import {
   flushGalleryUploads,
   revokePendingGalleryItems,
@@ -5141,16 +5140,6 @@ const [mounted, setMounted] = useState(false);
     setView('drafts');
   }, [refreshDraftSnapshots]);
 
-  // === Phase6: 图床存储管理（扫描孤立文件 + 回收站延迟清理） ===
-  const openLskyStorageView = useCallback(() => {
-    setView('lsky');
-  }, []);
-
-  const leaveLskyStorageView = useCallback(() => {
-    // 复用离开编辑器的清理：释放可能残留的编辑器待传媒体后回列表
-    leaveEditView();
-  }, []);
-
   // DraftRestoreModal「前往草稿箱」：编辑器有未保存修改时仍走三选一拦截
   const draftPromptGoToBox = useCallback(() => {
     setDraftRestoreOpen(false);
@@ -5647,7 +5636,7 @@ const [mounted, setMounted] = useState(false);
   }, [mounted]);
   useEffect(() => { if (mounted) fetchPosts(); }, [mounted]);
   useEffect(() => {
-    if (mounted && (view === 'list' || view === 'lsky')) loadGalleryStorage();
+    if (mounted && view === 'list') loadGalleryStorage();
   }, [mounted, view]);
 
   useEffect(() => {
@@ -8350,18 +8339,8 @@ const [mounted, setMounted] = useState(false);
                 >
                   草稿箱
                 </button>
-              )}
-              {view !== 'lsky' && (
-                <button
-                  type="button"
-                  onClick={() => (view === 'edit' ? guardLeaveEditor(openLskyStorageView) : openLskyStorageView())}
-                  title="存储空间"
-                  className="admin-top-action-btn"
-                >
-                  🗂 存储空间
-                </button>
-              )}
-              <div ref={headerActionsMenuRef}>
+               )}
+               <div ref={headerActionsMenuRef}>
                <AdminHeaderActionsMenu
                  open={headerActionsMenuOpen}
                  onToggle={() => setHeaderActionsMenuOpen((v) => !v)}
@@ -8391,9 +8370,7 @@ const [mounted, setMounted] = useState(false);
                       ? leaveCrawlerIngestView()
                       : view === 'recycle'
                         ? leaveRecycleView()
-                        : view === 'lsky'
-                          ? leaveLskyStorageView()
-                          : guardLeaveEditor(leaveEditView)
+                        : guardLeaveEditor(leaveEditView)
                   }
                 />
               )}
@@ -8881,14 +8858,6 @@ const [mounted, setMounted] = useState(false);
             onRetry={handleCrawlerIngestRetry}
             onRefresh={refreshCrawlerIngestPanel}
             onBack={leaveCrawlerIngestView}
-          />
-        ) : view === 'lsky' ? (
-          /* 🗂 Phase6: 存储管理——孤立文件扫描 + 回收站延迟清理 */
-          <LskyStoragePanel
-            onToast={showAdminToast}
-            stats={galleryStorageStats}
-            loading={galleryStorageLoading}
-            error={galleryStorageError}
           />
         ) : view === 'social-links' ? (
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>

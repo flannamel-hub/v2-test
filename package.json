@@ -22,7 +22,6 @@
     "test:upload-auth": "node --test tests/upload-auth.test.cjs",
     "test:image-host": "node --test tests/image-host-runtime.test.cjs tests/upload-auth.test.cjs",
     "test:gallery-cover": "node --test tests/gallery-cover-state.test.cjs",
-    "test:lsky-scan": "node --test tests/lsky-orphan-scan.test.cjs",
     "analyze": "cross-env ANALYZE=true next build",
     "analyze:server": "cross-env BUNDLE_ANALYZE=server next build",
     "analyze:browser": "cross-env BUNDLE_ANALYZE=browser next build"
