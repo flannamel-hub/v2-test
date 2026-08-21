@@ -289,7 +289,8 @@
 | `GET/POST /api/admin/social-links` | 社媒组件配置 |
 | `GET /api/admin/theme-cooldown` | 主题切换配额状态（命名历史遗留） |
 | `POST /api/admin/revalidate` | ISR 刷新；支持即时刷新与 `action: drain` 消费队列 |
-| `GET/POST /api/admin/crawler-ingest` | 爬虫入库队列管理（多数操作需维护密码） |
+| `GET /api/admin/lsky-scan` | 图床孤立文件扫描（Phase6，只读）；拉兰空全量列表 + Notion 全库/图库/待入库引用集 → 孤立判定（保守），单次返回 orphans ≤2000 |
+| `POST /api/admin/lsky-delete` | 图床文件删除代理（Phase6）；body `{keys}`，key 白名单校验，供存储管理回收站到期清理/立即清理调用 |
 | `GET/POST /api/admin/full-redeploy` | 全量 redeploy（Deploy Hook + 冷却） |
 | `DELETE/PATCH /api/admin/taxonomy` | 删除标签/分类或重命名分类 |
 | `GET/POST /api/admin/config` | 读/改 Notion 数据库标题（站点名）等相关配置 |
@@ -299,9 +300,20 @@
 - `src/middleware.ts` 的 matcher 虽包含 `/api/admin/:path*`，但当前实现分支只判断 `pathname.startsWith('/admin')`；因此不能仅凭路由名称或 matcher 认定全部 Admin API 已受 middleware 保护。
 - `/api/admin/upload` 是浏览器后台专用敏感接口，已在路由内调用 `verifyAdminRequest(req)`；未登录或错误凭据返回 401，并且不会读取 `LSKY_TOKEN`、请求体或转发兰空。`npm run test:upload-auth` 覆盖未登录、错误 Basic、正确 Basic 与正确 Cookie。
 - `/api/admin/crawler-ingest` 也已有路由内 `verifyAdminRequest`，敏感操作再叠加维护密码。
+- `/api/admin/lsky-scan` 与 `/api/admin/lsky-delete`（Phase6）同样已有路由内 `verifyAdminRequest`（浏览器后台专用；删除接口 key 白名单校验，绝不匿名可用）。
 - 当前代码调用盘点中，`posts`、`post`、`gallery*`、`upload`、`gallery-ad`、`popup-ad`、`click-ad`、`social-links`、`theme-cooldown`、`config`、`taxonomy`、`full-redeploy`、`crawler-ingest` 只在 BLOG 后台浏览器使用；`friends*`、`announcement-popup`、`vending`、`revalidate` 同时被平台服务端调用。
 - 平台目前会服务端调用 `/api/admin/friends*`、`/api/admin/announcement-popup`、`/api/admin/vending` 与 `/api/admin/revalidate`，这些调用尚未统一携带 BLOG Basic/Cookie。未设计并部署明确的服务到服务凭据前，禁止把 middleware 分支直接扩大到全部 `/api/admin/*`，否则会破坏现有组件同步。
 - 长期目标仍是按调用方分类：浏览器后台接口使用管理员会话，平台联动接口使用独立服务端鉴权，公开只读能力放在非 admin 路由；不得继续依赖匿名 Admin API。
+
+### 存储管理面板（Phase6：图床孤立文件治理）
+
+- 后台顶栏「🗂 存储管理」按钮 → `view='lsky'`，面板组件 `src/components/blog-manager/LskyStoragePanel.js`；返回列表复用 `leaveEditView` 清理。
+- 扫描 API 只读；孤立判定**保守**：引用集 = Notion 全库（cover/icon/属性/blocks 递归含加密块、折叠块/子数据库行/rich_text 明文 URL）+ Supabase `gallery_images`（url+thumb_url，按 `BLOG_SITE_ID` 过滤）+ 爬虫待入库 `image_urls`；URL 归一化为 pathname 比对，同时收录解码变体与**末段文件名兜底**（兰空 `pathname` 与 `links.url` 存在 `/disk_r/` 等路由前缀差异，末段哈希名兜底防误判）；解析失败/无法确认的一律视为被引用；Supabase 图库读取失败则整个扫描失败（不降级）。单次返回 orphans ≤2000（超出 `truncated: true`）。
+- 删除 API body `{keys}`，key 必须全匹配 `/^[A-Za-z0-9_-]{1,64}$/`，单次 ≤500 个；**兰空 DELETE 对不存在的 key 也返回成功（幂等无提示）**，删除入口只有回收站。
+- 回收站为**应用层**：`localStorage` 键 `lsky_trash`（条目 `{key,name,size,url,trashedAt}`，size 单位 KB）与 `lsky_trash_history`（≤50 条）；「移入回收站」仅写清单不删除；满 7 天后进入面板时惰性真删（成功移入历史，失败保留+toast）；期间可「恢复」/「立即清理」；核心逻辑在 `src/lib/admin/lskyTrashStore.js`。
+- 兰空列表接口有限流，`fetchAllLskyImages` 内置 429/"Too Many Attempts" 指数退避重试（默认 5 次、2.5s 起步）+ 翻页间隔 300ms；真实库 5000+ 文件扫描约 3~4 分钟，本地可行，Vercel Serverless 默认超时内**不可用**（属已知限制）。
+- UI 文案禁技术栈关键字（兰空/Notion/Supabase → 「存储服务/云端」）。
+- 上传链路（upload.js、lskyClientUpload、contentMediaFlush、galleryFlush）未做任何改动。
 
 ### 维护密码锁
 
@@ -591,7 +603,7 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 - 爬虫：确认 cron 鉴权、自动整点与 vercel cron 对齐、失败重试与图库同步。
 - 密码保护：分别验证全篇密码与加密块，并清楚其安全边界。
 - 公告弹窗：确认无跳转按钮、浅/深色主题样式、「知道了」关闭后同会话不再弹；后台「广告位」Tab 含内页广告且「组件」Tab 仍含公告。
-- 图床：`npm run test:image-host` 必须通过鉴权顺序、origin/允许名单、path/query/hash、异常配置与上传返回规范化；Gallery 封面改动另跑 `npm run test:gallery-cover`；再执行针对性 ESLint、`npx tsc --noEmit`（区分既有基线）和生产构建。
+- 图床：`npm run test:image-host` 必须通过鉴权顺序、origin/允许名单、path/query/hash、异常配置与上传返回规范化；Gallery 封面改动另跑 `npm run test:gallery-cover`；存储管理（Phase6）跑 `npm run test:lsky-scan`（key 白名单、归一化、孤立保守判定、回收站 7 天/历史 ≤50、删除 API 拒绝非法 key）；再执行针对性 ESLint、`npx tsc --noEmit`（区分既有基线）和生产构建。
 
 ---
 
@@ -608,6 +620,8 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 - 文章全篇密码与加密块都不是强安全机制。
 - 双 revalidate 入口：公开密钥 `/api/revalidate` vs 后台队列 `/api/admin/revalidate`。
 - `/api/admin/*` 的 matcher 不等于真实鉴权；新增或修改 Admin API 时必须明确记录浏览器、平台服务或公共调用方，并在路由层选择对应鉴权。
+- 兰空删除接口幂等：不存在的 key 也返回成功，孤立扫描必须保守（见第 8 节存储管理面板）。
+- 图床真实库 5000+ 文件全量扫描约 3~4 分钟（兰空限流退避），仅适合本地/后台低频运维，勿在 serverless 超时敏感链路调用。
 
 ---
 
