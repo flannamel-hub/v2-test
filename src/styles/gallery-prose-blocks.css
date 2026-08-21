@@ -328,18 +328,6 @@
   color: #a3a3a3 !important;
 }
 
-.prose-gallery .gallery-encrypted-unlocked__toggle {
-  background-color: rgba(255, 255, 255, 0.72) !important;
-  border-color: #e5e5e5 !important;
-  color: #737373 !important;
-}
-
-.prose-gallery .gallery-encrypted-unlocked__toggle:hover {
-  background-color: #fef2f2 !important;
-  border-color: #fecaca !important;
-  color: #ef4444 !important;
-}
-
 /* —— 修正全站 dark 误入的正文色 —— */
 .prose-gallery .dark\:text-neutral-200,
 .prose-gallery .dark\:text-\[\#e4e2dc\] {

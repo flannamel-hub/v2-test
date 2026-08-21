@@ -78,28 +78,25 @@ export const EncryptedCallout = ({ block, children }: { block: any; children: an
 
   // --- 状态 A: 已解锁（精致内容容器：细实线边框 + 内微光 + 柔和投影 + 顶部渐变细线） ---
   if (isUnlocked) {
+    // 后台保存协议会在加密 callout 的 children 首块插入一个 divider（编辑器导入时被剥离），
+    // 前台隐藏该首块，避免「已解锁」下方出现灰色横线
+    const firstChildIsDivider = block.children?.[0]?.type === 'divider';
     return (
-      <div className="gallery-encrypted-unlocked group relative my-6 animate-fade-in overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-16px_rgba(0,0,0,0.14)] dark:border-neutral-700/60 dark:bg-[#1b1b1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_32px_-16px_rgba(0,0,0,0.6)]">
+      <div className="gallery-encrypted-unlocked relative my-6 animate-fade-in overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-16px_rgba(0,0,0,0.14)] dark:border-neutral-700/60 dark:bg-[#1b1b1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_32px_-16px_rgba(0,0,0,0.6)]">
         {/* 顶部渐变细线：自主色渐隐到透明 */}
         <div className="gallery-encrypted-unlocked__line absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-blue-500/70 via-blue-400/25 to-transparent dark:from-blue-400/60 dark:via-blue-400/20" />
-        <div className="relative flex items-center justify-between px-4 pt-3 sm:px-6">
+        <div className="relative px-4 pt-3 sm:px-6">
           <span className="gallery-encrypted-unlocked__badge flex items-center gap-1.5 font-gallery text-[11px] font-medium tracking-wide text-neutral-400 dark:text-neutral-500">
             <LockOpenIcon className="h-3.5 w-3.5" />
             已解锁
           </span>
-          <button
-            onClick={() => {
-              localStorage.removeItem(`unlocked-${block.id}`);
-              setIsUnlocked(false);
-              setInput('');
-            }}
-            className="gallery-encrypted-unlocked__toggle rounded-full border border-neutral-200/80 bg-white/70 px-3 py-1 font-gallery text-xs font-medium text-neutral-500 opacity-0 shadow-sm backdrop-blur-sm transition-all duration-300 group-hover:opacity-100 hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-95 dark:border-neutral-700/70 dark:bg-neutral-800/60 dark:text-neutral-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-          >
-            {hasPassword ? '锁定' : '折叠'}
-          </button>
         </div>
         {/* 内容区：不切割 children，保证内容绝对显示 */}
-        <div className="gallery-encrypted-unlocked__content relative px-4 pb-5 pt-3 sm:px-6 sm:pb-6">
+        <div
+          className={`gallery-encrypted-unlocked__content relative px-4 pb-5 pt-3 sm:px-6 sm:pb-6${
+            firstChildIsDivider ? ' [&>*:first-child]:hidden' : ''
+          }`}
+        >
           {children}
         </div>
       </div>
