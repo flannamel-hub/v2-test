@@ -6,3 +6,5 @@ node_modules
 out
 build
 z-broken-git-trash
+# 本地开发工具配置
+.cursor/
