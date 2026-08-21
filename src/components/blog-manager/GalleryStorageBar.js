@@ -86,7 +86,6 @@ export function GalleryStorageBar({ stats, loading, error }) {
     stats.usedPercent
   )
   const pctLabel = formatUsagePercent(stats.usedBytes, pct)
-  const full = pct >= 99.9 || stats.remainingBytes <= 0
 
   return (
     <div
@@ -98,41 +97,6 @@ export function GalleryStorageBar({ stats, loading, error }) {
         border: '1px solid #444',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          gap: '12px',
-          flexWrap: 'wrap',
-          marginBottom: '10px',
-        }}
-      >
-        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>
-          图库容量
-          <span
-            style={{
-              marginLeft: '8px',
-              fontSize: '11px',
-              fontWeight: 'normal',
-              color: '#888',
-            }}
-          >
-            当前已用
-          </span>
-        </div>
-        <div style={{ fontSize: '13px', color: '#ccc' }}>
-          <span style={{ color: 'greenyellow', fontWeight: 'bold' }}>
-            {stats.usedLabel}
-          </span>
-          <span style={{ color: '#666' }}> / </span>
-          {stats.quotaLabel}
-          <span style={{ marginLeft: '10px', color: '#888', fontSize: '11px' }}>
-            {stats.imageCount} 张
-          </span>
-        </div>
-      </div>
-
       <div
         style={{
           height: '10px',
@@ -159,19 +123,11 @@ export function GalleryStorageBar({ stats, loading, error }) {
         style={{
           marginTop: '8px',
           fontSize: '11px',
-          color: full ? '#ff7875' : '#777',
-          display: 'flex',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '8px',
+          color: '#777',
+          textAlign: 'right',
         }}
       >
-        <span>
-          {full
-            ? '已达 50GB 上限，无法继续上传图库图片'
-            : `剩余 ${stats.remainingLabel}（${(100 - pct).toFixed(1)}%）`}
-        </span>
-        <span>{pctLabel} 已用</span>
+        {pctLabel} 已用
       </div>
     </div>
   )

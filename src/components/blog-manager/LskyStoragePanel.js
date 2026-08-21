@@ -10,6 +10,7 @@ import {
   pushLskyTrashHistory,
   removeLskyTrashKeys,
 } from '@/src/lib/admin/lskyTrashStore';
+import { GalleryStorageBar } from './GalleryStorageBar';
 
 /**
  * Phase6 图床治理 —— 后台存储管理面板（view='lsky'）
@@ -108,7 +109,7 @@ const smallBtnStyle = {
   cursor: 'pointer',
 };
 
-export function LskyStoragePanel({ onToast }) {
+export function LskyStoragePanel({ onToast, stats = null, loading = false, error = '' }) {
   const [scanResult, setScanResult] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState('');
@@ -316,6 +317,9 @@ export function LskyStoragePanel({ onToast }) {
 
   return (
     <div style={{ background: '#424242', padding: 30, borderRadius: 20 }}>
+      {/* 容量条 */}
+      <GalleryStorageBar stats={stats} loading={loading} error={error} />
+
       {/* 标题 + 扫描 */}
       <div
         style={{

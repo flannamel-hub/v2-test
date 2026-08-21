@@ -5644,7 +5644,7 @@ const [mounted, setMounted] = useState(false);
   }, [mounted]);
   useEffect(() => { if (mounted) fetchPosts(); }, [mounted]);
   useEffect(() => {
-    if (mounted && view === 'list') loadGalleryStorage();
+    if (mounted && (view === 'list' || view === 'lsky')) loadGalleryStorage();
   }, [mounted, view]);
 
   useEffect(() => {
@@ -8352,10 +8352,10 @@ const [mounted, setMounted] = useState(false);
                 <button
                   type="button"
                   onClick={() => (view === 'edit' ? guardLeaveEditor(openLskyStorageView) : openLskyStorageView())}
-                  title="存储管理"
+                  title="存储空间"
                   style={{ background: '#3a3a3a', color: '#d6d6d6', border: '1px solid #4d4d4d', padding: '10px 16px', borderRadius: '12px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', flexShrink: 0, transition: '0.3s' }}
                 >
-                  🗂 存储管理
+                  🗂 存储空间
                 </button>
               )}
               <div ref={headerActionsMenuRef}>
@@ -8881,7 +8881,12 @@ const [mounted, setMounted] = useState(false);
           />
         ) : view === 'lsky' ? (
           /* 🗂 Phase6: 存储管理——孤立文件扫描 + 回收站延迟清理 */
-          <LskyStoragePanel onToast={showAdminToast} />
+          <LskyStoragePanel
+            onToast={showAdminToast}
+            stats={galleryStorageStats}
+            loading={galleryStorageLoading}
+            error={galleryStorageError}
+          />
         ) : view === 'social-links' ? (
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
