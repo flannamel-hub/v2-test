@@ -110,7 +110,7 @@ export function GalleryStorageBar({ stats, loading, error }) {
           图库容量
         </span>
         <span style={{ fontSize: '12px', color: '#999' }}>
-          {stats.imageCount} 张
+          {stats.imageCount} 张 · {pctLabel} 已用
         </span>
       </div>
       <div
@@ -133,17 +133,6 @@ export function GalleryStorageBar({ stats, loading, error }) {
             boxShadow: pct >= 0.5 ? `0 0 12px ${barColor(pct)}55` : 'none',
           }}
         />
-      </div>
-
-      <div
-        style={{
-          marginTop: '8px',
-          fontSize: '11px',
-          color: '#777',
-          textAlign: 'right',
-        }}
-      >
-        {pctLabel} 已用
       </div>
 
       {full && (
