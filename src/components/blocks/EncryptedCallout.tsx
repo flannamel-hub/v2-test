@@ -42,16 +42,7 @@ export const EncryptedCallout = ({ block, children }: { block: any; children: an
   const lockMatch = rawText.match(/^LOCK:\s*(.*)$/);
   const isLockedBlock = !!lockMatch;
 
-  // 如果没有 LOCK: 标记，直接渲染原本的 Callout 组件
-  if (!isLockedBlock) {
-    return <Callout block={block}>{children}</Callout>;
-  }
-
-  // 获取密码（去除首尾空格）
-  const password = lockMatch[1].trim();
-  // 判断模式：有密码则是"密码模式"，无密码则是"无密码模式"
-  const hasPassword = password.length > 0;
-
+  // hooks 必须位于提前 return 之前，保证 LOCK / 非 LOCK 分支 hooks 数量恒定
   const [input, setInput] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [error, setError] = useState(false);
@@ -62,6 +53,16 @@ export const EncryptedCallout = ({ block, children }: { block: any; children: an
       setIsUnlocked(true);
     }
   }, [block.id]);
+
+  // 如果没有 LOCK: 标记，直接渲染原本的 Callout 组件
+  if (!isLockedBlock) {
+    return <Callout block={block}>{children}</Callout>;
+  }
+
+  // 获取密码（去除首尾空格）
+  const password = lockMatch[1].trim();
+  // 判断模式：有密码则是"密码模式"，无密码则是"无密码模式"
+  const hasPassword = password.length > 0;
 
   const handleUnlock = () => {
     // 只有有密码时才校验，无密码直接过

@@ -543,6 +543,13 @@ async function notionToEditorBlocks(blocks) {
         // paragraph 逐行保留（含空行）；其他子块类型降级取文本行（空文本跳过）
         if (k.type === 'paragraph' || p) {
           lines.push(p);
+        } else {
+          // 无文本但有媒体引用的子块（纯图片/视频/附件等）：以占位行保留，避免静默丢失
+          const media = kd && (kd.image || kd.video || kd.file || kd.embed);
+          if (media) {
+            const mediaUrl = media.external?.url || media.file?.url || media.url || '';
+            lines.push(mediaUrl ? `[图片] ${mediaUrl}` : '[图片]');
+          }
         }
       }
       out.push({ type: 'toggle', content: lines, ...annFrom(rts[0]) });

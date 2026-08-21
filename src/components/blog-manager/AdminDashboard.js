@@ -53,8 +53,6 @@ import {
 } from '@/src/lib/admin/editorBlockLock';
 import { generateAdminPostSlug } from '@/src/lib/blog/generateAdminPostSlug';
 import {
-  sanitizeEditorBlocksForSnapshot,
-  sanitizeGalleryItemsForSnapshot,
   saveEditorDraftSnapshot,
   loadEditorDraftSnapshot,
   listEditorDraftSnapshots,
@@ -1655,65 +1653,6 @@ function formatDraftSnapshotTime(iso) {
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-
-/** 挂载时发现本地草稿：引导前往草稿箱（Phase4，恢复操作统一在草稿箱完成） */
-const DraftRestoreModal = ({ open, meta, onOpenDrafts, onIgnore }) => {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (open && meta) {
-      setVisible(false);
-      const id = requestAnimationFrame(() => {
-        requestAnimationFrame(() => setVisible(true));
-      });
-      return () => cancelAnimationFrame(id);
-    }
-    setVisible(false);
-  }, [open, meta]);
-
-  if (!open || !meta) return null;
-
-  const count = Number.isFinite(meta.count) && meta.count > 0 ? meta.count : 1;
-  const ts = meta.latest?.createdAt ? Date.parse(meta.latest.createdAt) : NaN;
-  const minutes = Number.isFinite(ts)
-    ? Math.max(1, Math.round((Date.now() - ts) / 60000))
-    : null;
-  const titleLabel = (meta.latest?.title || '').trim();
-
-  return (
-    <div
-      className={`cover-modal-backdrop ${visible ? 'is-visible' : ''}`}
-      role="presentation"
-    >
-      <div
-        className="cover-modal-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="draft-restore-modal-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="cover-modal-icon" aria-hidden>🗂</div>
-        <h3 id="draft-restore-modal-title" className="cover-modal-title">发现 {count} 份本地草稿</h3>
-        <p className="cover-modal-desc">
-          {count > 1 && minutes ? `最近一份 ${minutes} 分钟前保存` : '存在本地保存的草稿'}
-          {titleLabel ? `「${titleLabel}」` : ''}，可前往草稿箱查看、恢复或删除。
-          <br />
-          <span style={{ fontSize: 11.5, color: '#777' }}>
-            恢复会覆盖当前编辑器内容；未上传的本地图片无法随草稿恢复。
-          </span>
-        </p>
-        <div className="cover-modal-actions">
-          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onIgnore}>
-            忽略
-          </button>
-          <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={onOpenDrafts}>
-            前往草稿箱
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 /** 爬虫入库队列弹窗 */
 const CRAWLER_INGEST_STATUS_META = {
@@ -3367,7 +3306,24 @@ const BlockBuilder = ({
       </>
     );
   };
-  const updateBlock = (id, val, key='content') => { setBlocks(blocks.map(b => b.id === id ? { ...b, [key]: val } : b)); };
+  const updateBlock = (id, val, key='content') => {
+    setBlocks(blocks.map(b => {
+      if (b.id !== id) return b;
+      const next = { ...b, [key]: val };
+      // M4: todo 块 content 行数变化时同步 checked 数组长度，避免越界与保存错位
+      if (b.type === 'todo' && key === 'content') {
+        const lineCount = String(val || '').split(/\r?\n/).length;
+        const checkedArr = Array.isArray(b.checked) ? b.checked.slice() : [];
+        if (checkedArr.length < lineCount) {
+          while (checkedArr.length < lineCount) checkedArr.push(false);
+        } else if (checkedArr.length > lineCount) {
+          checkedArr.length = lineCount;
+        }
+        next.checked = checkedArr;
+      }
+      return next;
+    }));
+  };
 
   // Phase5 待办行内勾选：点击行首符号切换 checked[i]；行内 [x]/[ ] 前缀剥离，状态统一存 checked 数组
   const toggleTodoChecked = (blockId, lineIndex) => {
@@ -4191,6 +4147,12 @@ const BlockBuilder = ({
                   }
                   const conv = detectPastedBlockConversion(e.clipboardData ? e.clipboardData.getData('text/plain') : '');
                   if (!conv) return;
+                  // H3: 自动分块仅对空块或全选状态生效，避免覆盖已有内容；其余情况走浏览器默认粘贴
+                  const isBlockEmpty = !(b.content || '').trim();
+                  const isSelectAll =
+                    e.currentTarget.selectionStart === 0 &&
+                    e.currentTarget.selectionEnd === e.currentTarget.value.length;
+                  if (!isBlockEmpty && !isSelectAll) return;
                   e.preventDefault();
                   e.stopPropagation();
                   applyPastedBlockConversion(b.id, conv);
@@ -4534,15 +4496,11 @@ const [mounted, setMounted] = useState(false);
   const allowNavRef = useRef(false);
   // 发布方式：'Published' | 'Draft'（打开发布确认弹窗时重置）
   const [publishAs, setPublishAs] = useState('Published');
-  // 本地草稿恢复提示（Phase4：改为引导去草稿箱）
-  const [draftRestorable, setDraftRestorable] = useState(null);
-  const [draftRestoreOpen, setDraftRestoreOpen] = useState(false);
   // 草稿箱：本地快照 meta 列表
   const [draftSnapshots, setDraftSnapshots] = useState([]);
-  // 刚从草稿箱/失败任务恢复进编辑器时，跳过一次「发现本地草稿」提示
-  const draftPromptSkipRef = useRef(false);
-  // 进入编辑视图时，一律跳过一次「发现本地草稿」提示（新建、编辑已有文章均跳过）
-  const skipDraftPromptRef = useRef(false);
+  // H2: 编辑器会话代号——每次进入编辑器/恢复快照 +1；发布任务入队时记录代号，
+  // 成功回调只有代号仍一致（用户未重新进入编辑器）才允许清理 dirty / 本地快照
+  const editorSessionRef = useRef(0);
 
   const markDirty = useCallback(() => {
     if (dirtyRef.current) return;
@@ -4966,9 +4924,11 @@ const [mounted, setMounted] = useState(false);
   // 把当前编辑器内容写入 localStorage（pending 本地图片无法序列化，保存时自动剔除）
   const saveDraftSnapshot = useCallback(() => {
     const snap = {
-      blocks: sanitizeEditorBlocksForSnapshot(editorBlocksRef.current || []),
+      // M1: 传原始 blocks / galleryItems，由 saveEditorDraftSnapshot 内部统一净化并统计 droppedMediaCount
+      // （预先净化会让未上传媒体数恒为 0，恢复后无法提示补图）
+      blocks: editorBlocksRef.current || [],
       form: { ...form },
-      galleryItems: sanitizeGalleryItemsForSnapshot(galleryItems),
+      galleryItems,
       cover: form?.cover || '',
       coverSettings: { ...coverSettings },
       updatedAt: new Date().toISOString(),
@@ -4993,6 +4953,15 @@ const [mounted, setMounted] = useState(false);
   // Phase4: 统一的「恢复快照到编辑器」——草稿箱恢复 / 失败任务恢复到编辑器共用
   const restoreSnapshotToEditor = useCallback((snap) => {
     if (!snap) return false;
+    // H2: 每次恢复快照都进入新的编辑器会话，旧发布任务成功回调不再误清当前编辑器状态
+    editorSessionRef.current += 1;
+    if (!snap.postId) {
+      // H1: 新文章快照必须清空残留的 currentId / refs，否则发布会误更新上次编辑的文章
+      setCurrentId(null);
+      editingSlugRef.current = null;
+      editingCategoryRef.current = null;
+      editingTagsRef.current = null;
+    }
     setForm(snap.form || {});
     setEditorBlocks(Array.isArray(snap.blocks) ? snap.blocks : []);
     setGalleryItems(Array.isArray(snap.galleryItems) ? snap.galleryItems : []);
@@ -5020,12 +4989,6 @@ const [mounted, setMounted] = useState(false);
     }
     return true;
   }, [markDirty]);
-
-  // Phase4: 弹窗「忽略」只关闭提示，不删快照（删除统一在草稿箱操作）
-  const ignoreDraftPrompt = useCallback(() => {
-    setDraftRestoreOpen(false);
-    setDraftRestorable(null);
-  }, []);
 
   // 保存/发布成功后，清理该文章（postId 或 slug）的全部本地快照
   const maybeClearSnapshotAfterSave = useCallback((payload) => {
@@ -5113,23 +5076,6 @@ const [mounted, setMounted] = useState(false);
     };
   }, [router]);
 
-  // 编辑页挂载后：检测本地草稿，提示前往草稿箱（恢复操作统一在草稿箱完成）
-  useEffect(() => {
-    if (!mounted || view !== 'edit') return;
-    if (draftPromptSkipRef.current) {
-      draftPromptSkipRef.current = false;
-      return;
-    }
-    if (skipDraftPromptRef.current) {
-      skipDraftPromptRef.current = false;
-      return;
-    }
-    const metas = listEditorDraftSnapshots();
-    if (!metas.length) return;
-    setDraftRestorable({ count: metas.length, latest: metas[0] });
-    setDraftRestoreOpen(true);
-  }, [mounted, view]);
-
   // === Phase4: 草稿箱 ===
   const refreshDraftSnapshots = useCallback(() => {
     setDraftSnapshots(listEditorDraftSnapshots());
@@ -5140,13 +5086,6 @@ const [mounted, setMounted] = useState(false);
     setView('drafts');
   }, [refreshDraftSnapshots]);
 
-  // DraftRestoreModal「前往草稿箱」：编辑器有未保存修改时仍走三选一拦截
-  const draftPromptGoToBox = useCallback(() => {
-    setDraftRestoreOpen(false);
-    setDraftRestorable(null);
-    guardLeaveEditor(openDraftsView);
-  }, [openDraftsView]);
-
   // 草稿箱「恢复编辑」：回填编辑器 + markDirty；保留原快照（成功保存后才由 maybeClearSnapshotAfterSave 清理）
   const restoreDraftFromBox = useCallback((id) => {
     const snap = loadEditorDraftSnapshot(id);
@@ -5156,7 +5095,6 @@ const [mounted, setMounted] = useState(false);
       return;
     }
     if (!restoreSnapshotToEditor(snap)) return;
-    draftPromptSkipRef.current = true;
     setView('edit');
     setExpandedStep(0);
     showAdminToast('已恢复本地草稿，请及时保存', 3200);
@@ -5791,8 +5729,8 @@ const [mounted, setMounted] = useState(false);
 
   const handleEdit = async (p) => {
     setLoading(true);
-    // 编辑已有文章：同样跳过本地草稿提示
-    skipDraftPromptRef.current = true;
+    // H2: 进入新的编辑器会话
+    editorSessionRef.current += 1;
     resetGalleryItems();
     // Phase3: 打开文章 = 数据加载/重置，确保未保存标记干净（不误标）
     clearDirty();
@@ -5843,6 +5781,8 @@ const [mounted, setMounted] = useState(false);
   
   // 🟢 修复：新建时默认 Published
   const handleCreate = () => {
+    // H2: 进入新的编辑器会话
+    editorSessionRef.current += 1;
     resetGalleryItems();
     resetCoverSettings();
     // Phase3: 新建 = 数据重置，确保未保存标记干净（不误标）
@@ -5856,8 +5796,6 @@ const [mounted, setMounted] = useState(false);
     editingSlugRef.current = null;
     editingCategoryRef.current = null;
     editingTagsRef.current = null;
-    // 新建文章：进入编辑视图时跳过一次本地草稿提示
-    skipDraftPromptRef.current = true;
     setView('edit');
     // 新建文章默认全部 Step 折叠
     setExpandedStep(0);
@@ -6619,7 +6557,6 @@ const [mounted, setMounted] = useState(false);
     });
     if (!ok) return;
     dismissJob(id);
-    draftPromptSkipRef.current = true;
     setView('edit');
     setExpandedStep(0);
     showAdminToast('已把失败任务恢复到编辑器（内容尚未保存到云端）', 3200);
@@ -6696,8 +6633,11 @@ const [mounted, setMounted] = useState(false);
         if (bailIfCancelled()) return;
         if (!d.success) throw new Error(d.error || '保存失败');
         updateJob(job.id, { status: 'success', phase: '', progress: null });
-        clearDirty();
-        maybeClearSnapshotAfterSave(payload);
+        // H2: 仅当用户未在任务执行期间重新进入编辑器时才清理 dirty / 本地快照
+        if (job.sessionRef === editorSessionRef.current) {
+          clearDirty();
+          maybeClearSnapshotAfterSave(payload);
+        }
         fetchPosts({ silent: true });
         void triggerContentRevalidation({
           scope: 'widget',
@@ -6858,27 +6798,31 @@ const [mounted, setMounted] = useState(false);
 
       try {
         if (saveScope === 'post') {
-          void triggerContentRevalidation({
-            scope: 'post',
-            slug: saveSlug,
-            category: payload.form.category || '',
-            tags: payload.form.tags || '',
-            previousCategory: payload.previousCategory || '',
-            previousTags: payload.previousTags || '',
-            previousSlug,
-            queue: true,
-            queueDelayMs: isNewPost ? 60_000 : 30_000,
-            clearCaches: true,
-            warmPaths: isNewPost && !isDraftSave,
-            contentChange: true,
-            queueReason: isNewPost
-              ? `new-post:${encodeURIComponent(saveSlug)}`
-              : 'post-save',
-            queuePriority: 10,
-            queueMaxAttempts: isNewPost ? 8 : 3,
-          })
-            .then((rev) => showRevalidateFeedback(rev, showAdminToast))
-            .catch((e) => console.warn('文章内页增量刷新失败', e));
+          // M2: 新文章存为草稿不入队（前台无此文，Published 索引永远不收录，重试必败）；
+          // 已发布文章改存草稿（!isNewPost && isDraftSave）按普通保存入队（post-save / 3 次尝试），前台需移除
+          if (!(isNewPost && isDraftSave)) {
+            void triggerContentRevalidation({
+              scope: 'post',
+              slug: saveSlug,
+              category: payload.form.category || '',
+              tags: payload.form.tags || '',
+              previousCategory: payload.previousCategory || '',
+              previousTags: payload.previousTags || '',
+              previousSlug,
+              queue: true,
+              queueDelayMs: isNewPost ? 60_000 : 30_000,
+              clearCaches: true,
+              warmPaths: isNewPost && !isDraftSave,
+              contentChange: true,
+              queueReason: isNewPost
+                ? `new-post:${encodeURIComponent(saveSlug)}`
+                : 'post-save',
+              queuePriority: 10,
+              queueMaxAttempts: isNewPost ? 8 : 3,
+            })
+              .then((rev) => showRevalidateFeedback(rev, showAdminToast))
+              .catch((e) => console.warn('文章内页增量刷新失败', e));
+          }
         } else if (saveScope === 'page' && saveSlug === 'download') {
           void triggerContentRevalidation({
             scope: 'page',
@@ -6937,8 +6881,11 @@ const [mounted, setMounted] = useState(false);
 
       updateJob(job.id, { status: 'success', phase: '', progress: null });
       // Phase3: 发布（含存为草稿）成功后清除未保存标记，并清理同文章本地快照
-      clearDirty();
-      maybeClearSnapshotAfterSave(payload);
+      // H2: 仅当用户未在任务执行期间重新进入编辑器时才执行，避免误清正在编辑的内容
+      if (job.sessionRef === editorSessionRef.current) {
+        clearDirty();
+        maybeClearSnapshotAfterSave(payload);
+      }
       // 后台静默刷新列表，完成的文章无感知出现在内容列表中
       fetchPosts({ silent: true });
       loadGalleryStorage();
@@ -6956,7 +6903,7 @@ const [mounted, setMounted] = useState(false);
       });
       // Phase4: 失败自动入草稿箱（仅普通文章；取消/Widget 不入库）——刷新页面后仍可从草稿箱找回
       if (!payload.isWidget) {
-        saveEditorDraftSnapshot(
+        const failedSnapshotId = saveEditorDraftSnapshot(
           {
             blocks: payload.blocks,
             form: payload.form,
@@ -6970,6 +6917,10 @@ const [mounted, setMounted] = useState(false);
             slug: payload.form?.slug || '',
           }
         );
+        // M3: 本地草稿写入失败时明确提示，避免用户误以为内容已妥善保存
+        if (!failedSnapshotId) {
+          showAdminToast('本地草稿保存失败（存储不可用）', 3200);
+        }
       }
     } finally {
       // 任务结束（成功/失败/取消）清理中间产物引用
@@ -7031,6 +6982,8 @@ const [mounted, setMounted] = useState(false);
       phase: '',
       progress: null,
       error: '',
+      // H2: 入队时的编辑器会话代号，成功回调据此判断用户是否已重新进入编辑器
+      sessionRef: editorSessionRef.current,
       payload: {
         isWidget,
         // 注意：保留对象/File 引用，不做 JSON 克隆（pending 图片含 File，无法序列化）
@@ -8265,12 +8218,6 @@ const [mounted, setMounted] = useState(false);
         onLeave={leaveConfirmLeaveAnyway}
         onStay={closeLeaveConfirm}
         onSaveDraft={leaveConfirmSaveDraft}
-      />
-      <DraftRestoreModal
-        open={draftRestoreOpen}
-        meta={draftRestorable}
-        onOpenDrafts={draftPromptGoToBox}
-        onIgnore={ignoreDraftPrompt}
       />
       <TaxonomyConfirmModal
         open={taxonomyConfirmOpen}

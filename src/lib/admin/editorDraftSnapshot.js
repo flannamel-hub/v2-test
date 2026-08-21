@@ -14,6 +14,8 @@
 
 const EDITOR_DRAFT_SNAPSHOTS_STORAGE_KEY = 'blog_admin_draft_snapshots';
 const LEGACY_EDITOR_DRAFT_SNAPSHOT_STORAGE_KEY = 'blog_admin_editor_snapshot';
+// 快照总条数上限：写入前超过则丢弃最旧（createdAt 最早）条目
+const MAX_SNAPSHOTS = 20;
 
 function isBlobUrl(url) {
   return typeof url === 'string' && url.startsWith('blob:');
@@ -154,7 +156,8 @@ export function listEditorDraftSnapshots() {
 
 /**
  * 写入一份快照；blocks / galleryItems 在此统一净化（不含 File / blob 引用）。
- * 同 postId（或新文章同 slug）且 kind='manual' 的旧条目先移除；kind='failed' 每次一条不覆盖。
+ * 同 postId（或新文章同 slug）且同 kind 的旧条目先移除（manual / failed 均覆盖式，各留最新一条）。
+ * 总条数超过 MAX_SNAPSHOTS 时丢弃最旧（createdAt 最早）条目。
  * 返回新快照 id；存储不可用 / 超容量时返回 null。
  */
 export function saveEditorDraftSnapshot(snapshot, meta = {}) {
@@ -168,14 +171,16 @@ export function saveEditorDraftSnapshot(snapshot, meta = {}) {
     const postId = meta.postId || null;
     const slug = meta.slug || '';
     const list = readSnapshotArray();
-    const deduped = list.filter((entry) => {
-      if (kind !== 'manual' || entry.kind !== 'manual') return true;
-      if (postId && entry.postId && entry.postId === postId) return false;
+    const matchesSamePost = (entry) => {
+      if (postId && entry.postId && entry.postId === postId) return true;
       if (!postId && slug && !entry.postId && entry.slug && entry.slug === slug) {
-        return false;
+        return true;
       }
-      return true;
-    });
+      return false;
+    };
+    const deduped = list.filter(
+      (entry) => entry.kind !== kind || !matchesSamePost(entry)
+    );
     // 净化前统计将被丢弃的未上传媒体数（正文 pending 图片块 + 非 remote 图库项）
     const rawBlocks =
       snapshot && Array.isArray(snapshot.blocks) ? snapshot.blocks : [];
@@ -213,7 +218,18 @@ export function saveEditorDraftSnapshot(snapshot, meta = {}) {
       droppedMediaCount,
     };
     deduped.push(entry);
-    return writeSnapshotArray(deduped) ? entry.id : null;
+    // 总条数上限：超过则丢弃最旧（createdAt 最早）条目
+    let toWrite = deduped;
+    if (toWrite.length > MAX_SNAPSHOTS) {
+      toWrite = toWrite
+        .slice()
+        .sort(
+          (a, b) =>
+            (Date.parse(a.createdAt) || 0) - (Date.parse(b.createdAt) || 0)
+        )
+        .slice(toWrite.length - MAX_SNAPSHOTS);
+    }
+    return writeSnapshotArray(toWrite) ? entry.id : null;
   } catch {
     return null;
   }
