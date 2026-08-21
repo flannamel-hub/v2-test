@@ -314,7 +314,9 @@
 ### 保存、媒体与发布约定
 
 - 编辑器结构化块会转为 Notion blocks；加密内容使用 `LOCK:<password>` callout 协议。
-- 编辑器块类型：`h1`/`text`/`quote`/`note`/`link`/`image`/`lock` + `ol`（有序）/`ul`（无序）/`todo`（待办）。列表块 `content` 每行一项；`todo` 另有 `checked` 数组（按行），导出为 `numbered_list_item`/`bulleted_list_item`/`to_do`，导入时相邻同类型列表项自动合并；`serializeBlocksForSave` 白名单不含 `checked`，保存路径在 AdminDashboard 调用处按原块补回。锁块内列表以行首 `1. ` / `- ` / `[ ] ` / `[x] ` 前缀往返（`styledLinesToChildren` 识别）。
+- 编辑器块类型：`h1`/`text`/`quote`/`note`/`link`/`image`/`lock` + `ol`（有序）/`ul`（无序）/`todo`（待办）/`toggle`（折叠）。列表块 `content` 每行一项；`todo` 另有 `checked` 数组（按行），导出为 `numbered_list_item`/`bulleted_list_item`/`to_do`，导入时相邻同类型列表项自动合并；`serializeBlocksForSave` 白名单不含 `checked`，保存路径在 AdminDashboard 调用处按原块补回。锁块内列表以行首 `1. ` / `- ` / `[ ] ` / `[x] ` 前缀往返（`styledLinesToChildren` 识别）。
+- `toggle`（折叠块，Phase5 加）：`content` 为**行数组**，第 1 行是折叠标题、其余行是展开后的子内容（纯文本行）；导出为 Notion `toggle` 块（标题行 → rich_text，其余行 → children 每行一个 `paragraph`）；导入时读取 children 中 `paragraph` 逐行保留（含空行），其他子块类型降级取首个文本行。
+- `code` 块已移除（Phase5 曾加入，用户拍板删除）：后台不再产生 code 块；Notion 中已有的 code 块导入时**降级为 `text` 块**（代码全文含换行保留、language 丢弃）；前台对 Notion 原生 code 块的渲染保留。
 - `contentMediaFlush.js`：正文 pending 图片/加密块图片 → 兰空上传，再进入保存。
 - `galleryFlush.js`：图库 pending → 兰空 → 写 Supabase；保存前做容量校验；并发约 4。
 - 发布时“尚未添加图片块”提示：仅当正文无图片块且当前文章也无图库图片时弹出；已有图库则视为已有封面候选。
