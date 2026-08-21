@@ -7,9 +7,8 @@ name: Sync upstream template
 
 on:
   schedule:
-    # 每 15 分钟检查上游（public 仓库 Actions 免费不限额度；无更新时空转无副作用，
-    # 不 push 不触发 Vercel 部署）。模板升级后最坏 15 分钟全量同步。
-    - cron: '*/15 * * * *'
+    # 每 6 小时，错峰分钟数，避免整点批量触发
+    - cron: '23 */6 * * *'
   workflow_dispatch: {}
 
 permissions:
