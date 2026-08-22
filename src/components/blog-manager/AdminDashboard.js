@@ -45,6 +45,7 @@ import {
   clearGalleryCoverSelection,
 } from '@/src/lib/admin/coverSettings';
 import { remoteFromApiImage } from '@/src/lib/admin/galleryFlush';
+import CardCategoryQuickPicker from './CardCategoryQuickPicker';
 import {
   createEditorBlock,
   getEditorBlockLockPwd,
@@ -72,8 +73,8 @@ import {
 /** 后台分类下拉中隐藏且不可删改的系统保留分类 */
 const PROTECTED_CATEGORIES = new Set(['网站信息', '系统组件', '站长通知']);
 
-/** 删除分类后文章自动归入的兜底分类（下拉可见但不可手动选择） */
-const FALLBACK_CATEGORY = '默认';
+/** 删除分类后文章自动归入的兜底分类（下拉可见、可选，但不可删除/重命名） */
+const FALLBACK_CATEGORY = '未分类';
 
 const isProtectedCategory = (name) =>
   PROTECTED_CATEGORIES.has((name || '').trim());
@@ -245,6 +246,19 @@ const GlobalStyle = () => (
     .category-dropdown-pick { flex: 1; display: block; text-align: left; padding: 10px 14px; border: none; background: transparent; color: #eee; font-size: 13px; cursor: pointer; }
     .category-dropdown-del { width: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; border-left: 1px solid #3a3a3f; background: transparent; color: #ff7875; cursor: pointer; transition: 0.2s; }
     .category-dropdown-del:hover { background: rgba(255,77,79,0.15); color: #ff4d4f; }
+    .card-cat-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 4px; border: 1px solid #555; background: #3a3a3f; color: #ddd; font-size: 11px; line-height: 18px; cursor: pointer; transition: 0.2s; vertical-align: middle; }
+    .card-cat-chip:hover { background: #4a4a50; border-color: #888; color: #fff; }
+    .card-cat-chip-text.is-uncat { color: #999; }
+    .card-cat-chip svg { flex-shrink: 0; }
+    .card-cat-qp-row { flex: 1; display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 9px 14px; border: none; background: transparent; color: #eee; font-size: 13px; cursor: pointer; }
+    .card-cat-qp-row:hover { background: rgba(255,255,255,0.05); }
+    .card-cat-qp-row.is-active { background: rgba(173,255,47,0.12); color: greenyellow; }
+    .card-cat-qp-row.is-active:hover { background: rgba(173,255,47,0.18); }
+    .category-folder-card { position: relative; transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.15s; }
+    .category-folder-card:hover { background: #4a4a50 !important; border-color: #8a8a90 !important; box-shadow: 0 4px 14px rgba(0,0,0,0.35); transform: translateY(-1px); }
+    .category-folder-del { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; display: none; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid rgba(255,77,79,0.45); background: rgba(255,77,79,0.12); color: #ff7875; cursor: pointer; transition: 0.2s; }
+    .category-folder-card:hover .category-folder-del { display: inline-flex; }
+    .category-folder-del:hover { background: rgba(255,77,79,0.28); color: #fff; }
     .loader-overlay { position: fixed; inset: 0; background: rgba(20, 20, 23, 0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); flex-direction: column; padding: 24px; box-sizing: border-box; }
     .loader-text { margin-top: 20px; font-family: monospace; color: #888; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
     .loader-phase { margin-top: 28px; font-size: 16px; font-weight: 600; color: #fff; text-align: center; letter-spacing: 0.5px; max-width: 520px; line-height: 1.45; }
@@ -816,7 +830,7 @@ const CategoryPicker = ({
 
   const findExistingCategory = (text) => {
     const trimmed = (text || '').trim();
-    if (!trimmed || isSystemReservedCategory(trimmed)) return null;
+    if (!trimmed || isProtectedCategory(trimmed)) return null;
     if (allCategories.includes(trimmed)) return trimmed;
     const lower = trimmed.toLowerCase();
     return allCategories.find((c) => c.toLowerCase() === lower) || null;
@@ -824,12 +838,12 @@ const CategoryPicker = ({
 
   const commitCategory = (text) => {
     const trimmed = (text || '').trim();
-    if (!trimmed || isSystemReservedCategory(trimmed)) return;
+    if (!trimmed || isProtectedCategory(trimmed)) return;
     pickCategory(findExistingCategory(trimmed) || trimmed);
   };
 
   const pickCategory = (cat) => {
-    if (isSystemReservedCategory(cat)) return;
+    if (isProtectedCategory(cat)) return;
     onChange(cat);
     setQuery('');
     setOpen(false);
@@ -983,7 +997,7 @@ const CategoryPicker = ({
                   e.stopPropagation();
                   onRequestDelete(value);
                 }}
-                title="永久删除此分类（相关文章将归入「默认」）"
+                title={`永久删除此分类（相关文章将归入「${FALLBACK_CATEGORY}」）`}
                 aria-label={`永久删除分类 ${value}`}
               >
                 <Icons.Trash />
@@ -1080,16 +1094,14 @@ const CategoryPicker = ({
                   <button
                     type="button"
                     className="category-dropdown-pick"
-                    disabled={isFallbackCategory(cat)}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => pickCategory(cat)}
                     style={{
                       background: active ? 'rgba(173,255,47,0.12)' : 'transparent',
-                      color: active ? 'greenyellow' : (isFallbackCategory(cat) ? '#666' : '#eee'),
-                      cursor: isFallbackCategory(cat) ? 'not-allowed' : 'pointer',
-                      opacity: isFallbackCategory(cat) ? 0.75 : 1,
+                      color: active ? 'greenyellow' : '#eee',
+                      cursor: 'pointer',
+                      opacity: 1,
                     }}
-                    title={isFallbackCategory(cat) ? '系统保留分类，不可手动选择' : undefined}
                     onMouseEnter={(e) => {
                       if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
                     }}
@@ -1097,7 +1109,7 @@ const CategoryPicker = ({
                       if (!active) e.currentTarget.style.background = 'transparent';
                     }}
                   >
-                    {cat}{isFallbackCategory(cat) ? '（不可选）' : ''}
+                    {cat}
                   </button>
                   {showRowDelete ? (
                     <button
@@ -1429,9 +1441,9 @@ const TaxonomyConfirmModal = ({ open, closing, categoryName, onConfirm, onCancel
         <h3 id="taxonomy-confirm-title" className="cover-modal-title">永久删除分类？</h3>
         <p className="cover-modal-desc">
           确定要永久删除分类<strong style={{ color: '#ddd' }}>「{categoryName}」</strong>吗？
-          原使用该分类的文章将自动归入<strong style={{ color: '#ddd' }}>「默认」</strong>分类，且无法撤销。
+          原使用该分类的文章将自动归入<strong style={{ color: '#ddd' }}>「{FALLBACK_CATEGORY}」</strong>分类，且无法撤销。
           <br /><br />
-          如需重新为这些文章指定分类，请前往列表视图的<strong style={{ color: '#ddd' }}>分类文件夹</strong>，打开<strong style={{ color: '#ddd' }}>「默认」</strong>文件夹查看并编辑。
+          如需重新为这些文章指定分类，请前往列表视图的<strong style={{ color: '#ddd' }}>分类文件夹</strong>，打开<strong style={{ color: '#ddd' }}>「{FALLBACK_CATEGORY}」</strong>文件夹查看并编辑。
         </p>
         <div className="cover-modal-actions">
           <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onCancel}>
@@ -4473,6 +4485,8 @@ const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllTags, setShowAllTags] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState(null);
+  const [cardCatOpenId, setCardCatOpenId] = useState(null);
+  const [cardCatMenuRect, setCardCatMenuRect] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [form, setForm] = useState({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '' });
   const [currentId, setCurrentId] = useState(null);
@@ -7871,6 +7885,26 @@ const [mounted, setMounted] = useState(false);
     );
   };
 
+  /** 文章卡片元信息上的分类 chip：点击弹开快速改分类下拉 */
+  const renderCardCategoryChip = (p) => (
+    <button
+      type="button"
+      className="card-cat-chip"
+      onClick={(e) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        setCardCatMenuRect({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 180) });
+        setCardCatOpenId(p.id);
+      }}
+      title="点击更改分类"
+    >
+      <span className={`card-cat-chip-text${(p.category || '').trim() ? '' : ' is-uncat'}`}>
+        {(p.category || '').trim() || '未分类'}
+      </span>
+      <Icons.ChevronDown />
+    </button>
+  );
+
   const renderCardDrawer = (p, { showPin = false } = {}) => {
     if (listSelectMode && activeTab === 'Post') return null;
     return (
@@ -7960,13 +7994,13 @@ const [mounted, setMounted] = useState(false);
      }
 
      if (searchQuery) list = list.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()));
-     if (selectedFolder) {
-       if (selectedFolder === FALLBACK_CATEGORY) {
-         list = list.filter((p) => p.category === FALLBACK_CATEGORY);
-       } else {
-         list = list.filter((p) => p.category === selectedFolder);
-       }
-     }
+      if (selectedFolder) {
+        if (selectedFolder === FALLBACK_CATEGORY) {
+          list = list.filter((p) => !(p.category || '').trim() || p.category === FALLBACK_CATEGORY);
+        } else {
+          list = list.filter((p) => p.category === selectedFolder);
+        }
+      }
      if (selectedPublishDate && activeTab === 'Post') {
        list = list.filter(p => toDateKey(p.date) === selectedPublishDate);
      }
@@ -8048,7 +8082,7 @@ const [mounted, setMounted] = useState(false);
       setFormDirty((f) => ({ ...f, category: '' }));
       return;
     }
-    if (isSystemReservedCategory(n)) return;
+    if (isProtectedCategory(n)) return;
     setFormDirty({ ...form, category: n });
     setOptions(o => ({
       ...o,
@@ -8057,7 +8091,7 @@ const [mounted, setMounted] = useState(false);
   };
   const addCategoryFromDraft = () => {
     const n = catDraft.trim();
-    if (n && !isSystemReservedCategory(n)) setCategory(n);
+    if (n && !isProtectedCategory(n)) setCategory(n);
     setCatDraft('');
     setShowCatInput(false);
   };
@@ -8101,6 +8135,38 @@ const [mounted, setMounted] = useState(false);
     if (selectedFolder === n) setSelectedFolder(FALLBACK_CATEGORY);
     showAdminToast(`已删除分类「${n}」，相关文章已归入「${FALLBACK_CATEGORY}」`, 2000);
     runTaxonomyDelete('category', n);
+  };
+
+  /** 卡片分类 chip 快速改分类：乐观更新 + PATCH + 失败回滚刷新 */
+  const handleCardCategoryPick = (postId, value) => {
+    const nv = (value || '').trim();
+    const prev = posts.find((p) => p.id === postId);
+    if (!prev) return;
+    if ((prev.category || '') === nv) { setCardCatOpenId(null); setCardCatMenuRect(null); return; }
+    // 乐观更新
+    setPosts((ps) => ps.map((p) => (p.id === postId ? { ...p, category: nv } : p)));
+    if (nv) {
+      setOptions((o) => ({
+        ...o,
+        categories: o.categories.includes(nv) ? o.categories : [...o.categories, nv].sort((a, b) => a.localeCompare(b, 'zh-CN')),
+      }));
+    }
+    setCardCatOpenId(null); setCardCatMenuRect(null);
+    fetch('/api/admin/post', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: postId, category: nv }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          showAdminToast(nv ? `已将文章分类改为「${nv}」` : '已清除文章分类', 2000);
+        } else {
+          showAdminToast(d.error || '分类更新失败', 2000);
+          fetchPosts({ silent: true });
+        }
+      })
+      .catch(() => { showAdminToast('分类更新失败，请稍后重试', 2000); fetchPosts({ silent: true }); });
   };
 
   const requestDeleteCategory = (name) => {
@@ -8633,6 +8699,7 @@ const [mounted, setMounted] = useState(false);
                   }}
                   style={{
                     padding: '15px',
+                    paddingRight: '40px',
                     background: cat === FALLBACK_CATEGORY ? '#3a3a42' : '#424242',
                     borderRadius: '10px',
                     display: 'flex',
@@ -8640,12 +8707,24 @@ const [mounted, setMounted] = useState(false);
                     gap: '12px',
                     border: cat === selectedFolder ? '1px solid greenyellow' : (cat === FALLBACK_CATEGORY ? '1px solid #666' : '1px solid #555'),
                     cursor: 'pointer',
+                    position: 'relative',
                   }}
-                  className="btn-ia"
+                  className="btn-ia category-folder-card"
                 >
                   <Icons.FolderIcon />{cat}
                   {cat === FALLBACK_CATEGORY ? (
                     <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#888' }}>兜底</span>
+                  ) : null}
+                  {!isSystemReservedCategory(cat) ? (
+                    <button
+                      type="button"
+                      className="category-folder-del"
+                      onClick={(e) => { e.stopPropagation(); requestDeleteCategory(cat); }}
+                      title={`永久删除分类「${cat}」（相关文章将归入「${FALLBACK_CATEGORY}」）`}
+                      aria-label={`永久删除分类 ${cat}`}
+                    >
+                      <Icons.Trash />
+                    </button>
                   ) : null}
                 </div>
               ))}
@@ -8688,17 +8767,26 @@ const [mounted, setMounted] = useState(false);
                     }}
                   >
                     {renderPostSelectMark(p.id)}
-                    {viewMode === 'covered' && <><div style={{ width: '160px', flexShrink: 0, background: '#303030', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{p.cover ? <img src={p.cover} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: '28px', color: '#444' }}>{activeTab[0]}</div>}</div><div style={{ padding: '20px 35px', flex: 1 }}><div style={{ fontWeight: 'bold', fontSize: '20px', color: '#fff', marginBottom: '8px' }}>{pinBadge}{p.title}</div><div style={{ color: '#fff', fontSize: '12px', opacity: 0.8, display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ border: `1px solid ${st.color}`, color: st.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{st.label}</span>{p.category} · {p.date}</div></div></>}
-                    {viewMode === 'text' && <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}><div style={{ flex: 1, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: p.pinned ? '#fbbf24' : st.color }}></span>{pinBadge}{p.title}</div><div style={{ color: '#fff', fontSize: '12px', opacity: 0.8 }}>{p.category} · {p.date}</div></div>}
-                    {viewMode === 'gallery' && <><div style={{ height: '140px', background: '#303030', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}><div style={{ position: 'absolute', top: '10px', left: '10px', background: p.pinned ? '#fbbf24' : 'transparent', color: '#000', padding: p.pinned ? '2px 6px' : 0, borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{p.pinned ? 'PIN' : ''}</div><div style={{ position: 'absolute', top: '10px', right: '10px', background: st.color, color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{p.status === 'Draft' ? 'DRAFT' : 'PUB'}</div>{p.cover ? <img src={p.cover} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: '40px', color: '#444' }}>{activeTab[0]}</div>}</div><div style={{ padding: '15px' }}><div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{p.title}</div><div style={{ color: '#fff', fontSize: '12px', opacity: 0.8 }}>{p.category} · {p.date}</div></div></>}
+                    {viewMode === 'covered' && <><div style={{ width: '160px', flexShrink: 0, background: '#303030', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{p.cover ? <img src={p.cover} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: '28px', color: '#444' }}>{activeTab[0]}</div>}</div><div style={{ padding: '20px 35px', flex: 1 }}><div style={{ fontWeight: 'bold', fontSize: '20px', color: '#fff', marginBottom: '8px' }}>{pinBadge}{p.title}</div><div style={{ color: '#fff', fontSize: '12px', opacity: 0.8, display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ border: `1px solid ${st.color}`, color: st.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{st.label}</span>{renderCardCategoryChip(p)} · {p.date}</div></div></>}
+                    {viewMode === 'text' && <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}><div style={{ flex: 1, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: p.pinned ? '#fbbf24' : st.color }}></span>{pinBadge}{p.title}</div><div style={{ color: '#fff', fontSize: '12px', opacity: 0.8 }}>{renderCardCategoryChip(p)} · {p.date}</div></div>}
+                    {viewMode === 'gallery' && <><div style={{ height: '140px', background: '#303030', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}><div style={{ position: 'absolute', top: '10px', left: '10px', background: p.pinned ? '#fbbf24' : 'transparent', color: '#000', padding: p.pinned ? '2px 6px' : 0, borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{p.pinned ? 'PIN' : ''}</div><div style={{ position: 'absolute', top: '10px', right: '10px', background: st.color, color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{p.status === 'Draft' ? 'DRAFT' : 'PUB'}</div>{p.cover ? <img src={p.cover} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: '40px', color: '#444' }}>{activeTab[0]}</div>}</div><div style={{ padding: '15px' }}><div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{p.title}</div><div style={{ color: '#fff', fontSize: '12px', opacity: 0.8 }}>{renderCardCategoryChip(p)} · {p.date}</div></div></>}
                     {renderCardDrawer(p, { showPin: activeTab === 'Post' || activeTab === 'Favourites' })}
                   </div>
                   </React.Fragment>
-                );
-              })}
-            </div>
-          </main>
-        ) : view === 'recycle' ? (
+                 );
+               })}
+             </div>
+             {cardCatOpenId && (
+               <CardCategoryQuickPicker
+                 anchorRect={cardCatMenuRect}
+                 currentCategory={(posts.find((p) => p.id === cardCatOpenId) || {}).category || ''}
+                 categories={options.categories || []}
+                 onPick={(value) => handleCardCategoryPick(cardCatOpenId, value)}
+                 onClose={() => { setCardCatOpenId(null); setCardCatMenuRect(null); }}
+               />
+             )}
+           </main>
+         ) : view === 'recycle' ? (
           <main>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>

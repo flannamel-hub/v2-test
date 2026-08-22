@@ -1,6 +1,6 @@
 import { Client } from '@notionhq/client'
 
-export const FALLBACK_CATEGORY = '默认'
+export const FALLBACK_CATEGORY = '未分类'
 
 type NotionProps = Record<string, { type?: string; select?: { options?: { id: string; name: string; color?: string }[] }; multi_select?: { options?: { id: string; name: string; color?: string }[] } }>
 

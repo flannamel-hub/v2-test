@@ -10,6 +10,9 @@ import {
 } from '@/src/lib/blog/themeSwitchQuota';
 import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCoverFromPageProperties, readPageCoverUrl, DOWNLOAD_SIZE_PROPERTY_NAMES, DOWNLOAD_COUNT_PROPERTY_NAMES, ARTICLE_PASSWORD_PROPERTY_NAMES, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readArticlePasswordFromPageProperties } from '@/src/lib/notion/readProperty';
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
+import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue';
+import { collectPostRevalidatePaths } from '@/src/lib/blog/contentRevalidation';
+import { slugify } from '@/src/lib/util';
 
 const notion = new Client({
   auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN,
@@ -680,9 +683,41 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const pageId = queryId || body.id;
-      const { pinned, favourited, type } = body;
+      const { pinned, favourited, type, category } = body;
       if (!pageId) {
         return res.status(400).json({ success: false, error: '缺少 id' });
+      }
+
+      if (category !== undefined) {
+        const page = await withRetry(() => notion.pages.retrieve({ page_id: pageId }));
+        const catKey =
+          page.properties['category']?.type === 'select'
+            ? 'category'
+            : page.properties['Category']?.type === 'select'
+              ? 'Category'
+              : null;
+        if (!catKey) {
+          return res.status(400).json({ success: false, error: '分类字段暂不可用，请联系管理员补充字段配置。' });
+        }
+        const newCat = String(category).trim();
+        await withRetry(() =>
+          notion.pages.update({
+            page_id: pageId,
+            properties: { [catKey]: newCat ? { select: { name: newCat } } : { select: null } },
+          })
+        );
+        // revalidate 入队（失败不阻断）
+        try {
+          const oldCat = page.properties[catKey]?.select?.name || '';
+          const paths = await collectPostRevalidatePaths(String(page.properties['slug']?.rich_text?.[0]?.plain_text || ''), {
+            categoryId: slugify(newCat) || null,
+            previousCategoryId: slugify(oldCat) || null,
+          });
+          await enqueueRevalidatePaths(paths, { scope: 'card-category-edit', reason: 'card-category-edit' });
+        } catch (rvErr) {
+          console.warn('card category revalidate enqueue failed:', rvErr);
+        }
+        return res.status(200).json({ success: true, category: newCat });
       }
 
       if (type !== undefined) {
@@ -738,7 +773,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, favourited: !!favourited });
       }
 
-      return res.status(400).json({ success: false, error: '缺少 pinned、favourited 或 type' });
+      return res.status(400).json({ success: false, error: '缺少 pinned、favourited、type 或 category' });
     }
 
     if (req.method === 'POST') {

@@ -5,7 +5,7 @@ import {
   renameCategoryFromNotion,
 } from '@/src/lib/blog/deleteTaxonomy';
 
-const PROTECTED_CATEGORIES = new Set(['网站信息', '系统组件', '站长通知', '默认']);
+const PROTECTED_CATEGORIES = new Set(['网站信息', '系统组件', '站长通知', '未分类']);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

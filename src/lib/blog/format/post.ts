@@ -23,6 +23,9 @@ export const FORMAT_POST_LIST_OPTIONS: FormatPostOptions = {
   skipImageProbe: true,
 }
 
+/** 无分类文章的兜底显示名（与后台 FALLBACK_CATEGORY 一致，id 用 slugify 保持稳定） */
+const UNCATEGORIZED_NAME = '未分类'
+
 export const formatPosts = async (
   posts: PageObjectResponse[],
   formatOptions?: FormatPostOptions
@@ -169,8 +172,8 @@ const formatPost = async (
       dark: postCoverDark,
     },
     category: postCategory ?? {
-      id: randomUUID(),
-      name: 'Uncategorized',
+      id: slugify(UNCATEGORIZED_NAME),
+      name: UNCATEGORIZED_NAME,
       color: 'gray' as ApiColor,
     },
     tags: postTags ?? [
