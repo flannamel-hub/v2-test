@@ -197,6 +197,14 @@ export function saveEditorDraftSnapshot(snapshot, meta = {}) {
           (b.pendingFile ||
             (typeof b.content === 'string' && b.content.startsWith('blob:')))
       ).length +
+      rawBlocks.reduce(
+        (n, b) =>
+          n +
+          (b && b.type === 'lock' && Array.isArray(b.pendingImageFiles)
+            ? b.pendingImageFiles.length
+            : 0),
+        0
+      ) +
       rawGalleryItems.filter((it) => it && it.status !== 'remote').length;
     const entry = {
       id: createSnapshotId(),

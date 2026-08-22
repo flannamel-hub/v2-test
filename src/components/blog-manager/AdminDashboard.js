@@ -4485,6 +4485,8 @@ const [mounted, setMounted] = useState(false);
   const editingSlugRef = useRef(null);
   const editingCategoryRef = useRef(null);
   const editingTagsRef = useRef(null);
+  // 记录进入编辑器时的文章状态（''=新建）：用于判断"草稿转首发"是否按首发处理
+  const editingStatusRef = useRef('');
 
   // === Phase3: 未保存修改保护 + 本地草稿快照 ===
   // dirty 用 ref 镜像：beforeunload / routeChangeStart / popstate 回调里必须读 ref，避免闭包读到旧值
@@ -4955,6 +4957,7 @@ const [mounted, setMounted] = useState(false);
     if (!snap) return false;
     // H2: 每次恢复快照都进入新的编辑器会话，旧发布任务成功回调不再误清当前编辑器状态
     editorSessionRef.current += 1;
+    editingStatusRef.current = (snap.form && snap.form.status) || '';
     if (!snap.postId) {
       // H1: 新文章快照必须清空残留的 currentId / refs，否则发布会误更新上次编辑的文章
       setCurrentId(null);
@@ -5771,6 +5774,7 @@ const [mounted, setMounted] = useState(false);
         editingSlugRef.current = post.slug || null;
         editingCategoryRef.current = post.category || null;
         editingTagsRef.current = post.tags || null;
+        editingStatusRef.current = p.status || '';
         setView('edit');
         setExpandedStep(1);
       }
@@ -5796,6 +5800,7 @@ const [mounted, setMounted] = useState(false);
     editingSlugRef.current = null;
     editingCategoryRef.current = null;
     editingTagsRef.current = null;
+    editingStatusRef.current = '';
     setView('edit');
     // 新建文章默认全部 Step 折叠
     setExpandedStep(0);
@@ -6633,11 +6638,12 @@ const [mounted, setMounted] = useState(false);
         if (bailIfCancelled()) return;
         if (!d.success) throw new Error(d.error || '保存失败');
         updateJob(job.id, { status: 'success', phase: '', progress: null });
-        // H2: 仅当用户未在任务执行期间重新进入编辑器时才清理 dirty / 本地快照
+        // H2: 仅当用户未在任务执行期间重新进入编辑器时才清理 dirty
         if (job.sessionRef === editorSessionRef.current) {
           clearDirty();
-          maybeClearSnapshotAfterSave(payload);
         }
+        // 快照清理 key 来自 job payload，与当前编辑器无关，不应受会话代号约束
+        maybeClearSnapshotAfterSave(payload);
         fetchPosts({ silent: true });
         void triggerContentRevalidation({
           scope: 'widget',
@@ -6747,9 +6753,10 @@ const [mounted, setMounted] = useState(false);
       const isDraftSave = saveStatus === 'Draft';
       const saveScope = resolveSaveRevalidateScope(saveType, saveSlug);
       const previousSlug = payload.previousSlug || '';
-      const isNewPost = !payload.currentId;
+      // 首发 = 无 currentId（新文章）或编辑前是草稿（草稿转首发同样要 new-post 索引确认）
+      const isFirstPublish = !payload.currentId || payload.previousStatus === 'Draft';
 
-      if (isNewPost && newId && saveType === 'Post' && !isDraftSave) {
+      if (isFirstPublish && newId && saveType === 'Post' && !isDraftSave) {
         const optimisticPost = {
           id: newId,
           title: payload.form.title || '无标题',
@@ -6798,9 +6805,9 @@ const [mounted, setMounted] = useState(false);
 
       try {
         if (saveScope === 'post') {
-          // M2: 新文章存为草稿不入队（前台无此文，Published 索引永远不收录，重试必败）；
-          // 已发布文章改存草稿（!isNewPost && isDraftSave）按普通保存入队（post-save / 3 次尝试），前台需移除
-          if (!(isNewPost && isDraftSave)) {
+          // M2: 首发存为草稿不入队（前台无此文，Published 索引永远不收录，重试必败）；
+          // 已发布文章改存草稿（!isFirstPublish && isDraftSave）按普通保存入队（post-save / 3 次尝试），前台需移除
+          if (!(isFirstPublish && isDraftSave)) {
             void triggerContentRevalidation({
               scope: 'post',
               slug: saveSlug,
@@ -6810,15 +6817,15 @@ const [mounted, setMounted] = useState(false);
               previousTags: payload.previousTags || '',
               previousSlug,
               queue: true,
-              queueDelayMs: isNewPost ? 60_000 : 30_000,
+              queueDelayMs: isFirstPublish ? 60_000 : 30_000,
               clearCaches: true,
-              warmPaths: isNewPost && !isDraftSave,
+              warmPaths: isFirstPublish && !isDraftSave,
               contentChange: true,
-              queueReason: isNewPost
+              queueReason: isFirstPublish
                 ? `new-post:${encodeURIComponent(saveSlug)}`
                 : 'post-save',
               queuePriority: 10,
-              queueMaxAttempts: isNewPost ? 8 : 3,
+              queueMaxAttempts: isFirstPublish ? 8 : 3,
             })
               .then((rev) => showRevalidateFeedback(rev, showAdminToast))
               .catch((e) => console.warn('文章内页增量刷新失败', e));
@@ -6884,8 +6891,9 @@ const [mounted, setMounted] = useState(false);
       // H2: 仅当用户未在任务执行期间重新进入编辑器时才执行，避免误清正在编辑的内容
       if (job.sessionRef === editorSessionRef.current) {
         clearDirty();
-        maybeClearSnapshotAfterSave(payload);
       }
+      // 快照清理 key 来自 job payload，与当前编辑器无关，不应受会话代号约束
+      maybeClearSnapshotAfterSave(payload);
       // 后台静默刷新列表，完成的文章无感知出现在内容列表中
       fetchPosts({ silent: true });
       loadGalleryStorage();
@@ -6996,6 +7004,7 @@ const [mounted, setMounted] = useState(false);
         galleryItems: isWidget ? [] : galleryItems.slice(),
         currentId,
         previousSlug: editingSlugRef.current || '',
+        previousStatus: editingStatusRef.current || '',
         previousCategory: editingCategoryRef.current || '',
         previousTags: editingTagsRef.current || '',
         willSyncGallery,

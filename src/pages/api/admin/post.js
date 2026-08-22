@@ -544,11 +544,16 @@ async function notionToEditorBlocks(blocks) {
         if (k.type === 'paragraph' || p) {
           lines.push(p);
         } else {
-          // 无文本但有媒体引用的子块（纯图片/视频/附件等）：以占位行保留，避免静默丢失
-          const media = kd && (kd.image || kd.video || kd.file || kd.embed);
-          if (media) {
-            const mediaUrl = media.external?.url || media.file?.url || media.url || '';
-            lines.push(mediaUrl ? `[图片] ${mediaUrl}` : '[图片]');
+          // 无文本但有媒体引用的子块（纯图片/视频/附件/embed 等）：以占位行保留，避免静默丢失
+          // kd 已是该类型 payload（如 { caption, type:'external', external:{url} } 或 embed 的 { url, caption }）
+          const mediaUrl =
+            (kd && kd.external && kd.external.url) ||
+            (kd && typeof kd.url === 'string' && kd.url) ||
+            '';
+          // Notion 上传的 file-hosted URL 约 24 小时过期，不要写进占位行（避免把过期链接永久写入正文）
+          const isTemporary = !!(kd && kd.file);
+          if (isTemporary || mediaUrl) {
+            lines.push(!isTemporary && mediaUrl ? `[图片] ${mediaUrl}` : '[图片]');
           }
         }
       }
