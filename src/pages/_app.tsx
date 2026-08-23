@@ -29,6 +29,7 @@ import { LightSeoMeta } from '@/src/components/seo/LightSeoMeta'
 import { isTweetDarkTheme, isTweetLightTheme, isTweetTheme, isTweetThemeVariantLocked } from '@/src/themes/tweet/tweetTheme'
 import { PostNavStallProvider } from '@/src/components/navigation/PostNavStallGuard'
 import { ImageHostAssetBridge } from '@/src/components/media/ImageHostAssetBridge'
+import { PvReporter } from '@/src/components/layout/PvReporter'
 import { TweetLoadingProgress } from '@/src/themes/tweet/TweetLoadingProgress'
 import type { PageSeoFlat } from '@/src/lib/seo/lightSeo'
 import { NextPageWithLayout } from '../types/blog'
@@ -244,6 +245,7 @@ function BlogAppShell({ Component, pageProps, router }: AppPropsWithLayout) {
       <PostNavStallProvider enabled={stallGuardEnabled}>
         {getLayout(<Component {...effectivePageProps} />)}
       </PostNavStallProvider>
+      <PvReporter />
       <Analytics />
     </ThemeProvider>
     </>
