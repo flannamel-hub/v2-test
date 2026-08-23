@@ -87,7 +87,7 @@ const CardCategoryQuickPicker = ({ anchorRect, currentCategory, categories, onPi
         top,
         left,
         width,
-        zIndex: 1200,
+        zIndex: 10000,
         background: '#2a2a2e',
         border: '1px solid #555',
         borderRadius: '10px',
