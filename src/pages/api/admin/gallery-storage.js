@@ -5,6 +5,7 @@ import {
   getGalleryQuotaBytes,
   getGalleryStorageStats,
 } from '@/src/lib/gallery/galleryStorage'
+import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
 
 export default async function handler(req, res) {
   if (!isGalleryTenantConfigured()) {
@@ -30,10 +31,27 @@ export default async function handler(req, res) {
     const check =
       pendingBytes > 0 ? await canAddGalleryPendingBytes(pendingBytes) : null
 
+    // BLOG 分层 P4:会员计划与本月用量百分比(只读短缓存;失败仅隐藏「本月用量」区块)
+    let quota = null
+    try {
+      const state = await getSiteQuotaState()
+      quota = {
+        plan: state.plan,
+        status: state.status,
+        readOnly: state.readOnly,
+        pvPct: state.pvPct,
+        bwPct: state.bwPct,
+        galleryPct: state.galleryPct,
+      }
+    } catch (e) {
+      console.warn('/api/admin/gallery-storage quota state unavailable:', e?.message || e)
+    }
+
     return res.status(200).json({
       success: true,
       configured: true,
       ...stats,
+      quota,
       quotaLabel: formatGalleryStorageBytes(getGalleryQuotaBytes()),
       usedLabel: formatGalleryStorageBytes(stats.usedBytes),
       remainingLabel: formatGalleryStorageBytes(stats.remainingBytes),

@@ -3,6 +3,7 @@ import {
   DEFAULT_SITE_DESCRIPTION,
   DEFAULT_SITE_NAME,
   DEFAULT_OG_IMAGE,
+  NEUTRAL_SITE_DESCRIPTION,
   PageSeoFlat,
   SITE_KEYWORDS,
   absoluteUrl,
@@ -16,6 +17,8 @@ type LightSeoMetaProps = {
   /** 无 seo 时用于组合标题（分类名等） */
   pageSubtitle?: string
   isAdmin?: boolean
+  /** BLOG 分层 P4:专业版 SEO 去 platform 品牌口径(中性描述/关键词) */
+  sitePlan?: 'free' | 'pro'
 }
 
 /**
@@ -26,10 +29,12 @@ export function LightSeoMeta({
   siteName,
   pageSubtitle,
   isAdmin,
+  sitePlan,
 }: LightSeoMetaProps) {
   const name = (siteName || '').trim() || DEFAULT_SITE_NAME
   const sub = (pageSubtitle || '').trim()
   const seoTitle = (seo?.title || '').trim()
+  const isPro = sitePlan === 'pro'
 
   if (isAdmin) {
     return (
@@ -48,13 +53,21 @@ export function LightSeoMeta({
       ? `${sub} | ${name}`
       : name
 
-  const description = (seo?.description || '').trim() || DEFAULT_SITE_DESCRIPTION
+  // 专业版:seo.description 为空或为平台默认文案时改用中性描述
+  const rawDescription = (seo?.description || '').trim()
+  const description =
+    isPro && (!rawDescription || rawDescription === DEFAULT_SITE_DESCRIPTION)
+      ? NEUTRAL_SITE_DESCRIPTION
+      : rawDescription || DEFAULT_SITE_DESCRIPTION
   const baseUrl = getPublicSiteUrl()
   const canonicalPath = seo?.canonicalPath || ''
   const canonical =
     baseUrl && canonicalPath ? absoluteUrl(baseUrl, canonicalPath) : ''
   const image = (seo?.image || '').trim() || DEFAULT_OG_IMAGE
-  const keywords = [seo?.keywords, SITE_KEYWORDS].filter(Boolean).join(', ')
+  // 专业版:不追加平台品牌关键词
+  const keywords = [seo?.keywords, ...(isPro ? [] : [SITE_KEYWORDS])]
+    .filter(Boolean)
+    .join(', ')
   const ogType = seo?.canonicalPath?.startsWith('/post/') ? 'article' : 'website'
 
   return (

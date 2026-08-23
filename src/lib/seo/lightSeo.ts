@@ -24,6 +24,10 @@ export type PageSeoFlat = {
 export const DEFAULT_SITE_DESCRIPTION =
   'PRO+ 一站式寄售与免费博客服务。PRO BLOG 基于 Notion 提供免费、易用的个人博客服务，帮助你快速搭建个人博客与个人主页。'
 
+/** BLOG 分层 P4:专业版 SEO 使用中性站点描述(不含平台品牌与寄售引导) */
+export const NEUTRAL_SITE_DESCRIPTION =
+  '基于 Notion 的个人博客，记录与分享创作与生活。'
+
 export const DEFAULT_SITE_NAME = 'Blog'
 
 export const SITE_KEYWORDS =

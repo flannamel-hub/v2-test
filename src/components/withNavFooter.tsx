@@ -3,6 +3,7 @@ import Navbar from './nav/Navbar'
 import { SitePopups } from './widget/SitePopups'
 import { ThemeNavShell } from '@/src/themes/themeLayout'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
+import { SitePlanProvider } from '@/src/components/theme/SitePlanContext'
 import { Page, SharedNavFooterStaticProps } from '@/src/types/blog'
 
 function resolveSocialLinks(widgets: unknown) {
@@ -26,9 +27,10 @@ export default function withNavFooter(
   ) {
     const themeId = props.activeTheme
     const socialLinks = resolveSocialLinks((props as any).widgets)
+    const sitePlan = props.sitePlan === 'pro' ? 'pro' : 'free'
     if (themeId === 'gallery' || isTweetTheme(themeId)) {
       return (
-        <>
+        <SitePlanProvider plan={sitePlan}>
           <ThemeNavShell
             activeTheme={themeId}
             siteTitle={props.siteTitle}
@@ -44,7 +46,7 @@ export default function withNavFooter(
             clickAd={props.clickAd}
             activeTheme={themeId}
           />
-        </>
+        </SitePlanProvider>
       )
     }
 
@@ -53,36 +55,38 @@ export default function withNavFooter(
     )
 
     return (
-      <main className="flex flex-col justify-start min-h-screen">
-        <Navbar
-          items={items}
-          title={props.siteTitle}
-          subtitle={
-            props.enableNavSubtitle && props.siteSubtitle
-              ? props.siteSubtitle
-              : undefined
-          }
-        />
-        <WrappedComponent {...props} />
-        <div className="mt-auto">
-          <Footer
+      <SitePlanProvider plan={sitePlan}>
+        <main className="flex flex-col justify-start min-h-screen">
+          <Navbar
+            items={items}
             title={props.siteTitle}
-            color={pureFooter ? 'pure' : undefined}
-            showBeian={showBeian}
-            logo={props.logo}
-            path={{
-              text: props.siteSubtitle?.text ?? '',
-              href: props.siteSubtitle?.slug ?? '',
-            }}
+            subtitle={
+              props.enableNavSubtitle && props.siteSubtitle
+                ? props.siteSubtitle
+                : undefined
+            }
           />
-        </div>
-        <SitePopups
-          announcementPopup={props.announcementPopup}
-          popupAd={props.popupAd}
-          clickAd={props.clickAd}
-          activeTheme={themeId}
-        />
-      </main>
+          <WrappedComponent {...props} />
+          <div className="mt-auto">
+            <Footer
+              title={props.siteTitle}
+              color={pureFooter ? 'pure' : undefined}
+              showBeian={showBeian}
+              logo={props.logo}
+              path={{
+                text: props.siteSubtitle?.text ?? '',
+                href: props.siteSubtitle?.slug ?? '',
+              }}
+            />
+          </div>
+          <SitePopups
+            announcementPopup={props.announcementPopup}
+            popupAd={props.popupAd}
+            clickAd={props.clickAd}
+            activeTheme={themeId}
+          />
+        </main>
+      </SitePlanProvider>
     )
   }
 }

@@ -1,3 +1,5 @@
+import { useIsProSite } from '@/src/components/theme/SitePlanContext'
+
 const PROPLUS_SITE_URL = 'https://proplus.team/'
 
 type ProPlusCreateButtonProps = {
@@ -5,10 +7,14 @@ type ProPlusCreateButtonProps = {
   className?: string
 }
 
+/** BLOG 分层 P4:专业版隐藏「在PRO+上创作」平台标识 */
 export function ProPlusCreateButton({
   compact = false,
   className = '',
 }: ProPlusCreateButtonProps) {
+  const isPro = useIsProSite()
+  if (isPro) return null
+
   return (
     <a
       href={PROPLUS_SITE_URL}

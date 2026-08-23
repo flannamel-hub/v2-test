@@ -147,6 +147,8 @@ export type SharedNavFooterStaticProps = {
     enableNavSubtitle?: boolean
     /** 远程 theme-config 解析后的主题 id */
     activeTheme?: string
+    /** BLOG 分层 P4:站点会员计划(服务端读取 blog_quota_state;缺省视为 free) */
+    sitePlan?: 'free' | 'pro'
     /** Gallery 主题全局底部广告条 */
     galleryAdBanner?: {
       url: string

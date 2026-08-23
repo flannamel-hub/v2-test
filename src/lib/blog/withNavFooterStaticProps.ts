@@ -5,14 +5,27 @@ import { getAnnouncementPopupConfig } from '@/src/lib/blog/announcementPopupSett
 import { getClickAdConfig } from '@/src/lib/blog/clickAdSettings'
 import { getPopupAdConfig } from '@/src/lib/blog/popupAdSettings'
 import { getVendingConfig } from '@/src/lib/blog/vendingSettings'
+import { DEFAULT_VENDING_URL } from '@/src/lib/blog/vendingDefaults'
+import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
+import { isFreeAdGraceActive } from '@/src/lib/blog/freeTierGrace'
 import { getCachedNavFooter } from '../notion/getCachedMem'
 import { getWidgetPages } from '../notion/getDatabase'
 import { isTransientNotionError, isNotionBuildPhase } from '../notion/transientErrors'
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
+import type { ClickAdConfig } from '@/src/lib/blog/clickAdDefaults'
+import type { PopupAdConfig } from '@/src/lib/blog/popupAdDefaults'
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
 
 export type SharedNavFooterNotionData = {
   widgetPages: PageObjectResponse[]
+}
+
+/** 广告 widget 是否有商户存量配置:Notion widget 页存在(非默认值);
+ * 与 createDefault*Config 的 source='default'/id=null 判定一致 */
+function hasExistingAdWidget(
+  config: PopupAdConfig | ClickAdConfig | null | undefined
+): boolean {
+  return config?.source === 'notion' && Boolean(config.id)
 }
 
 async function buildSharedProps(
@@ -21,22 +34,42 @@ async function buildSharedProps(
   logo: SharedNavFooterStaticProps['props']['logo'],
   widgetPages: PageObjectResponse[]
 ): Promise<SharedNavFooterStaticProps['props']> {
-  const [activeTheme, vendingConfig, announcementPopup, popupAd, clickAd] =
+  const [activeTheme, vendingConfig, announcementPopup, popupAdRaw, clickAdRaw, quotaState] =
     await Promise.all([
       resolveActiveTheme(),
       getVendingConfig(widgetPages),
       getAnnouncementPopupConfig(widgetPages),
       getPopupAdConfig(widgetPages),
       getClickAdConfig(widgetPages),
+      getSiteQuotaState(),
     ])
+
+  // BLOG 分层 P4:免费版贩售机强制平台默认地址;专业版保留商户自定义
+  const vendingConfigForPlan =
+    quotaState.plan === 'pro'
+      ? vendingConfig
+      : { ...vendingConfig, url: DEFAULT_VENDING_URL }
+
+  // BLOG 分层 P4 广告位:专业版照常;免费版仅过渡期内保留存量配置(非默认值)
+  const freeAdsVisible = isFreeAdGraceActive()
+  const popupAd =
+    quotaState.plan === 'pro' || (freeAdsVisible && hasExistingAdWidget(popupAdRaw))
+      ? popupAdRaw
+      : null
+  const clickAd =
+    quotaState.plan === 'pro' || (freeAdsVisible && hasExistingAdWidget(clickAdRaw))
+      ? clickAdRaw
+      : null
+
   return {
     navPages,
     siteTitle,
     siteSubtitle: null,
     logo,
     activeTheme,
-    vendingConfig,
-    vendingEnabled: vendingConfig.enabled,
+    sitePlan: quotaState.plan,
+    vendingConfig: vendingConfigForPlan,
+    vendingEnabled: vendingConfigForPlan.enabled,
     announcementPopup,
     popupAd,
     clickAd,

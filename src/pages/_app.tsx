@@ -235,6 +235,7 @@ function BlogAppShell({ Component, pageProps, router }: AppPropsWithLayout) {
         siteName={pageProps?.siteTitle?.text}
         pageSubtitle={pageProps?.siteSubtitle?.text}
         isAdmin={isAdminRoute}
+        sitePlan={(pageProps as { sitePlan?: 'free' | 'pro' })?.sitePlan}
       />
       <NextNprogress
         color={CONFIG.PROGRESS_BAR_COLOR}

@@ -7,6 +7,7 @@ import { SiNextdotjs, SiNotion, SiTailwindcss, SiVercel } from 'react-icons/si'
 import { colorMap } from '../../lib/colors'
 import { classNames } from '../../lib/util'
 import { ApiColor } from '../../types/notion'
+import { useIsProSite } from '@/src/components/theme/SitePlanContext'
 import { Logo } from './Logo'
 import ThemeSwitch from './ThemeSwitch'
 
@@ -27,6 +28,8 @@ const Footer = ({
   }
 }) => {
   const thisYear = new Date().getFullYear()
+  // BLOG 分层 P4:专业版隐藏「Powered by PRO+」平台标识
+  const isPro = useIsProSite()
   const tools = [
     {
       icon: SiNotion,
@@ -105,7 +108,9 @@ const Footer = ({
           <div className="flex items-end justify-between w-full pb-2 my-2 text-xs  border-footer gap-x-2 dark:border-neutral-700">
             <div className="flex flex-col gap-2 shrink-0">
               <div className="flex items-center">
-                <a href='https://proplus.team/' target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 transition-colors">Powered by PRO+</a>
+                {!isPro && (
+                  <a href='https://proplus.team/' target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 transition-colors">Powered by PRO+</a>
+                )}
                 {/* <div className="inline-flex px-2 py-1 mx-2 space-x-2 rounded-full place-items-center bg-neutral-200 dark:bg-neutral-700">
                   {tools.map((tool) => (
                     <Link
