@@ -7,25 +7,14 @@ import { getPopupAdConfig } from '@/src/lib/blog/popupAdSettings'
 import { getVendingConfig } from '@/src/lib/blog/vendingSettings'
 import { DEFAULT_VENDING_URL } from '@/src/lib/blog/vendingDefaults'
 import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
-import { isFreeAdGraceActive } from '@/src/lib/blog/freeTierGrace'
 import { getCachedNavFooter } from '../notion/getCachedMem'
 import { getWidgetPages } from '../notion/getDatabase'
 import { isTransientNotionError, isNotionBuildPhase } from '../notion/transientErrors'
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
-import type { ClickAdConfig } from '@/src/lib/blog/clickAdDefaults'
-import type { PopupAdConfig } from '@/src/lib/blog/popupAdDefaults'
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
 
 export type SharedNavFooterNotionData = {
   widgetPages: PageObjectResponse[]
-}
-
-/** 广告 widget 是否有商户存量配置:Notion widget 页存在(非默认值);
- * 与 createDefault*Config 的 source='default'/id=null 判定一致 */
-function hasExistingAdWidget(
-  config: PopupAdConfig | ClickAdConfig | null | undefined
-): boolean {
-  return config?.source === 'notion' && Boolean(config.id)
 }
 
 async function buildSharedProps(
@@ -50,16 +39,10 @@ async function buildSharedProps(
       ? vendingConfig
       : { ...vendingConfig, url: DEFAULT_VENDING_URL }
 
-  // BLOG 分层 P4 广告位:专业版照常;免费版仅过渡期内保留存量配置(非默认值)
-  const freeAdsVisible = isFreeAdGraceActive()
-  const popupAd =
-    quotaState.plan === 'pro' || (freeAdsVisible && hasExistingAdWidget(popupAdRaw))
-      ? popupAdRaw
-      : null
-  const clickAd =
-    quotaState.plan === 'pro' || (freeAdsVisible && hasExistingAdWidget(clickAdRaw))
-      ? clickAdRaw
-      : null
+  // BLOG 分层 P4-FIX 广告位:专业版权益;免费版一律不下发(无论有无存量配置),
+  // 读者端不渲染。管理后台仍可见配置界面(灰态),由 AdminDashboard 自行判定。
+  const popupAd = quotaState.plan === 'pro' ? popupAdRaw : null
+  const clickAd = quotaState.plan === 'pro' ? clickAdRaw : null
 
   return {
     navPages,

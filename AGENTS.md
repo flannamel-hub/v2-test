@@ -259,6 +259,7 @@
 
 ### 公告弹窗与广告位约定
 
+- **广告位为专业版权益（P4-FIX，2026-08-24）**：`gallery-ad` / `popup-ad` / `click-ad` 三个广告位仅专业版（`plan === 'pro'`）可用。免费版读者端一律不渲染（`withNavFooterStaticProps` 不下发 popupAd/clickAd、`loadGalleryAdBanner` 返回 null、`SitePopups` 客户端按 `SitePlanContext` 防御性不渲染，无论有无存量配置）；旧过渡期 `freeTierGrace.ts` 已删除，不得恢复。公告弹窗（站务通知）不受套餐限制。管理端不做隐藏：BLOG 后台「广告位」三视图对免费版**灰态可见**（输入/按钮全部 disabled + 顶部「广告位为专业版权益，升级后可用」提示；保存/清空/上传 handler 有 `adsLocked` 防绕过守卫）；plan 来自 `GET /api/admin/site-plan`（只读），读取失败按免费版安全缺省。
 - `announcement-popup` 定位为**站务通知**，不是广告：前台无 CTA 跳转按钮，无「通知」类标签；布局为标题栏 + 正文/可选附图 + 底部全宽「知道了」；正文内 URL 自动链接触可保留。
 - 前台浅色：`gallery`、`tweet-light`、standard 的 `html:not(.dark)`；深色：`tweet`、`tweet-dark`、standard 的 `html.dark`。
 - 关闭后用 `sessionStorage` + 内容 hash，同会话同内容不再弹；内容变更后会再弹。
@@ -286,6 +287,7 @@
 | `GET/POST /api/admin/announcement-popup` | 公告通知弹窗配置（无跳转按钮；保存清空旧 button 字段） |
 | `GET/POST /api/admin/popup-ad` | 首页弹窗广告配置（CTA 必填链接；会话一次） |
 | `GET/POST /api/admin/click-ad` | 首页遮罩广告配置（URL 必填；每天一次；排除贩售机） |
+| `GET /api/admin/site-plan` | 站点会员计划只读（P4-FIX 广告位灰态判定；仅 BLOG 后台浏览器调用，只返回 plan） |
 | `GET/POST /api/admin/social-links` | 社媒组件配置 |
 | `GET /api/admin/theme-cooldown` | 主题切换配额状态（命名历史遗留） |
 | `POST /api/admin/revalidate` | ISR 刷新；支持即时刷新与 `action: drain` 消费队列 |
@@ -298,7 +300,7 @@
 - `src/middleware.ts` 的 matcher 虽包含 `/api/admin/:path*`，但当前实现分支只判断 `pathname.startsWith('/admin')`；因此不能仅凭路由名称或 matcher 认定全部 Admin API 已受 middleware 保护。
 - `/api/admin/upload` 是浏览器后台专用敏感接口，已在路由内调用 `verifyAdminRequest(req)`；未登录或错误凭据返回 401，并且不会读取 `LSKY_TOKEN`、请求体或转发兰空。`npm run test:upload-auth` 覆盖未登录、错误 Basic、正确 Basic 与正确 Cookie。
 - `/api/admin/crawler-ingest` 也已有路由内 `verifyAdminRequest`，敏感操作再叠加维护密码。
-- 当前代码调用盘点中，`posts`、`post`、`gallery*`、`upload`、`gallery-ad`、`popup-ad`、`click-ad`、`social-links`、`theme-cooldown`、`config`、`taxonomy`、`full-redeploy`、`crawler-ingest` 只在 BLOG 后台浏览器使用；`friends*`、`announcement-popup`、`vending`、`revalidate` 同时被平台服务端调用。
+- 当前代码调用盘点中，`posts`、`post`、`gallery*`、`upload`、`gallery-ad`、`popup-ad`、`click-ad`、`social-links`、`theme-cooldown`、`config`、`taxonomy`、`full-redeploy`、`crawler-ingest`、`site-plan` 只在 BLOG 后台浏览器使用；`friends*`、`announcement-popup`、`vending`、`revalidate` 同时被平台服务端调用。
 - 平台目前会服务端调用 `/api/admin/friends*`、`/api/admin/announcement-popup`、`/api/admin/vending` 与 `/api/admin/revalidate`，这些调用尚未统一携带 BLOG Basic/Cookie。未设计并部署明确的服务到服务凭据前，禁止把 middleware 分支直接扩大到全部 `/api/admin/*`，否则会破坏现有组件同步。
 - 长期目标仍是按调用方分类：浏览器后台接口使用管理员会话，平台联动接口使用独立服务端鉴权，公开只读能力放在非 admin 路由；不得继续依赖匿名 Admin API。
 

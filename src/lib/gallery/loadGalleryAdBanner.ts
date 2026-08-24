@@ -8,7 +8,6 @@ import { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
 import { rewriteManagedAssetUrl } from '@/src/lib/media/rewriteManagedAssetUrl'
 import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
-import { isFreeAdGraceActive } from '@/src/lib/blog/freeTierGrace'
 
 export type GalleryAdBanner = {
   url: string
@@ -53,10 +52,9 @@ async function findGalleryAdWidget(
 export async function loadGalleryAdBanner(
   widgetPages?: PageObjectResponse[]
 ): Promise<GalleryAdBanner | null> {
-  // BLOG 分层 P4:专业版照常;免费版仅过渡期内保留(存量判定沿用下方
-  // 「Widget 存在且 Published 且有有效内容」的既有非默认值逻辑)
+  // BLOG 分层 P4-FIX:广告位为专业版权益;免费版一律不渲染(无论有无存量配置)
   const quotaState = await getSiteQuotaState()
-  if (quotaState.plan !== 'pro' && !isFreeAdGraceActive()) {
+  if (quotaState.plan !== 'pro') {
     return null
   }
 

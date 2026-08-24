@@ -232,6 +232,7 @@ const GlobalStyle = () => (
     .modal-body { flex: 1; overflow-y: auto; padding: 40px; scroll-behavior: smooth; }
     input, select, textarea { width: 100%; padding: 14px; background: #18181c; border: 1px solid #333; border-radius: 10px; color: #fff; box-sizing: border-box; font-size: 15px; outline: none; transition: 0.3s; }
     .glow-input:focus, .glow-input:hover { border-color: greenyellow; box-shadow: 0 0 12px rgba(173, 255, 47, 0.3); background: #1f1f23; }
+    .glow-input:disabled, .glow-input:disabled:hover { border-color:#333; box-shadow:none; background:#161619; color:#777; cursor:not-allowed; }
     .tag-chip { background: #333; padding: 4px 10px; border-radius: 4px; font-size: 11px; color: #bbb; margin: 0 5px 5px 0; cursor: pointer; position: relative; }
     .tag-del { position: absolute; top: -5px; right: -5px; background: #ff4d4f; color: white; border-radius: 50%; width: 14px; height: 14px; display: none; align-items: center; justify-content: center; font-size: 10px; }
     .tag-chip:hover .tag-del { display: flex; }
@@ -2810,6 +2811,8 @@ const NOTION_TEXT_COLORS = [
 ];
 const colorCss = (key) => (NOTION_TEXT_COLORS.find(c => c.key === key) || NOTION_TEXT_COLORS[0]).css;
 const btnSpinStyle = { width: '13px', height: '13px', border: '2px solid rgba(0,0,0,0.25)', borderTopColor: '#000', borderRadius: '50%', display: 'inline-block', animation: 'imgspin 0.8s linear infinite', verticalAlign: 'middle' };
+// BLOG 分层 P4-FIX:广告位为专业版权益——免费版管理界面灰态(可见但整体禁用)提示条
+const ADS_LOCKED_NOTICE_STYLE = { display:'flex', alignItems:'center', gap:'10px', padding:'14px 16px', background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.35)', color:'#fbbf24', borderRadius:'12px', fontSize:'13px', lineHeight:1.6, marginBottom:'18px' };
 // 可选主题列表（目前用现有的 v1/v2 排版作为主题，后续上新主题往这里加即可）
 const ADMIN_THEMES = [
   { id: 'v1', label: 'Standard V1', color: '#3b82f6', desc: '标准排版 · 经典风格' },
@@ -4581,6 +4584,9 @@ const [mounted, setMounted] = useState(false);
   const [galleryAdLoading, setGalleryAdLoading] = useState(false);
   const [galleryAdSaving, setGalleryAdSaving] = useState(false);
   const [galleryAdCoverUploading, setGalleryAdCoverUploading] = useState(false);
+  // BLOG 分层 P4-FIX:站点会员计划(读取失败按免费版安全缺省);广告位为专业版权益
+  const [sitePlan, setSitePlan] = useState('free');
+  const adsLocked = sitePlan !== 'pro';
   const [vendingEnabled, setVendingEnabled] = useState(true);
   const [vendingTitle, setVendingTitle] = useState('贩售机');
   const [vendingUrl, setVendingUrl] = useState('');
@@ -5202,6 +5208,17 @@ const [mounted, setMounted] = useState(false);
     }
   }
 
+  // BLOG 分层 P4-FIX:读取站点会员计划(只读;失败保持 free,广告位灰态安全缺省)
+  const loadSitePlan = async () => {
+    try {
+      const r = await fetch('/api/admin/site-plan');
+      const d = await r.json();
+      if (d && d.success && d.plan) setSitePlan(d.plan === 'pro' ? 'pro' : 'free');
+    } catch {
+      // 忽略:按免费版处理
+    }
+  };
+
   // 🟢 4. 数据拉取函数 (提前定义)
   async function fetchPosts({ silent = false } = {}) {
     if (!silent) setLoading(true);
@@ -5588,6 +5605,7 @@ const [mounted, setMounted] = useState(false);
     if (!mounted) return;
     fetchFullRedeployStatus();
     fetchCrawlerIngestStatus();
+    loadSitePlan();
   }, [mounted]);
   useEffect(() => { if (mounted) fetchPosts(); }, [mounted]);
   useEffect(() => {
@@ -6064,6 +6082,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const saveClickAd = async (patch = {}) => {
+    if (adsLocked) return; // 免费版广告位不可用(灰态防绕过;前台也不会渲染)
     const next = {
       ...clickAd,
       ...patch,
@@ -6122,6 +6141,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const savePopupAd = async (patch = {}) => {
+    if (adsLocked) return; // 免费版广告位不可用(灰态防绕过;前台也不会渲染)
     const next = {
       ...popupAd,
       ...patch,
@@ -6190,7 +6210,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const uploadPopupAdImage = async (file) => {
-    if (!file) return;
+    if (!file || adsLocked) return;
     setPopupAdSaving(true);
     try {
       const url = await uploadAvatarFile(file);
@@ -6356,6 +6376,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const saveGalleryAd = async (patch = {}) => {
+    if (adsLocked) return; // 免费版广告位不可用(灰态防绕过;前台也不会渲染)
     const next = {
       ...galleryAd,
       ...patch,
@@ -6418,6 +6439,7 @@ const [mounted, setMounted] = useState(false);
     finally { setGalleryAdSaving(false); }
   };
   const clearGalleryAd = async () => {
+    if (adsLocked) return; // 免费版广告位不可用(灰态防绕过;前台也不会渲染)
     if (!confirm('确定清空广告位配置？前台将不再显示底部横幅。')) return;
     setGalleryAdSaving(true);
     try {
@@ -6437,7 +6459,7 @@ const [mounted, setMounted] = useState(false);
     finally { setGalleryAdSaving(false); }
   };
   const uploadGalleryAdCover = async (file) => {
-    if (!file) return;
+    if (!file || adsLocked) return;
     setGalleryAdCoverUploading(true);
     try {
       const url = await uploadAvatarFile(file);
@@ -8646,7 +8668,7 @@ const [mounted, setMounted] = useState(false);
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>内页广告位</div>
                     <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>全主题文章内页底部横幅</div>
                   </div>
-                  <div style={{ color: '#f59e0b', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                  <div style={{ color: adsLocked ? '#fbbf24' : '#f59e0b', fontSize: '13px', fontWeight: 'bold' }}>{adsLocked ? '专业版' : '进入 →'}</div>
                 </div>
               )}
               {activeTab === 'Ads' && viewMode !== 'folder' && (
@@ -8656,7 +8678,7 @@ const [mounted, setMounted] = useState(false);
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>弹窗广告</div>
                     <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页进入弹出 · 每会话一次</div>
                   </div>
-                  <div style={{ color: '#a78bfa', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                  <div style={{ color: adsLocked ? '#fbbf24' : '#a78bfa', fontSize: '13px', fontWeight: 'bold' }}>{adsLocked ? '专业版' : '进入 →'}</div>
                 </div>
               )}
               {activeTab === 'Ads' && viewMode !== 'folder' && (
@@ -8666,7 +8688,7 @@ const [mounted, setMounted] = useState(false);
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>遮罩广告</div>
                     <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页首次点击伴生跳转 · 每天一次</div>
                   </div>
-                  <div style={{ color: '#fb7185', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                  <div style={{ color: adsLocked ? '#fbbf24' : '#fb7185', fontSize: '13px', fontWeight: 'bold' }}>{adsLocked ? '专业版' : '进入 →'}</div>
                 </div>
               )}
               {activeTab === 'Widget' && viewMode !== 'folder' && (
@@ -9156,10 +9178,14 @@ const [mounted, setMounted] = useState(false);
               <div style={{fontSize:'12px', color:'#888'}}>仅首页 · 每天首次有效点击触发一次</div>
             </div>
 
+            {adsLocked ? (
+              <div style={ADS_LOCKED_NOTICE_STYLE}>广告位为专业版权益，升级后可用</div>
+            ) : null}
+
             {clickAdLoading ? (
               <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
             ) : (
-              <>
+              <div style={{ opacity: adsLocked ? 0.55 : 1 }}>
                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告开关</div>
@@ -9169,7 +9195,7 @@ const [mounted, setMounted] = useState(false);
                   </div>
                   <button
                     type="button"
-                    disabled={clickAdSaving}
+                    disabled={clickAdSaving || adsLocked}
                     onClick={() => saveClickAd({ enabled: !clickAd.enabled })}
                     style={{
                       minWidth: '88px',
@@ -9178,10 +9204,10 @@ const [mounted, setMounted] = useState(false);
                       borderRadius: '999px',
                       fontWeight: 'bold',
                       fontSize: '14px',
-                      cursor: clickAdSaving ? 'wait' : 'pointer',
-                      background: clickAd.enabled ? '#22c55e' : '#555',
+                      cursor: adsLocked ? 'not-allowed' : clickAdSaving ? 'wait' : 'pointer',
+                      background: adsLocked ? '#444' : clickAd.enabled ? '#22c55e' : '#555',
                       color: '#fff',
-                      opacity: clickAdSaving ? 0.6 : 1,
+                      opacity: adsLocked ? 0.5 : clickAdSaving ? 0.6 : 1,
                     }}
                   >
                     {clickAdSaving ? '保存中…' : (clickAd.enabled ? '已开启' : '已关闭')}
@@ -9190,11 +9216,11 @@ const [mounted, setMounted] = useState(false);
                 <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>备注名 <span style={{color:'#777', fontWeight:'normal'}}>(可选)</span></label>
-                    <input className="glow-input" value={clickAd.title} onChange={e=>setClickAd({...clickAd, title: e.target.value})} placeholder="例如：首页遮罩推广" />
+                    <input className="glow-input" value={clickAd.title} disabled={adsLocked} onChange={e=>setClickAd({...clickAd, title: e.target.value})} placeholder="例如：首页遮罩推广" />
                   </div>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>广告链接 <span style={{color:'#ff4d4f'}}>*</span></label>
-                    <input className="glow-input" value={clickAd.url} onChange={e=>setClickAd({...clickAd, url: e.target.value})} placeholder="https://example.com" />
+                    <input className="glow-input" value={clickAd.url} disabled={adsLocked} onChange={e=>setClickAd({...clickAd, url: e.target.value})} placeholder="https://example.com" />
                   </div>
                   <div style={{fontSize:'12px', color:'#888', lineHeight:1.7, padding:'14px 16px', background:'#2f2f33', borderRadius:'10px'}}>
                     访客在首页第一次有效点击时，原操作照常进行，同时新标签打开上方链接。同一浏览器每天最多触发一次；点击贩售机、公告/弹窗广告时不会触发。
@@ -9203,12 +9229,12 @@ const [mounted, setMounted] = useState(false);
                 <button
                   type="button"
                   onClick={() => saveClickAd()}
-                  disabled={clickAdSaving}
-                  style={{width:'100%', padding:'18px', background: clickAdSaving ? '#333' : '#fff', color: clickAdSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: clickAdSaving ? 'wait' : 'pointer', marginTop:'32px'}}
+                  disabled={clickAdSaving || adsLocked}
+                  style={{width:'100%', padding:'18px', background: clickAdSaving || adsLocked ? '#333' : '#fff', color: clickAdSaving || adsLocked ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: adsLocked ? 'not-allowed' : clickAdSaving ? 'wait' : 'pointer', marginTop:'32px'}}
                 >
                   {clickAdSaving ? '保存中…' : '保存遮罩广告'}
                 </button>
-              </>
+              </div>
             )}
           </div>
         ) : view === 'popup-ad' ? (
@@ -9218,10 +9244,14 @@ const [mounted, setMounted] = useState(false);
               <div style={{fontSize:'12px', color:'#888'}}>仅首页 · 每个浏览器会话弹一次</div>
             </div>
 
+            {adsLocked ? (
+              <div style={ADS_LOCKED_NOTICE_STYLE}>广告位为专业版权益，升级后可用</div>
+            ) : null}
+
             {popupAdLoading ? (
               <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
             ) : (
-              <>
+              <div style={{ opacity: adsLocked ? 0.55 : 1 }}>
                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告开关</div>
@@ -9231,7 +9261,7 @@ const [mounted, setMounted] = useState(false);
                   </div>
                   <button
                     type="button"
-                    disabled={popupAdSaving}
+                    disabled={popupAdSaving || adsLocked}
                     onClick={() => savePopupAd({ enabled: !popupAd.enabled })}
                     style={{
                       minWidth: '88px',
@@ -9240,10 +9270,10 @@ const [mounted, setMounted] = useState(false);
                       borderRadius: '999px',
                       fontWeight: 'bold',
                       fontSize: '14px',
-                      cursor: popupAdSaving ? 'wait' : 'pointer',
-                      background: popupAd.enabled ? '#22c55e' : '#555',
+                      cursor: adsLocked ? 'not-allowed' : popupAdSaving ? 'wait' : 'pointer',
+                      background: adsLocked ? '#444' : popupAd.enabled ? '#22c55e' : '#555',
                       color: '#fff',
-                      opacity: popupAdSaving ? 0.6 : 1,
+                      opacity: adsLocked ? 0.5 : popupAdSaving ? 0.6 : 1,
                     }}
                   >
                     {popupAdSaving ? '保存中…' : (popupAd.enabled ? '已开启' : '已关闭')}
@@ -9252,10 +9282,10 @@ const [mounted, setMounted] = useState(false);
                 <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'8px'}}>主图 <span style={{color:'#777', fontWeight:'normal'}}>(建议)</span></label>
-                    <label className="img-drop" style={{width:'280px', height:'158px', minHeight:'158px', padding:0, borderRadius:'12px', overflow:'hidden', border:'1px dashed #555'}}
+                    <label className="img-drop" style={{width:'280px', height:'158px', minHeight:'158px', padding:0, borderRadius:'12px', overflow:'hidden', border:'1px dashed #555', cursor: adsLocked ? 'not-allowed' : 'pointer'}}
                       onDragOver={e=>{e.preventDefault(); e.stopPropagation();}}
                       onDrop={e=>{e.preventDefault(); e.stopPropagation(); uploadPopupAdImage(e.dataTransfer.files[0]);}}>
-                      <input type="file" accept="image/*" style={{display:'none'}} onChange={e=>{ uploadPopupAdImage(e.target.files[0]); e.target.value=''; }} />
+                      <input type="file" accept="image/*" style={{display:'none'}} disabled={adsLocked} onChange={e=>{ uploadPopupAdImage(e.target.files[0]); e.target.value=''; }} />
                       {popupAdSaving
                         ? <div className="img-uploading"><div className="img-spin"></div></div>
                         : popupAd.image
@@ -9263,26 +9293,26 @@ const [mounted, setMounted] = useState(false);
                           : <div style={{pointerEvents:'none', fontSize:'12px', textAlign:'center', color:'#999', padding:'40px 12px'}}>拖拽 / 点击上传广告主图<br/><span style={{color:'#666'}}>建议 16:9</span></div>}
                     </label>
                     {popupAd.image ? (
-                      <button type="button" onClick={()=>setPopupAd(prev=>({...prev, image:''}))} style={{marginTop:'8px', fontSize:'11px', color:'#ff7875', background:'none', border:'none', cursor:'pointer', padding:0}}>移除图片</button>
+                      <button type="button" disabled={adsLocked} onClick={()=>setPopupAd(prev=>({...prev, image:''}))} style={{marginTop:'8px', fontSize:'11px', color:'#ff7875', background:'none', border:'none', cursor: adsLocked ? 'not-allowed' : 'pointer', padding:0}}>移除图片</button>
                     ) : null}
                   </div>
                   <div style={{flex:1, minWidth:'280px', display:'flex', flexDirection:'column', gap:'16px'}}>
                     <div>
                       <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>广告标题</label>
-                      <input className="glow-input" value={popupAd.title} onChange={e=>setPopupAd({...popupAd, title: e.target.value})} placeholder="例如：限时活动" />
+                      <input className="glow-input" value={popupAd.title} disabled={adsLocked} onChange={e=>setPopupAd({...popupAd, title: e.target.value})} placeholder="例如：限时活动" />
                     </div>
                     <div>
                       <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>广告文案</label>
-                      <textarea className="glow-input" value={popupAd.content} onChange={e=>setPopupAd({...popupAd, content: e.target.value})} placeholder="一行卖点说明" style={{minHeight:'90px', lineHeight:1.7}} />
+                      <textarea className="glow-input" value={popupAd.content} disabled={adsLocked} onChange={e=>setPopupAd({...popupAd, content: e.target.value})} placeholder="一行卖点说明" style={{minHeight:'90px', lineHeight:1.7}} />
                     </div>
                     <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'12px'}}>
                       <div>
                         <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>按钮文字</label>
-                        <input className="glow-input" value={popupAd.buttonText} onChange={e=>setPopupAd({...popupAd, buttonText: e.target.value})} placeholder="了解详情" />
+                        <input className="glow-input" value={popupAd.buttonText} disabled={adsLocked} onChange={e=>setPopupAd({...popupAd, buttonText: e.target.value})} placeholder="了解详情" />
                       </div>
                       <div>
                         <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>跳转链接 <span style={{color:'#ff4d4f'}}>*</span></label>
-                        <input className="glow-input" value={popupAd.buttonUrl} onChange={e=>setPopupAd({...popupAd, buttonUrl: e.target.value})} placeholder="https://example.com" />
+                        <input className="glow-input" value={popupAd.buttonUrl} disabled={adsLocked} onChange={e=>setPopupAd({...popupAd, buttonUrl: e.target.value})} placeholder="https://example.com" />
                       </div>
                     </div>
                   </div>
@@ -9290,12 +9320,12 @@ const [mounted, setMounted] = useState(false);
                 <button
                   type="button"
                   onClick={() => savePopupAd()}
-                  disabled={popupAdSaving}
-                  style={{width:'100%', padding:'18px', background: popupAdSaving ? '#333' : '#fff', color: popupAdSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: popupAdSaving ? 'wait' : 'pointer', marginTop:'32px'}}
+                  disabled={popupAdSaving || adsLocked}
+                  style={{width:'100%', padding:'18px', background: popupAdSaving || adsLocked ? '#333' : '#fff', color: popupAdSaving || adsLocked ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: adsLocked ? 'not-allowed' : popupAdSaving ? 'wait' : 'pointer', marginTop:'32px'}}
                 >
                   {popupAdSaving ? '保存中…' : '保存弹窗广告'}
                 </button>
-              </>
+              </div>
             )}
           </div>
         ) : view === 'gallery-ad' ? (
@@ -9305,10 +9335,14 @@ const [mounted, setMounted] = useState(false);
               <div style={{fontSize:'12px', color:'#888'}}>全主题文章内页底部横幅</div>
             </div>
 
+            {adsLocked ? (
+              <div style={ADS_LOCKED_NOTICE_STYLE}>广告位为专业版权益，升级后可用</div>
+            ) : null}
+
             {galleryAdLoading ? (
               <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
             ) : (
-              <>
+              <div style={{ opacity: adsLocked ? 0.55 : 1 }}>
                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告位开关</div>
@@ -9318,7 +9352,7 @@ const [mounted, setMounted] = useState(false);
                   </div>
                   <button
                     type="button"
-                    disabled={galleryAdSaving}
+                    disabled={galleryAdSaving || adsLocked}
                     onClick={() => saveGalleryAd({ enabled: !galleryAd.enabled })}
                     style={{
                       minWidth: '88px',
@@ -9327,10 +9361,10 @@ const [mounted, setMounted] = useState(false);
                       borderRadius: '999px',
                       fontWeight: 'bold',
                       fontSize: '14px',
-                      cursor: galleryAdSaving ? 'wait' : 'pointer',
-                      background: galleryAd.enabled ? '#22c55e' : '#555',
+                      cursor: adsLocked ? 'not-allowed' : galleryAdSaving ? 'wait' : 'pointer',
+                      background: adsLocked ? '#444' : galleryAd.enabled ? '#22c55e' : '#555',
                       color: '#fff',
-                      opacity: galleryAdSaving ? 0.6 : 1,
+                      opacity: adsLocked ? 0.5 : galleryAdSaving ? 0.6 : 1,
                     }}
                   >
                     {galleryAdSaving ? '保存中…' : (galleryAd.enabled ? '已开启' : '已关闭')}
@@ -9342,10 +9376,10 @@ const [mounted, setMounted] = useState(false);
                 <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'8px'}}>Banner 背景图 <span style={{color:'#777', fontWeight:'normal'}}>(选填)</span></label>
-                    <label className="img-drop" style={{width:'280px', height:'56px', minHeight:'56px', padding:0, borderRadius:'8px', overflow:'hidden', border:'1px dashed #555'}}
+                    <label className="img-drop" style={{width:'280px', height:'56px', minHeight:'56px', padding:0, borderRadius:'8px', overflow:'hidden', border:'1px dashed #555', cursor: adsLocked ? 'not-allowed' : 'pointer'}}
                       onDragOver={e=>{e.preventDefault(); e.stopPropagation();}}
                       onDrop={e=>{e.preventDefault(); e.stopPropagation(); uploadGalleryAdCover(e.dataTransfer.files[0]);}}>
-                      <input type="file" accept="image/*" style={{display:'none'}} onChange={e=>{ uploadGalleryAdCover(e.target.files[0]); e.target.value=''; }} />
+                      <input type="file" accept="image/*" style={{display:'none'}} disabled={adsLocked} onChange={e=>{ uploadGalleryAdCover(e.target.files[0]); e.target.value=''; }} />
                       {galleryAdCoverUploading
                         ? <div className="img-uploading"><div className="img-spin"></div></div>
                         : galleryAd.cover
@@ -9353,29 +9387,29 @@ const [mounted, setMounted] = useState(false);
                           : <div style={{pointerEvents:'none', fontSize:'11px', textAlign:'center', color:'#999', padding:'10px'}}>拖拽 / 点击上传横版 Banner<br/><span style={{color:'#666'}}>建议宽图，前台高度约 40px</span></div>}
                     </label>
                     {galleryAd.cover ? (
-                      <button type="button" onClick={()=>setGalleryAd(prev=>({...prev, cover:''}))} style={{marginTop:'8px', fontSize:'11px', color:'#ff7875', background:'none', border:'none', cursor:'pointer', padding:0}}>移除 Banner 图</button>
+                      <button type="button" disabled={adsLocked} onClick={()=>setGalleryAd(prev=>({...prev, cover:''}))} style={{marginTop:'8px', fontSize:'11px', color:'#ff7875', background:'none', border:'none', cursor: adsLocked ? 'not-allowed' : 'pointer', padding:0}}>移除 Banner 图</button>
                     ) : null}
                   </div>
                   <div style={{flex:1, minWidth:'280px', display:'flex', flexDirection:'column', gap:'16px'}}>
                     <div>
                       <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>广告链接 <span style={{color:'#ff4d4f'}}>*</span></label>
-                      <input className="glow-input" value={galleryAd.url} onChange={e=>setGalleryAd({...galleryAd, url: e.target.value})} placeholder="https://example.com" />
+                      <input className="glow-input" value={galleryAd.url} disabled={adsLocked} onChange={e=>setGalleryAd({...galleryAd, url: e.target.value})} placeholder="https://example.com" />
                     </div>
                     <div>
                       <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>宣传文字（选填）</label>
-                      <input className="glow-input" value={galleryAd.promoText} onChange={e=>setGalleryAd({...galleryAd, promoText: e.target.value})} placeholder="留空则仅显示链接预览背景图" />
+                      <input className="glow-input" value={galleryAd.promoText} disabled={adsLocked} onChange={e=>setGalleryAd({...galleryAd, promoText: e.target.value})} placeholder="留空则仅显示链接预览背景图" />
                     </div>
                   </div>
                 </div>
                 <div style={{display:'flex', gap:'12px', marginTop:'32px'}}>
-                  <button onClick={() => saveGalleryAd()} disabled={galleryAdSaving} style={{flex:1, padding:'18px', background: galleryAdSaving ? '#333' : '#fff', color: galleryAdSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: galleryAdSaving ? 'wait' : 'pointer'}}>
+                  <button onClick={() => saveGalleryAd()} disabled={galleryAdSaving || adsLocked} style={{flex:1, padding:'18px', background: galleryAdSaving || adsLocked ? '#333' : '#fff', color: galleryAdSaving || adsLocked ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: adsLocked ? 'not-allowed' : galleryAdSaving ? 'wait' : 'pointer'}}>
                     {galleryAdSaving ? '保存中...' : '保存广告位'}
                   </button>
                   {galleryAd.id ? (
-                    <button onClick={clearGalleryAd} disabled={galleryAdSaving} style={{padding:'18px 24px', background:'transparent', color:'#ff7875', border:'1px solid #ff7875', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', cursor:'pointer'}}>清空</button>
+                    <button onClick={clearGalleryAd} disabled={galleryAdSaving || adsLocked} style={{padding:'18px 24px', background:'transparent', color:'#ff7875', border:'1px solid #ff7875', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', cursor: adsLocked ? 'not-allowed' : 'pointer'}}>清空</button>
                   ) : null}
                 </div>
-              </>
+              </div>
             )}
           </div>
         ) : view === 'friends' ? (
