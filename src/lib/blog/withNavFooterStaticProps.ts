@@ -44,6 +44,9 @@ async function buildSharedProps(
   const popupAd = quotaState.plan === 'pro' ? popupAdRaw : null
   const clickAd = quotaState.plan === 'pro' ? clickAdRaw : null
 
+  // BLOG 分层 P8:去除平台角标(双条件:brand_clean 且专业版;免费版强制显示角标)
+  const siteBrandClean = quotaState.plan === 'pro' && quotaState.brandClean === true
+
   return {
     navPages,
     siteTitle,
@@ -51,6 +54,7 @@ async function buildSharedProps(
     logo,
     activeTheme,
     sitePlan: quotaState.plan,
+    siteBrandClean,
     vendingConfig: vendingConfigForPlan,
     vendingEnabled: vendingConfigForPlan.enabled,
     announcementPopup,

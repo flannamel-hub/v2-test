@@ -1,4 +1,7 @@
-/** 后台首页：图库容量条（Supabase 记录的压缩后体积） */
+/** 后台首页：图库容量条（Supabase 记录的压缩后体积）
+ * BLOG 分层 P8:「本月用量」区块整体折叠为「更多统计」(默认收起,点击展开);
+ * 图库容量 bar 保持常显,折叠状态与数据无关。 */
+import { useState } from 'react'
 
 function barColor(percent) {
   if (percent >= 95) return '#ff4d4f'
@@ -94,6 +97,9 @@ function formatUsagePercent(usedBytes, pct) {
 }
 
 export function GalleryStorageBar({ stats, loading, error }) {
+  // P8:「更多统计」默认收起,仅显示图库容量 bar
+  const [moreStatsOpen, setMoreStatsOpen] = useState(false)
+
   if (loading) {
     return (
       <div
@@ -223,34 +229,67 @@ export function GalleryStorageBar({ stats, loading, error }) {
             marginTop: '14px',
             paddingTop: '12px',
             borderTop: '1px solid #3a3a3e',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
           }}
         >
-          <div
+          <button
+            type="button"
+            onClick={() => setMoreStatsOpen((open) => !open)}
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
+              width: '100%',
               alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              color: '#ccc',
             }}
+            aria-expanded={moreStatsOpen}
           >
             <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#ccc' }}>
-              本月用量
+              更多统计
             </span>
-            {stats.quota.status === 'read_only' || stats.quota.readOnly ? (
-              <span style={{ fontSize: '11px', color: '#ff4d4f', fontWeight: 'bold' }}>
-                本月用量已达上限，站点暂为只读状态
-              </span>
-            ) : stats.quota.status === 'warning' ? (
-              <span style={{ fontSize: '11px', color: '#f59e0b' }}>
-                用量较高，请注意控制
-              </span>
-            ) : null}
-          </div>
-          <QuotaMetricRow label="访问" pct={stats.quota.pvPct} />
-          <QuotaMetricRow label="带宽" pct={stats.quota.bwPct} />
-          <QuotaMetricRow label="图库" pct={stats.quota.galleryPct} />
+            <span
+              aria-hidden
+              style={{
+                fontSize: '11px',
+                color: '#888',
+                transform: moreStatsOpen ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.2s ease',
+                display: 'inline-block',
+              }}
+            >
+              ▼
+            </span>
+          </button>
+
+          {moreStatsOpen && (
+            <div
+              style={{
+                marginTop: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              {(stats.quota.status === 'read_only' || stats.quota.readOnly) && (
+                <span style={{ fontSize: '11px', color: '#ff4d4f', fontWeight: 'bold' }}>
+                  本月用量已达上限，站点暂为只读状态
+                </span>
+              )}
+              {stats.quota.status !== 'read_only' &&
+                !stats.quota.readOnly &&
+                stats.quota.status === 'warning' && (
+                  <span style={{ fontSize: '11px', color: '#f59e0b' }}>
+                    用量较高，请注意控制
+                  </span>
+                )}
+              <QuotaMetricRow label="访问" pct={stats.quota.pvPct} />
+              <QuotaMetricRow label="带宽" pct={stats.quota.bwPct} />
+              <QuotaMetricRow label="图库" pct={stats.quota.galleryPct} />
+            </div>
+          )}
         </div>
       ) : null}
     </div>

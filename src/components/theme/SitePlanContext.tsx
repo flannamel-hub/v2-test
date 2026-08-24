@@ -25,3 +25,42 @@ export function useSitePlan(): SiteQuotaPlan {
 export function useIsProSite(): boolean {
   return useSitePlan() === 'pro'
 }
+
+/** BLOG 分层 P8:去除平台角标上下文(brand_clean 开关 + 站名,用于 footer 署名)。
+ * 由 withNavFooter 注入(服务端已按 plan=pro && brand_clean 双条件收敛);
+ * 未包裹的路由默认 false,平台标识保持展示(安全缺省)。 */
+
+type SiteBrandContextValue = {
+  brandClean: boolean
+  siteName: string
+}
+
+const SiteBrandContext = createContext<SiteBrandContextValue>({
+  brandClean: false,
+  siteName: '',
+})
+
+export function SiteBrandProvider({
+  brandClean,
+  siteName,
+  children,
+}: {
+  brandClean: boolean
+  siteName: string
+  children: React.ReactNode
+}) {
+  return (
+    <SiteBrandContext.Provider value={{ brandClean, siteName }}>
+      {children}
+    </SiteBrandContext.Provider>
+  )
+}
+
+export function useSiteBrand(): SiteBrandContextValue {
+  return useContext(SiteBrandContext)
+}
+
+/** 去除平台角标生效判定:双条件(brand_clean && plan=pro),任一不满足即展示平台标识 */
+export function useIsBrandCleanSite(): boolean {
+  return useSitePlan() === 'pro' && useSiteBrand().brandClean
+}

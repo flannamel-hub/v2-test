@@ -3,7 +3,7 @@ import Navbar from './nav/Navbar'
 import { SitePopups } from './widget/SitePopups'
 import { ThemeNavShell } from '@/src/themes/themeLayout'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
-import { SitePlanProvider } from '@/src/components/theme/SitePlanContext'
+import { SiteBrandProvider, SitePlanProvider } from '@/src/components/theme/SitePlanContext'
 import { Page, SharedNavFooterStaticProps } from '@/src/types/blog'
 
 function resolveSocialLinks(widgets: unknown) {
@@ -28,9 +28,13 @@ export default function withNavFooter(
     const themeId = props.activeTheme
     const socialLinks = resolveSocialLinks((props as any).widgets)
     const sitePlan = props.sitePlan === 'pro' ? 'pro' : 'free'
+    // P8:去除平台角标(服务端已双条件收敛;缺省 false=展示平台标识)
+    const siteBrandClean = props.siteBrandClean === true
+    const siteName = (props.siteTitle?.text || '').trim()
     if (themeId === 'gallery' || isTweetTheme(themeId)) {
       return (
         <SitePlanProvider plan={sitePlan}>
+        <SiteBrandProvider brandClean={siteBrandClean} siteName={siteName}>
           <ThemeNavShell
             activeTheme={themeId}
             siteTitle={props.siteTitle}
@@ -46,6 +50,7 @@ export default function withNavFooter(
             clickAd={props.clickAd}
             activeTheme={themeId}
           />
+        </SiteBrandProvider>
         </SitePlanProvider>
       )
     }
@@ -56,6 +61,7 @@ export default function withNavFooter(
 
     return (
       <SitePlanProvider plan={sitePlan}>
+        <SiteBrandProvider brandClean={siteBrandClean} siteName={siteName}>
         <main className="flex flex-col justify-start min-h-screen">
           <Navbar
             items={items}
@@ -86,6 +92,7 @@ export default function withNavFooter(
             activeTheme={themeId}
           />
         </main>
+        </SiteBrandProvider>
       </SitePlanProvider>
     )
   }

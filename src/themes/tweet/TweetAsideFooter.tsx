@@ -1,11 +1,17 @@
-import { useIsProSite } from '@/src/components/theme/SitePlanContext'
+import { useIsBrandCleanSite, useSiteBrand } from '@/src/components/theme/SitePlanContext'
 
 const PROPLUS_URL = 'https://proplus.team/'
 
-/** BLOG 分层 P4:专业版隐藏侧栏底部平台标识 */
+/** BLOG 分层 P8:专业版开启「去除平台角标」后,侧栏底部转为「Powered by 站名」 */
 export function TweetAsideFooter() {
-  const isPro = useIsProSite()
-  if (isPro) return null
+  const brandClean = useIsBrandCleanSite()
+  const brand = useSiteBrand()
+
+  if (brandClean) {
+    return (
+      <footer className="tweet-aside-footer">Powered by {brand.siteName?.trim() || '本站'}</footer>
+    )
+  }
 
   return (
     <footer className="tweet-aside-footer">

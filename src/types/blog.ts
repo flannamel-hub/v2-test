@@ -149,6 +149,8 @@ export type SharedNavFooterStaticProps = {
     activeTheme?: string
     /** BLOG 分层 P4:站点会员计划(服务端读取 blog_quota_state;缺省视为 free) */
     sitePlan?: 'free' | 'pro'
+    /** BLOG 分层 P8:去除平台角标生效(服务端已按 plan=pro && brand_clean 收敛;缺省视为 false) */
+    siteBrandClean?: boolean
     /** Gallery 主题全局底部广告条 */
     galleryAdBanner?: {
       url: string

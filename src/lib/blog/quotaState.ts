@@ -17,6 +17,8 @@ export type SiteQuotaState = {
   pvPct: number
   bwPct: number
   galleryPct: number
+  /** P8:去除平台角标(仅专业版可开启;渲染需 brandClean && plan=pro) */
+  brandClean: boolean
 }
 
 export const DEFAULT_SITE_QUOTA_STATE: SiteQuotaState = {
@@ -26,6 +28,7 @@ export const DEFAULT_SITE_QUOTA_STATE: SiteQuotaState = {
   pvPct: 0,
   bwPct: 0,
   galleryPct: 0,
+  brandClean: false,
 }
 
 const QUOTA_STATE_CACHE_MS = 30_000
@@ -50,6 +53,7 @@ function normalizeRow(row: Record<string, unknown>): SiteQuotaState {
     pvPct: normalizePct(row.pv_pct),
     bwPct: normalizePct(row.bw_pct),
     galleryPct: normalizePct(row.gallery_pct),
+    brandClean: row.brand_clean === true,
   }
 }
 
@@ -72,11 +76,22 @@ export async function getSiteQuotaState(): Promise<SiteQuotaState> {
   quotaStateInflight = (async () => {
     let value = DEFAULT_SITE_QUOTA_STATE
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('blog_quota_state')
-        .select('plan, read_only, status, pv_pct, bw_pct, gallery_pct')
+        .select('plan, read_only, status, pv_pct, bw_pct, gallery_pct, brand_clean')
         .eq('site_id', siteId)
         .maybeSingle()
+      // P8 兼容:共用库 017 未执行时降级为旧列读取(brand_clean 视为 false),
+      // 避免 select 报错导致 pro 站点被整体降级为 free。
+      if (error && /brand_clean/i.test(error.message || '')) {
+        const legacy = await supabase
+          .from('blog_quota_state')
+          .select('plan, read_only, status, pv_pct, bw_pct, gallery_pct')
+          .eq('site_id', siteId)
+          .maybeSingle()
+        data = legacy.data
+        error = legacy.error
+      }
       if (!error && data) {
         value = normalizeRow(data as Record<string, unknown>)
       }

@@ -4587,6 +4587,12 @@ const [mounted, setMounted] = useState(false);
   // BLOG 分层 P4-FIX:站点会员计划(读取失败按免费版安全缺省);广告位为专业版权益
   const [sitePlan, setSitePlan] = useState('free');
   const adsLocked = sitePlan !== 'pro';
+  // BLOG 分层 P8:贩售机组件为专业版权益(免费版灰态+点击弹提示;渲染仍按平台默认)
+  const vendingLocked = sitePlan !== 'pro';
+  // BLOG 分层 P8:去除平台角标开关(专业版权益;共用库 blog_quota_state.brand_clean)
+  const [brandCleanEnabled, setBrandCleanEnabled] = useState(false);
+  const [brandCleanLoading, setBrandCleanLoading] = useState(false);
+  const [brandCleanSaving, setBrandCleanSaving] = useState(false);
   const [vendingEnabled, setVendingEnabled] = useState(true);
   const [vendingTitle, setVendingTitle] = useState('贩售机');
   const [vendingUrl, setVendingUrl] = useState('');
@@ -5992,6 +5998,62 @@ const [mounted, setMounted] = useState(false);
     setVendingAddressUnlockError('');
     setView('vending');
     loadVending();
+  };
+
+  // === BLOG 分层 P8:去除平台角标(专业版权益) ===
+  const loadBrandClean = async () => {
+    setBrandCleanLoading(true);
+    try {
+      const r = await fetch('/api/admin/brand-clean');
+      const d = await r.json();
+      if (d.success) {
+        setBrandCleanEnabled(d.enabled === true);
+        if (d.plan) setSitePlan(d.plan === 'pro' ? 'pro' : 'free');
+      }
+    } catch {
+      // 忽略:保持默认关闭
+    } finally {
+      setBrandCleanLoading(false);
+    }
+  };
+  const openBrandClean = () => {
+    setView('brand-clean');
+    loadBrandClean();
+  };
+  const toggleBrandClean = async (next) => {
+    if (sitePlan !== 'pro') {
+      alert('去除平台角标为专业版权益，升级后可用');
+      return;
+    }
+    setBrandCleanSaving(true);
+    try {
+      const r = await fetch('/api/admin/brand-clean', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setBrandCleanEnabled(d.enabled === true);
+        showAdminToast(d.enabled ? '已去除平台角标，正在更新前台…' : '已恢复平台角标，正在更新前台…');
+        void runBatchedRevalidation({
+          listScope: 'shell',
+          freshTheme: true,
+          contentChange: true,
+          progressLabels: {
+            listing: '正在统计页面…',
+            running: '正在更新角标展示…',
+            doneOk: '角标设置已同步到前台页面',
+            donePartial: '部分页面会稍后自动更新',
+            hintPartial: '个别页面未能更新，可重新保存角标设置',
+            hintOk: '角标相关页面已更新',
+          },
+        }).then((rev) => {
+          if (rev.failed > 0) showAdminToast(`部分页面更新失败（${rev.failed}/${rev.total}）`);
+        }).catch((e) => console.warn('角标增量刷新失败', e));
+      } else alert('保存失败：' + (d.error || '未知错误'));
+    } catch (e) { alert('保存失败：' + e.message); }
+    finally { setBrandCleanSaving(false); }
   };
 
   const loadAnnouncementPopup = async () => {
@@ -8656,9 +8718,19 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>🛒</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>贩售机</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>全主题贩售机入口与地址</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>可对接外部发卡网站</div>
                   </div>
-                  <div style={{ color: '#f97316', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                  <div style={{ color: vendingLocked ? '#fbbf24' : '#f97316', fontSize: '13px', fontWeight: 'bold' }}>{vendingLocked ? '专业版' : '进入 →'}</div>
+                </div>
+              )}
+              {activeTab === 'Widget' && viewMode !== 'folder' && (
+                <div onClick={openBrandClean} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #34d399', cursor: 'pointer' }}>
+                  <div style={{ fontSize: '28px' }}>🛡️</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>去除平台角标</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>隐藏「在PRO+上创作」与页脚平台标识</div>
+                  </div>
+                  <div style={{ color: adsLocked ? '#fbbf24' : '#34d399', fontSize: '13px', fontWeight: 'bold' }}>{adsLocked ? '专业版' : '进入 →'}</div>
                 </div>
               )}
               {activeTab === 'Ads' && viewMode !== 'folder' && (
@@ -9011,22 +9083,25 @@ const [mounted, setMounted] = useState(false);
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
               <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🛒 贩售机</div>
-              <div style={{fontSize:'12px', color:'#888'}}>全主题入口开关与跳转地址</div>
+              <div style={{fontSize:'12px', color:'#888'}}>可对接外部发卡网站</div>
             </div>
 
             {vendingLoading ? (
               <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
             ) : (
               <>
-                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
+                {vendingLocked && (
+                  <div style={ADS_LOCKED_NOTICE_STYLE}>贩售机组件为专业版权益，升级后可用</div>
+                )}
+                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px', opacity: vendingLocked ? 0.55 : 1}}>
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>贩售机功能</div>
-                    <div style={{fontSize:'12px', color:'#999'}}>{vendingEnabled ? '当前：已开启' : '当前：已关闭'}</div>
+                    <div style={{fontSize:'12px', color:'#999'}}>{vendingEnabled ? '当前：已开启' : '当前：已关闭'}{vendingLocked ? '（免费版由平台统一维护）' : ''}</div>
                   </div>
                   <button
                     type="button"
                     disabled={vendingSaving}
-                    onClick={() => saveVending({ enabled: !vendingEnabled })}
+                    onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ enabled: !vendingEnabled })}
                     style={{
                       minWidth: '88px',
                       padding: '12px 20px',
@@ -9035,16 +9110,16 @@ const [mounted, setMounted] = useState(false);
                       fontWeight: 'bold',
                       fontSize: '14px',
                       cursor: vendingSaving ? 'wait' : 'pointer',
-                      background: vendingEnabled ? '#22c55e' : '#555',
+                      background: vendingLocked ? '#444' : vendingEnabled ? '#22c55e' : '#555',
                       color: '#fff',
-                      opacity: vendingSaving ? 0.6 : 1,
+                      opacity: vendingSaving ? 0.6 : vendingLocked ? 0.7 : 1,
                     }}
                   >
-                    {vendingSaving ? '保存中…' : (vendingEnabled ? '已开启' : '已关闭')}
+                    {vendingSaving ? '保存中…' : vendingLocked ? '专业版' : (vendingEnabled ? '已开启' : '已关闭')}
                   </button>
                 </div>
                 {SHOW_VENDING_ADDRESS_ADMIN && (
-                <div style={{display:'flex', flexDirection:'column', gap:'16px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555'}}>
+                <div style={{display:'flex', flexDirection:'column', gap:'16px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', opacity: vendingLocked ? 0.55 : 1}}>
                   <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'14px'}}>
                     <div>
                       <div style={{fontSize:'15px', fontWeight:'bold', color:'#fff', marginBottom:'4px'}}>地址管理</div>
@@ -9055,6 +9130,7 @@ const [mounted, setMounted] = useState(false);
                     <button
                       type="button"
                       onClick={() => {
+                        if (vendingLocked) { alert('贩售机组件为专业版权益，升级后可用'); return; }
                         setVendingAddressUnlockError('');
                         setVendingAddressUnlockClosing(false);
                         setVendingAddressUnlockOpen(true);
@@ -9062,13 +9138,13 @@ const [mounted, setMounted] = useState(false);
                       disabled={vendingSaving || vendingAddressUnlocked}
                       style={{
                         padding:'10px 16px',
-                        background: vendingAddressUnlocked ? '#2f5136' : '#9a6dd7',
+                        background: vendingLocked ? '#444' : vendingAddressUnlocked ? '#2f5136' : '#9a6dd7',
                         color:'#fff',
                         border:'none',
                         borderRadius:'999px',
                         fontWeight:'bold',
                         cursor: vendingAddressUnlocked ? 'default' : 'pointer',
-                        opacity: vendingSaving ? 0.6 : 1,
+                        opacity: vendingSaving ? 0.6 : vendingLocked ? 0.7 : 1,
                       }}
                     >
                       {vendingAddressUnlocked ? '已解锁' : '解锁编辑'}
@@ -9076,16 +9152,16 @@ const [mounted, setMounted] = useState(false);
                   </div>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>按钮名称</label>
-                    <input className="glow-input" value={vendingTitle} onChange={e=>setVendingTitle(e.target.value)} placeholder="贩售机" disabled={!vendingAddressUnlocked || vendingSaving} />
+                    <input className="glow-input" value={vendingTitle} onChange={e=>setVendingTitle(e.target.value)} placeholder="贩售机" disabled={vendingLocked || !vendingAddressUnlocked || vendingSaving} />
                   </div>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>贩售机地址 <span style={{color:'#ff4d4f'}}>*</span></label>
-                    <input className="glow-input" value={vendingUrl} onChange={e=>setVendingUrl(e.target.value)} placeholder="https://store.proplus.onl/buy" disabled={!vendingAddressUnlocked || vendingSaving} />
+                    <input className="glow-input" value={vendingUrl} onChange={e=>setVendingUrl(e.target.value)} placeholder="https://store.proplus.onl/buy" disabled={vendingLocked || !vendingAddressUnlocked || vendingSaving} />
                     <div style={{fontSize:'11px', color:'#888', marginTop:'8px', lineHeight:1.6}}>地址默认由平台维护。后续商家系统可统一管理这里的维护密码与贩售机地址。</div>
                   </div>
                   <button
                     type="button"
-                    onClick={() => saveVending({ includeAddress: true })}
+                    onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ includeAddress: true })}
                     disabled={vendingSaving || !vendingAddressUnlocked}
                     style={{padding:'16px', background: (vendingSaving || !vendingAddressUnlocked) ? '#333' : '#fff', color: (vendingSaving || !vendingAddressUnlocked) ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : (vendingAddressUnlocked ? 'pointer' : 'not-allowed')}}
                   >
@@ -9093,6 +9169,51 @@ const [mounted, setMounted] = useState(false);
                   </button>
                 </div>
                 )}
+              </>
+            )}
+          </div>
+        ) : view === 'brand-clean' ? (
+          <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>去除平台角标</div>
+              <div style={{fontSize:'12px', color:'#888'}}>隐藏「在PRO+上创作」与页脚平台标识</div>
+            </div>
+
+            {brandCleanLoading ? (
+              <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
+            ) : (
+              <>
+                {adsLocked && (
+                  <div style={ADS_LOCKED_NOTICE_STYLE}>去除平台角标为专业版权益，升级后可用</div>
+                )}
+                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', opacity: adsLocked ? 0.55 : 1}}>
+                  <div>
+                    <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>平台角标展示</div>
+                    <div style={{fontSize:'12px', color:'#999', lineHeight:1.7}}>
+                      开启后，前台「在PRO+上创作」按钮与页脚「Powered by PRO+」将隐藏，
+                      页脚转为显示你的站名；关闭后恢复展示。
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={brandCleanSaving}
+                    onClick={() => toggleBrandClean(!brandCleanEnabled)}
+                    style={{
+                      minWidth: '88px',
+                      padding: '12px 20px',
+                      border: 'none',
+                      borderRadius: '999px',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      cursor: brandCleanSaving ? 'wait' : 'pointer',
+                      background: adsLocked ? '#444' : brandCleanEnabled ? '#22c55e' : '#555',
+                      color: '#fff',
+                      opacity: brandCleanSaving ? 0.6 : adsLocked ? 0.7 : 1,
+                    }}
+                  >
+                    {brandCleanSaving ? '保存中…' : adsLocked ? '专业版' : (brandCleanEnabled ? '已去除' : '展示中')}
+                  </button>
+                </div>
               </>
             )}
           </div>

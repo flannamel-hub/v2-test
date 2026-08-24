@@ -4,6 +4,7 @@ import {
   normalizeVendingTitle,
   normalizeVendingUrl,
 } from '@/src/lib/blog/vendingDefaults'
+import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
 import {
   getVendingConfig,
   updateVendingConfig,
@@ -42,6 +43,15 @@ export default async function handler(
     if (req.method === 'POST') {
       const body =
         typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {}
+      // P8:贩售机组件为专业版权益——免费版商户侧保存一律拒绝;
+      // 携带有效维护密码的请求视为平台侧统一同步,放行。
+      const quotaState = await getSiteQuotaState()
+      if (quotaState.plan !== 'pro' && !verifyAdminMaintenancePassword(req, body)) {
+        return res.status(403).json({
+          success: false,
+          error: '贩售机组件为专业版权益，升级后可用',
+        })
+      }
       const url = String(body.url || '').trim()
       if (url && !url.startsWith('http')) {
         return res.status(400).json({
