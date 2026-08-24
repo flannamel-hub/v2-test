@@ -164,6 +164,33 @@ function findPostPageBySlugInList(
   )
 }
 
+/** isPostIndexedBySlug 模块级短 TTL 缓存:drain 批量消费时避免同 slug 重复查询 Notion */
+const POST_INDEX_CACHE_TTL_MS = 30_000
+const POST_INDEX_CACHE_MAX_ENTRIES = 500
+const postIndexCache = new Map<string, { ts: number; result: boolean }>()
+
+function getPostIndexCacheKey(slug: string, expectedId?: string | null): string {
+  return expectedId ? `${slug}::${expectedId}` : slug
+}
+
+function readPostIndexCache(key: string): boolean | undefined {
+  const cached = postIndexCache.get(key)
+  if (!cached) return undefined
+  if (Date.now() - cached.ts >= POST_INDEX_CACHE_TTL_MS) {
+    postIndexCache.delete(key)
+    return undefined
+  }
+  return cached.result
+}
+
+function writePostIndexCache(key: string, result: boolean): void {
+  if (postIndexCache.size >= POST_INDEX_CACHE_MAX_ENTRIES) {
+    // 上限保护:整表清空,重新按需填充
+    postIndexCache.clear()
+  }
+  postIndexCache.set(key, { ts: Date.now(), result })
+}
+
 /** 仅检查 Notion 数据库查询索引是否已收录文章，不做全量扫描回退。 */
 export async function isPostIndexedBySlug(
   slug: string,
@@ -171,6 +198,10 @@ export async function isPostIndexedBySlug(
 ): Promise<boolean> {
   const trimmed = slug.trim()
   if (!trimmed) return false
+
+  const cacheKey = getPostIndexCacheKey(trimmed, expectedId)
+  const cached = readPostIndexCache(cacheKey)
+  if (cached !== undefined) return cached
 
   let results: PageObjectResponse[]
   try {
@@ -184,7 +215,7 @@ export async function isPostIndexedBySlug(
     results = await queryDatabasePages(slugEqualsFilter(trimmed), { pageSize: 5 })
   }
 
-  return results.some((object) => {
+  const result = results.some((object) => {
     if (!isNotionContentType(object, 'Post')) return false
     if (expectedId && object.id !== expectedId) return false
     if (readRichTextPlain(object.properties['slug']) !== trimmed) return false
@@ -198,6 +229,9 @@ export async function isPostIndexedBySlug(
           : null
     return statusName === 'Published'
   })
+
+  writePostIndexCache(cacheKey, result)
+  return result
 }
 
 /** 按 slug 查单篇（Archive / Draft）；Notion filter 未命中时回退内存匹配 */
