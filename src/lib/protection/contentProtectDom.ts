@@ -1,16 +1,13 @@
 /** P14:内容保护客户端核心(框架无关,供 ContentProtectGuard 注入)。
- * - 轻量、可逆:install 返回 detach,卸载时移除全部监听/观察器/注入样式/提示条;
- * - contextmenu 全站拦截并弹轻提示条(2.5s 消失,浅色圆角,与站内 toast 风格一致);
+ * - 轻量、可逆:install 返回 detach,卸载时移除全部监听/观察器/注入样式;
+ * - contextmenu 全站静默拦截(不弹提示;用户拍板 2026-08-25);
  * - copy/cut/dragstart 拦截,input/textarea/contentEditable 除外(评论框等可正常输入复制);
  * - 全站 img draggable=false(SPA 路由/懒加载新增图片由 MutationObserver 维护),
  *   叠加少量 CSS(-webkit-user-drag:none)覆盖 Safari/Chromium;Firefox 由 dragstart 兜底;
  * - 跨浏览器:contextmenu/copy/cut/dragstart/MutationObserver 均为标准 DOM 能力
  *   (Chrome/Firefox/Safari/Edge 桌面与移动端一致支持);不引第三方依赖。 */
 
-export const CONTENT_PROTECT_NOTICE_TEXT = '🔒 内容受保护，未经授权请勿复制/保存'
-export const CONTENT_PROTECT_NOTICE_MS = 2500
-const NOTICE_STYLE_ID = 'blog-content-protect-notice-style'
-const NOTICE_CLASS = 'blog-content-protect-notice'
+const STYLE_ID = 'blog-content-protect-style'
 
 /** input/textarea/contentEditable 内的复制/剪切/拖拽放行(评论框可用) */
 export function isEditableTarget(target: EventTarget | null): boolean {
@@ -38,48 +35,8 @@ export function installContentProtection(doc: DocLike): () => void {
     currentDetach = null
   }
 
-  let noticeEl: HTMLDivElement | null = null
-  let noticeHideTimer: ReturnType<typeof setTimeout> | null = null
-  let noticeRemoveTimer: ReturnType<typeof setTimeout> | null = null
-
-  const clearNoticeTimers = () => {
-    if (noticeHideTimer) {
-      clearTimeout(noticeHideTimer)
-      noticeHideTimer = null
-    }
-    if (noticeRemoveTimer) {
-      clearTimeout(noticeRemoveTimer)
-      noticeRemoveTimer = null
-    }
-  }
-
-  const removeNotice = () => {
-    clearNoticeTimers()
-    if (noticeEl && noticeEl.parentNode) {
-      noticeEl.parentNode.removeChild(noticeEl)
-    }
-    noticeEl = null
-  }
-
-  const showNotice = () => {
-    clearNoticeTimers()
-    if (!noticeEl) {
-      noticeEl = doc.createElement('div')
-      noticeEl.className = NOTICE_CLASS
-      noticeEl.textContent = CONTENT_PROTECT_NOTICE_TEXT
-      doc.body.appendChild(noticeEl)
-    }
-    noticeEl.style.opacity = '1'
-    noticeHideTimer = setTimeout(() => {
-      if (!noticeEl) return
-      noticeEl.style.opacity = '0'
-      noticeRemoveTimer = setTimeout(removeNotice, 200)
-    }, CONTENT_PROTECT_NOTICE_MS)
-  }
-
   const onContextMenu = (event: Event) => {
     event.preventDefault()
-    showNotice()
   }
 
   const onCopyCut = (event: Event) => {
@@ -115,8 +72,8 @@ export function installContentProtection(doc: DocLike): () => void {
 
   // 少量 CSS:补齐 draggable 属性在 Safari/Chromium 下的拖拽缺口;detach 时移除
   const styleEl = doc.createElement('style')
-  styleEl.id = NOTICE_STYLE_ID
-  styleEl.textContent = `img{-webkit-user-drag:none;}.${NOTICE_CLASS}{position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:2147483000;pointer-events:none;background:rgba(255,255,255,.96);color:#333;padding:10px 18px;border-radius:999px;box-shadow:0 6px 24px rgba(0,0,0,.16);font-size:13px;line-height:1.5;opacity:0;transition:opacity .2s ease-out;max-width:86vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}`
+  styleEl.id = STYLE_ID
+  styleEl.textContent = `img{-webkit-user-drag:none;}`
 
   doc.addEventListener('contextmenu', onContextMenu)
   doc.addEventListener('copy', onCopyCut)
@@ -138,7 +95,6 @@ export function installContentProtection(doc: DocLike): () => void {
     if (styleEl.parentNode) {
       styleEl.parentNode.removeChild(styleEl)
     }
-    removeNotice()
   }
 
   currentDetach = detach
