@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { verifyAdminMaintenancePassword } from '@/src/lib/admin/maintenancePassword'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 import {
   normalizeVendingTitle,
   normalizeVendingUrl,
@@ -43,6 +44,10 @@ export default async function handler(
     if (req.method === 'POST') {
       const body =
         typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {}
+      // P10-B1:浏览器后台保存需登录态(Basic/Cookie);维护密码豁免保留(平台侧同步)
+      if (!verifyAdminRequest(req) && !verifyAdminMaintenancePassword(req, body)) {
+        return res.status(401).json({ success: false, error: '未授权' })
+      }
       // P8:贩售机组件为专业版权益——免费版商户侧保存一律拒绝;
       // 携带有效维护密码的请求视为平台侧统一同步,放行。
       const quotaState = await getSiteQuotaState()

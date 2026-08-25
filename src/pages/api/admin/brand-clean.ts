@@ -1,13 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getSupabaseAdmin } from '@/src/lib/supabase/admin'
 import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
-import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
+import {
+  getSiteQuotaState,
+  getSiteQuotaStateDirect,
+  invalidateSiteQuotaState,
+} from '@/src/lib/blog/quotaState'
+import { verifyAdminMaintenancePassword } from '@/src/lib/admin/maintenancePassword'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 /** BLOG 分层 P8:「去除平台角标」商户开关(共用库 blog_quota_state.brand_clean)。
- * - GET:读取当前开关与站点 plan(后台展示);
+ * - GET:直读库返回当前开关与站点 plan(后台展示;P10-B2 不走 30s 缓存,
+ *   避免保存后回跳读旧值);
  * - POST:仅专业版可开启/关闭;免费版一律 403(前台渲染也按双条件收敛);
+ * - P10-B1:POST 需登录态(Basic/Cookie);维护密码豁免保留(平台侧同步);
  * - 仅写 brand_clean 一列(存在行时 update,无行时插入默认行),
- *   不触碰 read_only / status / plan / 用量列(主站 cron 拥有权威)。
+ *   不触碰 read_only / status / plan / 用量列(主站 cron 拥有权威);
+ * - P10-B2:写库成功后使本站 quotaState 30s 缓存失效。
  * middleware 不拦截本路径(不在商户写路径清单);鉴权口径与 vending/公告一致。 */
 
 type BrandCleanResponse = {
@@ -29,7 +38,8 @@ export default async function handler(
     }
 
     if (req.method === 'GET') {
-      const state = await getSiteQuotaState()
+      // P10-B2:直读库,绕过 30s 短缓存,防止保存后回跳读到旧开关
+      const state = await getSiteQuotaStateDirect()
       return res
         .status(200)
         .json({ success: true, enabled: state.brandClean, plan: state.plan })
@@ -38,6 +48,10 @@ export default async function handler(
     if (req.method === 'POST') {
       const body =
         typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {}
+      // P10-B1:浏览器后台保存需登录态(Basic/Cookie);维护密码豁免保留(平台侧同步)
+      if (!verifyAdminRequest(req) && !verifyAdminMaintenancePassword(req, body)) {
+        return res.status(401).json({ success: false, error: '未授权' })
+      }
       if (typeof body.enabled !== 'boolean') {
         return res
           .status(400)
@@ -79,6 +93,9 @@ export default async function handler(
             .json({ success: false, error: '保存失败：' + insertError.message })
         }
       }
+
+      // P10-B2:写库成功后使本站 quotaState 缓存失效,避免后续读取回跳旧值
+      invalidateSiteQuotaState()
 
       return res
         .status(200)

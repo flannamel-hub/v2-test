@@ -782,9 +782,19 @@ export default async function handler(req, res) {
       const useStructured = Array.isArray(blocksData);
 
       // 1. 获取目标页面属性，用于动态判定类型
+      // P11-C5: 无 id 但 slug 已存在时转 update（复用已建页），避免重试/连点重复建稿
+      let targetPageId = id || null;
+      if (!targetPageId && typeof slug === 'string' && slug.trim()) {
+          const found = await withRetry(() => notion.databases.query({
+              database_id: databaseId,
+              filter: { property: 'slug', rich_text: { equals: slug.trim() } },
+              page_size: 5,
+          }));
+          targetPageId = found.results?.[0]?.id || null;
+      }
       let targetProps = {};
-      if (id) {
-          const page = await withRetry(() => notion.pages.retrieve({ page_id: id }));
+      if (targetPageId) {
+          const page = await withRetry(() => notion.pages.retrieve({ page_id: targetPageId }));
           targetProps = page.properties;
       } else {
           const db = await withRetry(() => notion.databases.retrieve({ database_id: databaseId }));
@@ -843,7 +853,7 @@ export default async function handler(req, res) {
           }
       }
 
-      if (id) {
+      if (targetPageId) {
         let previousThemeCode = null;
         if (slug === 'theme-config' && excerpt !== undefined) {
           previousThemeCode = await getSiteThemeCode();
@@ -864,19 +874,19 @@ export default async function handler(req, res) {
           }
         }
 
-        await withRetry(() => notion.pages.update({ page_id: id, properties: props }));
+        await withRetry(() => notion.pages.update({ page_id: targetPageId, properties: props }));
         if (slug === 'theme-config' && excerpt !== undefined) {
           const nextThemeCode = String(excerpt).trim();
           try {
             await recordThemeSwitchIfNeeded(previousThemeCode, nextThemeCode);
-            await syncSiteThemeFromAdmin(excerpt, id);
+            await syncSiteThemeFromAdmin(excerpt, targetPageId);
           } catch (themeSyncErr) {
             console.warn('theme-config Supabase 同步失败（Notion 已保存）', themeSyncErr);
           }
         }
         const shouldReplaceBody = useStructured || content !== undefined;
         if (shouldReplaceBody) {
-            const children = await withRetry(() => notion.blocks.children.list({ block_id: id }));
+            const children = await withRetry(() => notion.blocks.children.list({ block_id: targetPageId }));
             if (children.results.length > 0) {
                 for (const blk of children.results) {
                   await withRetry(() => notion.blocks.delete({ block_id: blk.id }));
@@ -886,7 +896,7 @@ export default async function handler(req, res) {
               ? structuredToBlocks(blocksData)
               : (content && content.trim().length > 0 ? mdToBlocks(content) : []);
             for (let i = 0; i < newBlocks.length; i += 100) {
-              await withRetry(() => notion.blocks.children.append({ block_id: id, children: newBlocks.slice(i, i + 100) }));
+              await withRetry(() => notion.blocks.children.append({ block_id: targetPageId, children: newBlocks.slice(i, i + 100) }));
               if (i + 100 < newBlocks.length) await sleep(100); 
             }
         }
@@ -895,7 +905,7 @@ export default async function handler(req, res) {
         const page = await withRetry(() => notion.pages.create({ parent: { database_id: databaseId }, properties: props, children: newBlocks.slice(0, 100) }));
         return res.status(200).json({ success: true, id: page.id });
       }
-      return res.status(200).json({ success: true, id });
+      return res.status(200).json({ success: true, id: targetPageId });
     }
 
     if (req.method === 'DELETE') {

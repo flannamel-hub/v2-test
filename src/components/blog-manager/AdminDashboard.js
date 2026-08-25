@@ -4485,6 +4485,8 @@ const [mounted, setMounted] = useState(false);
   const [options, setOptions] = useState({ categories: [], tags: [] });
   const [activeTab, setActiveTab] = useState('Post');
   const [favouriteBusyId, setFavouriteBusyId] = useState(null);
+  // P11-C2: 置顶连点防护（复刻 favouriteBusyId 的 busy-ref 模式）
+  const [pinBusyId, setPinBusyId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllTags, setShowAllTags] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState(null);
@@ -4649,6 +4651,8 @@ const [mounted, setMounted] = useState(false);
   const pendingPostSyncsRef = useRef([]);
   const pendingPostSyncPollingRef = useRef(new Set());
   const pendingPostTypeOverridesRef = useRef(new Map());
+  // P11-C4: fetchPosts 共享 in-flight Promise，并发调用复用同一次全量拉取
+  const fetchPostsInflightRef = useRef(null);
   const [archivingPostIds, setArchivingPostIds] = useState([]);
   const [galleryStorageStats, setGalleryStorageStats] = useState(null);
   const [galleryStorageLoading, setGalleryStorageLoading] = useState(false);
@@ -5227,47 +5231,57 @@ const [mounted, setMounted] = useState(false);
 
   // 🟢 4. 数据拉取函数 (提前定义)
   async function fetchPosts({ silent = false } = {}) {
+    // P11-C4: 已有 in-flight 请求则复用，避免并发重复全量拉取
+    if (fetchPostsInflightRef.current) return fetchPostsInflightRef.current;
+    const run = (async () => {
     if (!silent) setLoading(true);
     try { 
        const r = await fetch('/api/admin/posts');
        if (!r.ok) throw new Error(`API Error: ${r.status}`);
        const d = await r.json(); 
        if (d.success) { 
-         const remotePosts = d.posts || [];
-         setPosts((previousPosts) => {
-           const synchronizedRemotePosts = remotePosts.map((post) => {
-             const expectedType = pendingPostTypeOverridesRef.current.get(post.id);
-             if (!expectedType) return post;
-             if (post.type === expectedType) {
-               pendingPostTypeOverridesRef.current.delete(post.id);
-               return post;
-             }
-             return { ...post, type: expectedType };
-           });
-           const remoteIds = new Set(synchronizedRemotePosts.map((post) => post.id));
-           const pendingIds = new Set(pendingPostSyncsRef.current.map((item) => item.id));
-           const optimisticPosts = previousPosts.filter(
-             (post) =>
-               (pendingIds.has(post.id) || pendingPostTypeOverridesRef.current.has(post.id)) &&
-               !remoteIds.has(post.id)
-           ).map((post) =>
-             pendingPostTypeOverridesRef.current.has(post.id)
-               ? { ...post, type: pendingPostTypeOverridesRef.current.get(post.id) }
-               : post
-           );
-           return [...optimisticPosts, ...synchronizedRemotePosts];
-         });
-         setOptions(d.options || { categories: [], tags: [] });
-         const remote = d.posts.find(p => p.slug === 'theme-config')?.excerpt?.trim();
-         if (remote) setActiveThemeLocal(remote);
-       }
-       const rConf = await fetch('/api/admin/config');
-       if (rConf.ok) {
-           const dConf = await rConf.json(); 
-           if (dConf.success && dConf.siteInfo) setSiteTitle(dConf.siteInfo.title);
-       }
-    } catch(e) { console.warn(e); } 
-    finally { if (!silent) setLoading(false); } 
+          const remotePosts = d.posts || [];
+          setPosts((previousPosts) => {
+            const synchronizedRemotePosts = remotePosts.map((post) => {
+              const expectedType = pendingPostTypeOverridesRef.current.get(post.id);
+              if (!expectedType) return post;
+              if (post.type === expectedType) {
+                pendingPostTypeOverridesRef.current.delete(post.id);
+                return post;
+              }
+              return { ...post, type: expectedType };
+            });
+            const remoteIds = new Set(synchronizedRemotePosts.map((post) => post.id));
+            const pendingIds = new Set(pendingPostSyncsRef.current.map((item) => item.id));
+            const optimisticPosts = previousPosts.filter(
+              (post) =>
+                (pendingIds.has(post.id) || pendingPostTypeOverridesRef.current.has(post.id)) &&
+                !remoteIds.has(post.id)
+            ).map((post) =>
+              pendingPostTypeOverridesRef.current.has(post.id)
+                ? { ...post, type: pendingPostTypeOverridesRef.current.get(post.id) }
+                : post
+            );
+            return [...optimisticPosts, ...synchronizedRemotePosts];
+          });
+          setOptions(d.options || { categories: [], tags: [] });
+          const remote = d.posts.find(p => p.slug === 'theme-config')?.excerpt?.trim();
+          if (remote) setActiveThemeLocal(remote);
+        }
+        const rConf = await fetch('/api/admin/config');
+        if (rConf.ok) {
+            const dConf = await rConf.json(); 
+            if (dConf.success && dConf.siteInfo) setSiteTitle(dConf.siteInfo.title);
+        }
+     } catch(e) { console.warn(e); } 
+     finally { if (!silent) setLoading(false); } 
+    })();
+    fetchPostsInflightRef.current = run;
+    try {
+      return await run;
+    } finally {
+      if (fetchPostsInflightRef.current === run) fetchPostsInflightRef.current = null;
+    }
   }
 
   const registerPendingPostSync = useCallback((item) => {
@@ -5769,6 +5783,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const handleEdit = async (p) => {
+    if (loading) return; // P11-C3: 进行中早退
     setLoading(true);
     // H2: 进入新的编辑器会话
     editorSessionRef.current += 1;
@@ -5904,6 +5919,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const saveSocialLinks = async (patch = {}) => {
+    if (socialLinksSaving) return; // P11-C3: 进行中早退
     const next = {
       enabled: typeof patch.enabled === 'boolean' ? patch.enabled : socialLinks.enabled,
       links: normalizeSocialLinks(socialLinks.links),
@@ -6021,6 +6037,7 @@ const [mounted, setMounted] = useState(false);
     loadBrandClean();
   };
   const toggleBrandClean = async (next) => {
+    if (brandCleanSaving) return; // P11-C3: 进行中早退
     if (sitePlan !== 'pro') {
       alert('去除平台角标为专业版权益，升级后可用');
       return;
@@ -6035,7 +6052,12 @@ const [mounted, setMounted] = useState(false);
       const d = await r.json();
       if (d.success) {
         setBrandCleanEnabled(d.enabled === true);
-        showAdminToast(d.enabled ? '已去除平台角标，正在更新前台…' : '已恢复平台角标，正在更新前台…');
+        // P10-B4:去除方向提示完整生效时效(单例 toast,合并为一条避免覆盖)
+        showAdminToast(
+          d.enabled
+            ? '已关闭平台角标，网站完整生效需等待10-30分钟'
+            : '已恢复平台角标，正在更新前台…'
+        );
         void runBatchedRevalidation({
           listScope: 'shell',
           freshTheme: true,
@@ -6144,6 +6166,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const saveClickAd = async (patch = {}) => {
+    if (clickAdSaving) return; // P11-C3: 进行中早退
     if (adsLocked) return; // 免费版广告位不可用(灰态防绕过;前台也不会渲染)
     const next = {
       ...clickAd,
@@ -6203,6 +6226,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const savePopupAd = async (patch = {}) => {
+    if (popupAdSaving) return; // P11-C3: 进行中早退
     if (adsLocked) return; // 免费版广告位不可用(灰态防绕过;前台也不会渲染)
     const next = {
       ...popupAd,
@@ -6285,6 +6309,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const saveAnnouncementPopup = async (patch = {}) => {
+    if (announcementPopupSaving) return; // P11-C3: 进行中早退
     const next = {
       ...announcementPopup,
       ...patch,
@@ -6387,6 +6412,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const saveVending = async (patch = {}) => {
+    if (vendingSaving) return; // P11-C3: 进行中早退
     const nextEnabled = typeof patch.enabled === 'boolean' ? patch.enabled : vendingEnabled;
     const nextTitle = ((patch.title ?? vendingTitle) || '').trim() || '贩售机';
     const nextUrl = ((patch.url ?? vendingUrl) || '').trim();
@@ -6438,6 +6464,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const saveGalleryAd = async (patch = {}) => {
+    if (galleryAdSaving) return; // P11-C3: 进行中早退
     if (adsLocked) return; // 免费版广告位不可用(灰态防绕过;前台也不会渲染)
     const next = {
       ...galleryAd,
@@ -6548,6 +6575,7 @@ const [mounted, setMounted] = useState(false);
     } catch (e) { alert('保存失败：' + e.message); clearFriendBtn(key); }
   };
   const deleteFriend = async (id) => {
+    if (friendsLoading) return; // P11-C3: 进行中早退
     if (!confirm('确定删除该友链？')) return;
     setFriendsLoading(true);
     try {
@@ -6829,7 +6857,8 @@ const [mounted, setMounted] = useState(false);
           status: payload.form.status || 'Published',
           content: fullContent,
           blocksData,
-          id: payload.currentId,
+          // P11-C1: post 曾成功过（重试）时携带已建页 id，走 update 不再重复 create
+          id: job.createdId || resumeData?.notionId || payload.currentId,
           type: payload.form.type || 'Post',
           previousSlug: payload.previousSlug || '',
         }),
@@ -6837,14 +6866,17 @@ const [mounted, setMounted] = useState(false);
       const d = await res.json();
       if (bailIfCancelled()) return;
       if (!d.success) throw new Error(d.error || '保存失败');
+      const newId = d.id || payload.currentId;
       // Phase4: post 阶段成功，回写中间产物（断点续跑时 refresh/gallery 同步失败可免重传）
+      // P11-C1: 记录已建页 id（jobProgressRef + job.createdId），后续任何重试路径识别后转 update，避免重复建稿
       jobProgressRef.current[job.id] = {
         ...(jobProgressRef.current[job.id] || {}),
         blocks: blocksForSave,
         galleryItems: galleryItemsForSave,
+        notionId: newId,
       };
+      if (newId) updateJob(job.id, { createdId: newId });
 
-      const newId = d.id || payload.currentId;
       const saveSlug = payload.form.slug || '';
       const saveType = payload.form.type || 'Post';
       const saveStatus = payload.form.status || 'Published';
@@ -7518,6 +7550,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const handleCrawlerQueueDeleteSelected = async () => {
+    if (crawlerIngestBusy) return; // P11-C3: 进行中早退
     if (!crawlerIngestSelectedIds.length) return;
     if (!confirm(`从队列删除 ${crawlerIngestSelectedIds.length} 条待入库元数据？`)) return;
     try {
@@ -7621,7 +7654,9 @@ const [mounted, setMounted] = useState(false);
 
   const handleTogglePin = async (e, p) => {
     e.stopPropagation();
+    if (pinBusyId === p.id) return;
     const nextPinned = !p.pinned;
+    setPinBusyId(p.id);
     setLoading(true);
     try {
       const r = await fetch('/api/admin/post?id=' + p.id, {
@@ -7650,6 +7685,7 @@ const [mounted, setMounted] = useState(false);
     } catch (err) {
       alert(err.message || '置顶操作失败');
     } finally {
+      setPinBusyId(null);
       setLoading(false);
     }
   };
@@ -7694,6 +7730,7 @@ const [mounted, setMounted] = useState(false);
     });
 
   const handleDeletePost = async (p) => {
+    if (archivingPostIds.includes(p.id)) return; // P11-C3: 进行中早退
     if (!confirm('移至回收站')) return;
     setArchivingPostIds((currentIds) => [...currentIds, p.id]);
 
@@ -7996,11 +8033,19 @@ const [mounted, setMounted] = useState(false);
       {showPin ? (
         <div
           onClick={(e) => handleTogglePin(e, p)}
-          style={{ background: p.pinned ? '#fbbf24' : '#5c5c62', color: p.pinned ? '#000' : '#fff' }}
-          className="dr-btn"
+          disabled={pinBusyId === p.id}
+          style={{
+            background: pinBusyId === p.id ? '#4a4a50' : (p.pinned ? '#fbbf24' : '#5c5c62'),
+            color: p.pinned && pinBusyId !== p.id ? '#000' : '#fff',
+          }}
+          className={`dr-btn${pinBusyId === p.id ? ' is-loading' : ''}`}
           title={p.pinned ? '取消置顶' : '置顶（博客首页首条显示）'}
         >
-          <Icons.Pin />
+          {pinBusyId === p.id ? (
+            <span className="dr-btn-spin" aria-hidden />
+          ) : (
+            <Icons.Pin />
+          )}
         </div>
       ) : null}
       {showPin ? (

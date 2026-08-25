@@ -35,6 +35,15 @@ const withRetry = async (fn, retries = 4) => {
   throw lastErr;
 };
 
+// P11-C5: 串行化保存——并发双击时后到请求等前一保存完成后再按 slug 查重（存在→更新），避免重复建页
+let saveTurn = Promise.resolve();
+const acquireSaveTurn = () => {
+  const prev = saveTurn;
+  let release;
+  saveTurn = new Promise((resolve) => { release = resolve; });
+  return prev.then(() => release);
+};
+
 function readRichText(prop) {
   if (!prop || prop.type !== 'rich_text') return '';
   return (prop.rich_text || []).map((t) => t.plain_text).join('').trim();
@@ -126,78 +135,84 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const { id, url, promoText, cover, enabled } = body || {};
-      const existing = id
-        ? await withRetry(() => notion.pages.retrieve({ page_id: id })).catch(() => null)
-        : await findGalleryAdWidget();
-      const current = existing ? mapAd(existing) : {
-        id: null,
-        enabled: false,
-        url: '',
-        promoText: '',
-        cover: '',
-      };
+      const release = await acquireSaveTurn();
+      try {
+        const existing = id
+          ? await withRetry(() => notion.pages.retrieve({ page_id: id })).catch(() => null)
+          : await findGalleryAdWidget();
+        const current = existing ? mapAd(existing) : {
+          id: null,
+          enabled: false,
+          url: '',
+          promoText: '',
+          cover: '',
+        };
 
-      const nextEnabled = typeof enabled === 'boolean' ? enabled : current.enabled;
-      const nextUrl = typeof url === 'string' ? url.trim() : current.url;
-      const nextPromo =
-        typeof promoText === 'string' ? promoText.trim() : (current.promoText || '');
-      const nextCover =
-        typeof cover === 'string'
-          ? rewriteManagedAssetUrl(
-              cover.trim(),
-              getRuntimeImageHostConfig()
-            )
-          : (current.cover || '');
+        const nextEnabled = typeof enabled === 'boolean' ? enabled : current.enabled;
+        const nextUrl = typeof url === 'string' ? url.trim() : current.url;
+        const nextPromo =
+          typeof promoText === 'string' ? promoText.trim() : (current.promoText || '');
+        const nextCover =
+          typeof cover === 'string'
+            ? rewriteManagedAssetUrl(
+                cover.trim(),
+                getRuntimeImageHostConfig()
+              )
+            : (current.cover || '');
 
-      if (nextEnabled && (!nextUrl || !nextUrl.startsWith('http'))) {
-        return res.status(400).json({
-          success: false,
-          error: '开启广告位前请先填写有效的广告链接（需以 http 开头）',
-        });
-      }
-      if (!nextEnabled && nextUrl && !nextUrl.startsWith('http') && nextUrl !== '') {
-        return res.status(400).json({
-          success: false,
-          error: '请填写有效的广告链接（需以 http 开头）',
-        });
-      }
-
-      const db = await withRetry(() => notion.databases.retrieve({ database_id: MAIN_DB }));
-      const properties = await buildProperties(db.properties || {}, {
-        url: nextUrl,
-        promoText: nextPromo,
-        cover: nextCover,
-        enabled: nextEnabled,
-      });
-
-      if (existing?.id) {
-        await withRetry(() => notion.pages.update({ page_id: existing.id, properties }));
-      } else {
-        if (!nextUrl || !nextUrl.startsWith('http')) {
+        if (nextEnabled && (!nextUrl || !nextUrl.startsWith('http'))) {
+          return res.status(400).json({
+            success: false,
+            error: '开启广告位前请先填写有效的广告链接（需以 http 开头）',
+          });
+        }
+        if (!nextEnabled && nextUrl && !nextUrl.startsWith('http') && nextUrl !== '') {
           return res.status(400).json({
             success: false,
             error: '请填写有效的广告链接（需以 http 开头）',
           });
         }
-        await withRetry(() => notion.pages.create({
-          parent: { database_id: MAIN_DB },
-          properties,
-        }));
-      }
 
-      const saved = await findGalleryAdWidget();
-      return res.status(200).json({
-        success: true,
-        ad: saved
-          ? mapAd(saved)
-          : {
-              id: existing?.id || null,
-              enabled: nextEnabled,
-              url: nextUrl,
-              promoText: nextPromo,
-              cover: nextCover,
-            },
-      });
+        const db = await withRetry(() => notion.databases.retrieve({ database_id: MAIN_DB }));
+        const properties = await buildProperties(db.properties || {}, {
+          url: nextUrl,
+          promoText: nextPromo,
+          cover: nextCover,
+          enabled: nextEnabled,
+        });
+
+        if (existing?.id) {
+          await withRetry(() => notion.pages.update({ page_id: existing.id, properties }));
+        } else {
+          // P11-C5: existing 查重在串行临界区内完成——并发双击时后到请求查到先建页，走 update 不再 create
+          if (!nextUrl || !nextUrl.startsWith('http')) {
+            return res.status(400).json({
+              success: false,
+              error: '请填写有效的广告链接（需以 http 开头）',
+            });
+          }
+          await withRetry(() => notion.pages.create({
+            parent: { database_id: MAIN_DB },
+            properties,
+          }));
+        }
+
+        const saved = await findGalleryAdWidget();
+        return res.status(200).json({
+          success: true,
+          ad: saved
+            ? mapAd(saved)
+            : {
+                id: existing?.id || null,
+                enabled: nextEnabled,
+                url: nextUrl,
+                promoText: nextPromo,
+                cover: nextCover,
+              },
+        });
+      } finally {
+        release();
+      }
     }
 
     if (req.method === 'DELETE') {

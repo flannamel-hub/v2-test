@@ -1,6 +1,7 @@
 /** 后台首页：图库容量条（Supabase 记录的压缩后体积）
  * BLOG 分层 P8:「本月用量」区块整体折叠为「更多统计」(默认收起,点击展开);
- * 图库容量 bar 保持常显,折叠状态与数据无关。 */
+ * 图库容量 bar 保持常显,折叠状态与数据无关。
+ * P10-B3:只读/黄灯提示行常显在容量 bar 下方(不再折叠,防遮挡遗漏)。 */
 import { useState } from 'react'
 
 function barColor(percent) {
@@ -223,6 +224,37 @@ export function GalleryStorageBar({ stats, loading, error }) {
         </div>
       )}
 
+      {/* P10-B3:只读/黄灯提示常显在容量 bar 下方(窄屏可自然换行) */}
+      {stats.quota &&
+        (stats.quota.status === 'read_only' || stats.quota.readOnly) && (
+          <div
+            style={{
+              marginTop: '8px',
+              fontSize: '12px',
+              lineHeight: 1.5,
+              color: '#ff4d4f',
+              fontWeight: 'bold',
+            }}
+          >
+            本月用量已达上限，站点暂为只读状态
+          </div>
+        )}
+      {stats.quota &&
+        stats.quota.status !== 'read_only' &&
+        !stats.quota.readOnly &&
+        stats.quota.status === 'warning' && (
+          <div
+            style={{
+              marginTop: '8px',
+              fontSize: '12px',
+              lineHeight: 1.5,
+              color: '#f59e0b',
+            }}
+          >
+            用量较高，请注意控制
+          </div>
+        )}
+
       {stats.quota ? (
         <div
           style={{
@@ -273,18 +305,6 @@ export function GalleryStorageBar({ stats, loading, error }) {
                 gap: '8px',
               }}
             >
-              {(stats.quota.status === 'read_only' || stats.quota.readOnly) && (
-                <span style={{ fontSize: '11px', color: '#ff4d4f', fontWeight: 'bold' }}>
-                  本月用量已达上限，站点暂为只读状态
-                </span>
-              )}
-              {stats.quota.status !== 'read_only' &&
-                !stats.quota.readOnly &&
-                stats.quota.status === 'warning' && (
-                  <span style={{ fontSize: '11px', color: '#f59e0b' }}>
-                    用量较高，请注意控制
-                  </span>
-                )}
               <QuotaMetricRow label="访问" pct={stats.quota.pvPct} />
               <QuotaMetricRow label="带宽" pct={stats.quota.bwPct} />
               <QuotaMetricRow label="图库" pct={stats.quota.galleryPct} />
