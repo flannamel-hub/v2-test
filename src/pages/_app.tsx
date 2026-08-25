@@ -30,7 +30,7 @@ import { isTweetDarkTheme, isTweetLightTheme, isTweetTheme, isTweetThemeVariantL
 import { PostNavStallProvider } from '@/src/components/navigation/PostNavStallGuard'
 import { ImageHostAssetBridge } from '@/src/components/media/ImageHostAssetBridge'
 import { PvReporter } from '@/src/components/layout/PvReporter'
-import { ContentProtectGuard } from '@/src/components/protection/ContentProtectGuard'
+import ContentProtectGuard from '@/src/components/protection/ContentProtectGuard'
 import { TweetLoadingProgress } from '@/src/themes/tweet/TweetLoadingProgress'
 import type { PageSeoFlat } from '@/src/lib/seo/lightSeo'
 import { NextPageWithLayout } from '../types/blog'
