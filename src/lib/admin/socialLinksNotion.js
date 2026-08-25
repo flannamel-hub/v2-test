@@ -59,6 +59,17 @@ async function withRetry(fn, retries = 4) {
 
 let cache = null
 
+// P11-C5: 串行化基础设施探测——并发保存双击时后到请求等前一保存完成后再按 slug 查重（存在→复用），避免重复建 Widget 页
+let infraTurn = Promise.resolve()
+const acquireInfraTurn = () => {
+  const prev = infraTurn
+  let release
+  infraTurn = new Promise((resolve) => {
+    release = resolve
+  })
+  return prev.then(() => release)
+}
+
 function readText(prop) {
   if (!prop) return ''
   if (prop.type === 'title') return (prop.title || []).map((t) => t.plain_text).join('').trim()
@@ -201,19 +212,25 @@ async function createSocialLinksChildDatabase(widgetId) {
 }
 
 async function ensureSocialLinksInfrastructure() {
-  let widget = await findSocialLinksWidget()
-  let created = false
-  if (!widget) {
-    widget = await createSocialLinksWidget()
-    created = true
+  const release = await acquireInfraTurn()
+  try {
+    // P11-C5: 查重在串行临界区内进行——并发双击时后到请求能查到先建 Widget，复用不再 create
+    let widget = await findSocialLinksWidget()
+    let created = false
+    if (!widget) {
+      widget = await createSocialLinksWidget()
+      created = true
+    }
+    let childDbId = await findSocialLinksChildDatabase(widget.id)
+    if (!childDbId) {
+      childDbId = await createSocialLinksChildDatabase(widget.id)
+      created = true
+    }
+    if (created) clearSocialLinksDbCache()
+    return { widget, childDbId }
+  } finally {
+    release()
   }
-  let childDbId = await findSocialLinksChildDatabase(widget.id)
-  if (!childDbId) {
-    childDbId = await createSocialLinksChildDatabase(widget.id)
-    created = true
-  }
-  if (created) clearSocialLinksDbCache()
-  return { widget, childDbId }
 }
 
 export async function discoverSocialLinksDb() {

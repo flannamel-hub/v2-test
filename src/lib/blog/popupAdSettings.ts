@@ -21,6 +21,17 @@ import {
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
 
 const DEFAULT_STATUS_ENABLED = false
+
+// P11-C5: 串行化保存——并发双击时后到请求等前一保存完成后再按 slug 查重（存在→更新），避免重复建页
+let updateTurn: Promise<void> = Promise.resolve()
+const acquireUpdateTurn = () => {
+  const prev = updateTurn
+  let release: () => void
+  updateTurn = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return prev.then(() => release!)
+}
 const BUTTON_TEXT_NAMES = [
   'button_text',
   'buttonText',
@@ -275,20 +286,26 @@ export async function updatePopupAdConfig(
 
   const db = await getDatabaseMetadata()
   const dbProps = await ensurePopupAdSchema(db.properties || {})
-  const existing = await findPopupAdWidget()
   const properties = buildPopupAdProperties(dbProps, next)
 
-  if (existing) {
-    await notion.pages.update({
-      page_id: existing.id,
-      properties,
-    })
-  } else {
-    if (!databaseId) throw new Error('文章数据服务尚未配置，请联系管理')
-    await notion.pages.create({
-      parent: { database_id: databaseId },
-      properties,
-    })
+  const release = await acquireUpdateTurn()
+  try {
+    // P11-C5: 查重在串行临界区内进行——并发双击时后到请求能查到先建页，转 update 不再 create
+    const existing = await findPopupAdWidget()
+    if (existing) {
+      await notion.pages.update({
+        page_id: existing.id,
+        properties,
+      })
+    } else {
+      if (!databaseId) throw new Error('文章数据服务尚未配置，请联系管理')
+      await notion.pages.create({
+        parent: { database_id: databaseId },
+        properties,
+      })
+    }
+  } finally {
+    release()
   }
 
   const updated = await findPopupAdWidget()
