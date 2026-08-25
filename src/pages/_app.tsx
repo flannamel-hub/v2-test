@@ -30,6 +30,7 @@ import { isTweetDarkTheme, isTweetLightTheme, isTweetTheme, isTweetThemeVariantL
 import { PostNavStallProvider } from '@/src/components/navigation/PostNavStallGuard'
 import { ImageHostAssetBridge } from '@/src/components/media/ImageHostAssetBridge'
 import { PvReporter } from '@/src/components/layout/PvReporter'
+import { ContentProtectGuard } from '@/src/components/protection/ContentProtectGuard'
 import { TweetLoadingProgress } from '@/src/themes/tweet/TweetLoadingProgress'
 import type { PageSeoFlat } from '@/src/lib/seo/lightSeo'
 import { NextPageWithLayout } from '../types/blog'
@@ -246,6 +247,8 @@ function BlogAppShell({ Component, pageProps, router }: AppPropsWithLayout) {
       <PostNavStallProvider enabled={stallGuardEnabled}>
         {getLayout(<Component {...effectivePageProps} />)}
       </PostNavStallProvider>
+      {/* P14:内容保护(全主题);仅前台挂载,/admin 不受影响 */}
+      {!isAdminRoute ? <ContentProtectGuard /> : null}
       <PvReporter />
       <Analytics />
     </ThemeProvider>

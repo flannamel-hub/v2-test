@@ -4595,6 +4595,10 @@ const [mounted, setMounted] = useState(false);
   const [brandCleanEnabled, setBrandCleanEnabled] = useState(false);
   const [brandCleanLoading, setBrandCleanLoading] = useState(false);
   const [brandCleanSaving, setBrandCleanSaving] = useState(false);
+  // P14:内容保护开关(全主题客户端防护;blog_site_settings.content_protect)
+  const [contentProtectEnabled, setContentProtectEnabled] = useState(false);
+  const [contentProtectLoading, setContentProtectLoading] = useState(false);
+  const [contentProtectSaving, setContentProtectSaving] = useState(false);
   const [vendingEnabled, setVendingEnabled] = useState(true);
   const [vendingTitle, setVendingTitle] = useState('贩售机');
   const [vendingUrl, setVendingUrl] = useState('');
@@ -6076,6 +6080,45 @@ const [mounted, setMounted] = useState(false);
       } else alert('保存失败：' + (d.error || '未知错误'));
     } catch (e) { alert('保存失败：' + e.message); }
     finally { setBrandCleanSaving(false); }
+  };
+
+  // === P14:内容保护(全主题;读者端客户端防护,无需 revalidate) ===
+  const loadContentProtect = async () => {
+    setContentProtectLoading(true);
+    try {
+      const r = await fetch('/api/admin/content-protect');
+      const d = await r.json();
+      if (d.success) setContentProtectEnabled(d.enabled === true);
+    } catch {
+      // 忽略:保持默认关闭
+    } finally {
+      setContentProtectLoading(false);
+    }
+  };
+  const openContentProtect = () => {
+    setView('content-protect');
+    loadContentProtect();
+  };
+  const toggleContentProtect = async (next) => {
+    if (contentProtectSaving) return; // P11-C3: 进行中早退
+    setContentProtectSaving(true);
+    try {
+      const r = await fetch('/api/admin/content-protect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setContentProtectEnabled(d.enabled === true);
+        showAdminToast(
+          d.enabled
+            ? '内容保护已开启，读者端下次访问生效'
+            : '内容保护已关闭，读者端下次访问生效'
+        );
+      } else alert('保存失败：' + (d.error || '未知错误'));
+    } catch (e) { alert('保存失败：' + e.message); }
+    finally { setContentProtectSaving(false); }
   };
 
   const loadAnnouncementPopup = async () => {
@@ -8778,6 +8821,16 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ color: adsLocked ? '#fbbf24' : '#34d399', fontSize: '13px', fontWeight: 'bold' }}>{adsLocked ? '专业版' : '进入 →'}</div>
                 </div>
               )}
+              {activeTab === 'Widget' && viewMode !== 'folder' && (
+                <div onClick={openContentProtect} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #60a5fa', cursor: 'pointer' }}>
+                  <div style={{ fontSize: '28px' }}>🔒</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>内容保护</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>限制读者右键复制 / 保存本站图片</div>
+                  </div>
+                  <div style={{ color: '#60a5fa', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                </div>
+              )}
               {activeTab === 'Ads' && viewMode !== 'folder' && (
                 <div onClick={openGalleryAd} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #f59e0b', cursor: 'pointer' }}>
                   <div style={{ fontSize: '28px' }}>📢</div>
@@ -9260,6 +9313,47 @@ const [mounted, setMounted] = useState(false);
                   </button>
                 </div>
               </>
+            )}
+          </div>
+        ) : view === 'content-protect' ? (
+          <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>内容保护</div>
+              <div style={{fontSize:'12px', color:'#888'}}>全主题 · 读者端生效</div>
+            </div>
+
+            {contentProtectLoading ? (
+              <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
+            ) : (
+              <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555'}}>
+                <div>
+                  <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>复制 / 保存防护</div>
+                  <div style={{fontSize:'12px', color:'#999', lineHeight:1.7}}>
+                    {contentProtectEnabled
+                      ? '开启后，读者无法右键复制/保存本站图片（本页原创保护）'
+                      : '开启后，读者端将禁用右键菜单、复制与图片拖存；图库点击查看大图不受影响，后台操作不受影响。'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={contentProtectSaving}
+                  onClick={() => toggleContentProtect(!contentProtectEnabled)}
+                  style={{
+                    minWidth: '88px',
+                    padding: '12px 20px',
+                    border: 'none',
+                    borderRadius: '999px',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    cursor: contentProtectSaving ? 'wait' : 'pointer',
+                    background: contentProtectEnabled ? '#22c55e' : '#555',
+                    color: '#fff',
+                    opacity: contentProtectSaving ? 0.6 : 1,
+                  }}
+                >
+                  {contentProtectSaving ? '保存中…' : (contentProtectEnabled ? '已开启' : '已关闭')}
+                </button>
+              </div>
             )}
           </div>
         ) : view === 'announcement-popup' ? (
