@@ -15,6 +15,7 @@ import { onDemandStaticPaths } from '@/src/lib/blog/postLimits'
 import { withNavFooterStaticProps } from '@/src/lib/blog/withNavFooterStaticProps'
 import { addSubTitle } from '@/src/lib/util'
 import { GalleryArchive } from '@/src/themes/gallery/GalleryArchive'
+import { ShopArchive } from '@/src/themes/shop/ShopArchive'
 import {
   Category,
   NextPageWithLayout,
@@ -192,6 +193,18 @@ const Archive: NextPage<{
         pageCount={pageCountAfterFilter}
         currentPage={currentPage}
         totalCount={totalCount}
+      />
+    )
+  }
+
+  if (activeTheme === 'shop') {
+    return (
+      <ShopArchive
+        page={page}
+        items={itemsAfterFilter}
+        pageCount={pageCountAfterFilter}
+        currentPage={currentPage}
+        galleryFeedCovers={galleryFeedCovers}
       />
     )
   }

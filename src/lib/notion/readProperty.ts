@@ -124,6 +124,15 @@ export const ARTICLE_PASSWORD_PROPERTY_NAMES = [
   '访问密码',
 ]
 
+/** shop 主题文章关联商品 SKU（select / rich_text / url 均可读） */
+export const LINKED_PRODUCT_SKU_PROPERTY_NAMES = [
+  'linked_product_sku',
+  'Linked_product_sku',
+  'linkedProductSku',
+  'Linked_Product_Sku',
+  '关联商品',
+]
+
 export function pickNotionProperty(
   properties: PageObjectResponse['properties'],
   names: string[]
@@ -186,6 +195,28 @@ export function isArticlePasswordProtectedFromProperties(
   properties: PageObjectResponse['properties']
 ): boolean {
   return readArticlePasswordFromPageProperties(properties).length > 0
+}
+
+/** 读取文章关联商品 SKU（Notion linked_product_sku；select/rich_text/url 兼容），留空表示未关联 */
+export function readLinkedProductSkuFromPageProperties(
+  properties: PageObjectResponse['properties']
+): string {
+  const prop = pickNotionProperty(
+    properties,
+    LINKED_PRODUCT_SKU_PROPERTY_NAMES
+  )
+  if (!prop || typeof prop !== 'object' || !('type' in prop)) return ''
+
+  if (prop.type === 'select' && prop.select?.name) {
+    return String(prop.select.name).trim()
+  }
+  if (prop.type === 'rich_text') {
+    return readRichTextPlain(prop)?.trim() ?? ''
+  }
+  if (prop.type === 'url' && prop.url) {
+    return String(prop.url).trim()
+  }
+  return ''
 }
 
 export function findNotionPropertyKey(

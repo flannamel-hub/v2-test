@@ -8,7 +8,7 @@ import {
   ThemeSwitchQuotaError,
   recordThemeSwitchIfNeeded,
 } from '@/src/lib/blog/themeSwitchQuota';
-import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCoverFromPageProperties, readPageCoverUrl, DOWNLOAD_SIZE_PROPERTY_NAMES, DOWNLOAD_COUNT_PROPERTY_NAMES, ARTICLE_PASSWORD_PROPERTY_NAMES, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readArticlePasswordFromPageProperties } from '@/src/lib/notion/readProperty';
+import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCoverFromPageProperties, readPageCoverUrl, DOWNLOAD_SIZE_PROPERTY_NAMES, DOWNLOAD_COUNT_PROPERTY_NAMES, ARTICLE_PASSWORD_PROPERTY_NAMES, LINKED_PRODUCT_SKU_PROPERTY_NAMES, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readArticlePasswordFromPageProperties, readLinkedProductSkuFromPageProperties } from '@/src/lib/notion/readProperty';
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue';
 import { collectPostRevalidatePaths } from '@/src/lib/blog/contentRevalidation';
@@ -66,6 +66,16 @@ function buildRichTextProperty(value, targetProp) {
   const propType = targetProp?.type || 'rich_text';
   if (propType === 'rich_text') {
     return { rich_text: text ? [{ text: { content: text } }] : [] };
+  }
+  return { rich_text: text ? [{ text: { content: text } }] : [] };
+}
+
+/** 按数据库属性类型写入 linked_product_sku（select 库用 select，其余按 rich_text） */
+function buildLinkedProductSkuProperty(value, targetProp) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  const propType = targetProp?.type;
+  if (propType === 'select') {
+    return text ? { select: { name: text } } : { select: null };
   }
   return { rich_text: text ? [{ text: { content: text } }] : [] };
 }
@@ -677,7 +687,7 @@ export default async function handler(req, res) {
         readNotionCoverUrl(p.cover) ||
         readPageCoverUrl(page.cover) ||
         '';
-      return res.status(200).json({ success: true, post: { id: page.id, title: p.title?.title?.[0]?.plain_text || p.Page?.title?.[0]?.plain_text || '无标题', slug: p.slug?.rich_text?.[0]?.plain_text || '', excerpt: p.excerpt?.rich_text?.[0]?.plain_text || '', category: p.category?.select?.name || '', tags: (p.tags?.multi_select || []).map(t => t.name).join(','), status: p.status?.status?.name || p.status?.select?.name || 'Published', type: p.type?.select?.name || 'Post', date: p.date?.date?.start || '', cover: coverUrl, pinned: readPinnedFromNotionProperties(p), favourited: readFavouritedFromNotionProperties(p), download: readDownloadProperty(p.download), download_size: readDownloadSizeFromPageProperties(p), download_count: readDownloadCountFromPageProperties(p), article_password: readArticlePasswordFromPageProperties(p), content: cleanContent, rawBlocks: rawBlocks, editorBlocks: editorBlocks } });
+      return res.status(200).json({ success: true, post: { id: page.id, title: p.title?.title?.[0]?.plain_text || p.Page?.title?.[0]?.plain_text || '无标题', slug: p.slug?.rich_text?.[0]?.plain_text || '', excerpt: p.excerpt?.rich_text?.[0]?.plain_text || '', category: p.category?.select?.name || '', tags: (p.tags?.multi_select || []).map(t => t.name).join(','), status: p.status?.status?.name || p.status?.select?.name || 'Published', type: p.type?.select?.name || 'Post', date: p.date?.date?.start || '', cover: coverUrl, pinned: readPinnedFromNotionProperties(p), favourited: readFavouritedFromNotionProperties(p), download: readDownloadProperty(p.download), download_size: readDownloadSizeFromPageProperties(p), download_count: readDownloadCountFromPageProperties(p), article_password: readArticlePasswordFromPageProperties(p), linked_product_sku: readLinkedProductSkuFromPageProperties(p), content: cleanContent, rawBlocks: rawBlocks, editorBlocks: editorBlocks } });
     }
 
     if (req.method === 'PATCH') {
@@ -778,7 +788,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { id, title, content, slug, excerpt, category, tags, status, date, type, cover, download, download_size, download_count, article_password, blocksData } = body;
+      const { id, title, content, slug, excerpt, category, tags, status, date, type, cover, download, download_size, download_count, article_password, linked_product_sku, blocksData } = body;
       const useStructured = Array.isArray(blocksData);
 
       // 1. 获取目标页面属性，用于动态判定类型
@@ -850,6 +860,24 @@ export default async function handler(req, res) {
           const pwdKey = findNotionPropertyKey(targetProps, ARTICLE_PASSWORD_PROPERTY_NAMES);
           if (pwdKey) {
               props[pwdKey] = buildRichTextProperty(article_password, targetProps[pwdKey]);
+          }
+      }
+      if (linked_product_sku !== undefined) {
+          let skuKey = findNotionPropertyKey(targetProps, LINKED_PRODUCT_SKU_PROPERTY_NAMES);
+          // P18-C1: 库里尚无 linked_product_sku 列时自动补建（rich_text），避免选择商品后静默丢失
+          if (!skuKey && String(linked_product_sku || '').trim()) {
+              try {
+                  await withRetry(() => notion.databases.update({
+                      database_id: databaseId,
+                      properties: { linked_product_sku: { rich_text: {} } },
+                  }));
+                  skuKey = 'linked_product_sku';
+              } catch (dbErr) {
+                  console.warn('create linked_product_sku property failed:', dbErr);
+              }
+          }
+          if (skuKey) {
+              props[skuKey] = buildLinkedProductSkuProperty(linked_product_sku, targetProps[skuKey]);
           }
       }
 

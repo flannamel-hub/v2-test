@@ -2821,6 +2821,7 @@ const ADMIN_THEMES = [
   { id: 'tweet', label: 'tweet·灰色', color: '#6b7280', desc: '时间线卡片 · 灰底可切换深浅' },
   { id: 'tweet-light', label: 'tweet·浅色', color: '#38bdf8', desc: '时间线卡片 · 固定纯白浅色' },
   { id: 'tweet-dark', label: 'tweet·暗', color: '#0f1419', desc: '时间线卡片 · 纯黑 X 暗色风格' },
+  { id: 'shop', label: '商城', color: '#22c55e', desc: '商城风格 · 文章关联商品' },
 ];
 
 function formatThemeSwitchQuotaRemaining(remainingMs) {
@@ -4481,7 +4482,10 @@ const [mounted, setMounted] = useState(false);
   const [cardCatOpenId, setCardCatOpenId] = useState(null);
   const [cardCatMenuRect, setCardCatMenuRect] = useState(null);
   const [previewData, setPreviewData] = useState(null);
-  const [form, setForm] = useState({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '' });
+  const [form, setForm] = useState({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '' });
+  // P18-C1: 关联商品——主站商户商品列表（进入编辑器时懒加载一次，失败降级手填 SKU）
+  const [merchantProducts, setMerchantProducts] = useState({ loaded: false, available: false, items: [], error: '' });
+  const merchantProductsLoadedRef = useRef(false);
   const [currentId, setCurrentId] = useState(null);
   const [siteTitle, setSiteTitle] = useState('PROBLOG');
   const [navIdx, setNavIdx] = useState(1); 
@@ -4532,6 +4536,32 @@ const [mounted, setMounted] = useState(false);
     markDirty();
     setEditorBlocks(next);
   }, [markDirty]);
+
+  // P18-C1: 进入编辑器时懒加载一次主站商户商品列表（失败降级手填 SKU，不阻断编辑）
+  useEffect(() => {
+    if (view !== 'edit') return;
+    if (merchantProductsLoadedRef.current) return;
+    merchantProductsLoadedRef.current = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/admin/merchant-products');
+        const d = await r.json().catch(() => null);
+        if (d && d.success) {
+          setMerchantProducts({
+            loaded: true,
+            available: d.available === true,
+            items: Array.isArray(d.products) ? d.products : [],
+            error: d.error || '',
+          });
+        } else {
+          setMerchantProducts({ loaded: true, available: false, items: [], error: (d && d.error) || '商品列表加载失败' });
+        }
+      } catch (e) {
+        setMerchantProducts({ loaded: true, available: false, items: [], error: e.message || '商品列表加载失败' });
+      }
+    })();
+  }, [view]);
+
   const [blogRefreshBusy, setBlogRefreshBusy] = useState(false);
   const [blogRefreshCooldownSec, setBlogRefreshCooldownSec] = useState(0);
   const blogRefreshCooldownUntilRef = useRef(0);
@@ -5840,7 +5870,7 @@ const [mounted, setMounted] = useState(false);
       revokePendingEditorMedia(prev);
       return [];
     });
-    setForm({ title: '', slug: generateAdminPostSlug(), excerpt:'', content:'', category:'', tags:'', cover:'', status:'Published', type: 'Post', date: new Date().toISOString().split('T')[0], download: '', download_size: '', download_count: '', article_password: '' });
+    setForm({ title: '', slug: generateAdminPostSlug(), excerpt:'', content:'', category:'', tags:'', cover:'', status:'Published', type: 'Post', date: new Date().toISOString().split('T')[0], download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '' });
     setCurrentId(null);
     editingSlugRef.current = null;
     editingCategoryRef.current = null;
@@ -7193,7 +7223,7 @@ const [mounted, setMounted] = useState(false);
     editingCategoryRef.current = null;
     editingTagsRef.current = null;
     setCurrentId(null);
-    setForm({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '' });
+    setForm({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '' });
     setView('list');
   };
 
@@ -9829,12 +9859,48 @@ const [mounted, setMounted] = useState(false);
                    style={{fontSize:'13px', maxWidth:'320px'}}
                    autoComplete="new-password"
                  />
-                 {form.article_password?.trim() ? (
-                   <p style={{fontSize:'11px', color:'#fbbf24', margin:'8px 0 0', lineHeight:1.5}}>当前文章已启用全篇加密。</p>
-                 ) : null}
-               </div>
-               ) : null}
-            </StepAccordion>
+                  {form.article_password?.trim() ? (
+                    <p style={{fontSize:'11px', color:'#fbbf24', margin:'8px 0 0', lineHeight:1.5}}>当前文章已启用全篇加密。</p>
+                  ) : null}
+                </div>
+                ) : null}
+                {!editingSimplePage && form.type !== 'Widget' ? (
+                <div style={{marginTop:'16px', marginBottom:'0', paddingTop:'16px', borderTop:'1px solid #333'}}>
+                  <label style={{display:'block', fontSize:'11px', color:'#22c55e', marginBottom:'6px', fontWeight:'bold'}}>关联商品</label>
+                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>选择本商户的商品并绑定到这篇文章；shop 主题会在文章卡片与详情页展示。留空 = 不关联。</p>
+                  {merchantProducts.available && merchantProducts.items.length > 0 ? (
+                    <select
+                      className="glow-input"
+                      value={form.linked_product_sku || ''}
+                      onChange={e=>setFormDirty({...form, linked_product_sku:e.target.value})}
+                      style={{fontSize:'13px', maxWidth:'360px'}}
+                    >
+                      <option value="">不关联商品</option>
+                      {merchantProducts.items.map(mp => (
+                        <option key={mp.sku} value={mp.sku}>
+                          {mp.name}{mp.price ? `（${mp.price}）` : ''}{mp.sku !== mp.name ? ` · ${mp.sku}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <>
+                      <input
+                        className="glow-input"
+                        value={form.linked_product_sku || ''}
+                        onChange={e=>setFormDirty({...form, linked_product_sku:e.target.value})}
+                        placeholder="输入商品 SKU"
+                        style={{fontSize:'13px', maxWidth:'320px'}}
+                      />
+                      <p style={{fontSize:'11px', color:'#777', margin:'8px 0 0', lineHeight:1.5}}>
+                        {merchantProducts.loaded
+                          ? (merchantProducts.error || '主站商品列表暂不可用，可直接手填商品 SKU。')
+                          : '正在读取主站商品列表…'}
+                      </p>
+                    </>
+                  )}
+                </div>
+                ) : null}
+             </StepAccordion>
             <StepAccordion step={2} title={editingSimplePage ? '发布时间' : (<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>分类与时间<span style={{fontSize:'10px', color:'#ff4d4f', border:'1px solid rgba(255,77,79,0.5)', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>必填</span></span>)} isOpen={expandedStep === 2} onToggle={()=>setExpandedStep(expandedStep===2?0:2)}>
                <div className={`editor-step-grid ${editingSimplePage ? 'editor-step-grid--single' : 'editor-step-grid--dual'}`}>
                  {!editingSimplePage ? (

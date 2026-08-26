@@ -2,6 +2,7 @@ import { TouchgalLayout } from '@/src/components/section/TouchgalLayout'
 import { ComponentType } from 'react'
 import { DefaultHome } from './anzifan/DefaultHome'
 import { GalleryHome } from './gallery/GalleryHome'
+import { ShopHome } from './shop/ShopHome'
 import { TweetHome } from './tweet/TweetHome'
 import { ThemeHomeProps, ThemeId } from './types'
 
@@ -12,6 +13,7 @@ export const THEME_HOME: Record<ThemeId, ComponentType<ThemeHomeProps>> = {
   tweet: TweetHome,
   'tweet-light': TweetHome,
   'tweet-dark': TweetHome,
+  shop: ShopHome,
 }
 
 /**
@@ -35,6 +37,7 @@ export function resolveThemeId(code: string | null | undefined): ThemeId {
     return 'tweet'
   }
   if (c === 'v1' || c === 'anzifan' || c === 'standard') return 'anzifan'
+  if (c === 'shop' || c === 'mall') return 'shop'
   return 'anzifan'
 }
 

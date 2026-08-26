@@ -129,6 +129,7 @@
 - `title`、`slug`、`excerpt`、`category`、`tags`、`date`、`cover`
 - `download`、`download_size`、`download_count`
 - `article_password`、`pinned`、`favourited`
+- `linked_product_sku`（P18：shop 主题文章关联商品 SKU，列名兼容大小写/中文）
 - 部分字段存在大小写或旧字段兼容逻辑；改动时先读 `src/lib/notion/readProperty.ts` 和相关 API 的动态属性判断
 
 ### 系统级 slug / Widget（勿当作普通公开页）
@@ -212,6 +213,15 @@
 | `tweet` / `morethan-log` / `morethanlog` / `v3` | `tweet` |
 | `tweet-light` / `tweet_light` | `tweet-light` |
 | `tweet-dark` / `tweet_dark` | `tweet-dark` |
+| `shop` / `mall` | `shop`（P18-C1 新增，商城主题） |
+
+### shop 主题（P18-C1）
+
+- 目录 `src/themes/shop/`：`ShopHome`（首页+文章列表，商品化卡片网格）、`ShopPostCard`（卡片，读 `options.linkedProductSku` 显示「商品」角标）、`ShopPostPage`（文章详情，复用 standard 头部/正文/广告骨架）、`ShopProductBar`（详情页关联商品条，C2 在此扩展购买按钮）、`ShopArchive`（归档网格）。
+- **shop 不使用独立壳层**：走默认 BlogLayout（Navbar + Footer），Widget、贩售机、公告/广告弹窗、图库统计等全部沿用现有机制（`usesStandaloneThemeLayout` 对 shop 返回 false）。
+- 分类/标签/友链/关于/下载等页面 shop 暂走默认渲染（与 anzifan 相同）；归档页有 shop 分支（`archive/index.tsx`、`archive/[page].tsx`）。
+- `shouldLoadGalleryFeedCovers` 已包含 shop（列表封面回退链与 anzifan 一致）。
+- 文章↔商品映射：Notion 属性 `linked_product_sku`（兼容 `Linked_product_sku` / `linkedProductSku` / `关联商品` 列名；select 与 rich_text 均可读写），前台 pipeline 输出为 `post.options.linkedProductSku`；后台编辑器 Step1「关联商品」下拉数据来自 `GET /api/admin/merchant-products`。
 
 ### 读取与保存
 
@@ -288,6 +298,7 @@
 | `GET/POST /api/admin/popup-ad` | 首页弹窗广告配置（CTA 必填链接；会话一次） |
 | `GET/POST /api/admin/click-ad` | 首页遮罩广告配置（URL 必填；每天一次；排除贩售机） |
 | `GET /api/admin/site-plan` | 站点会员计划只读（P4-FIX 广告位灰态判定；仅 BLOG 后台浏览器调用，只返回 plan） |
+| `GET /api/admin/merchant-products` | 主站商户商品列表代理（P18-C1「关联商品」下拉；路由内 `verifyAdminRequest`；主站端点未部署/未配置 `MERCHANT_API_BASE` 时返回 `available:false` 降级为手填 SKU） |
 | `GET/POST /api/admin/social-links` | 社媒组件配置 |
 | `GET /api/admin/theme-cooldown` | 主题切换配额状态（命名历史遗留） |
 | `POST /api/admin/revalidate` | ISR 刷新；支持即时刷新与 `action: drain` 消费队列 |
@@ -552,6 +563,9 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 | `BLOG_PUBLIC_URL` | 预热用公网地址 |
 | `NEXT_PUBLIC_SITE_URL` | SEO canonical / OG / sitemap |
 | `CRAWLER_INGEST_DEFAULT_STATUS` | 爬虫新建默认 status |
+| `MERCHANT_API_BASE` | 主站网关地址（shop「关联商品」下拉代理；未配置则降级手填 SKU） |
+| `MERCHANT_PRODUCTS_PATH` | 主站商品列表端点路径（默认 `/api/merchant/products-public`） |
+| `MERCHANT_API_TOKEN` | 主站服务端凭据（可选，Bearer 透传） |
 | `ENABLE_REMOTE_IMAGE_PROBE` | 封面 blur 远程探测（默认关） |
 
 ---

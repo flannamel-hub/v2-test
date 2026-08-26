@@ -14,6 +14,7 @@ import CommentSection from '../../components/section/CommentSection'
 import { Section404 } from '../../components/section/Section404'
 import withNavFooter from '../../components/withNavFooter'
 import { GalleryPost } from '@/src/themes/gallery/GalleryPost'
+import { ShopPostPage } from '@/src/themes/shop/ShopPostPage'
 import { TweetPostPage } from '@/src/themes/tweet/TweetPostPage'
 import { TweetShell } from '@/src/themes/tweet/TweetShell'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
@@ -246,6 +247,17 @@ const PostPage: NextPage<{
               postStats={postStats}
               galleryAdBanner={galleryAdBanner}
               navPages={navPages}
+            />
+          )
+        }
+
+        if (activeTheme === 'shop') {
+          return (
+            <ShopPostPage
+              post={post}
+              blocks={resolvedBlocks}
+              navigation={navigation}
+              galleryAdBanner={galleryAdBanner}
             />
           )
         }

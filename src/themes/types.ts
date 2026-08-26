@@ -2,7 +2,7 @@ import { Page, Post, Title } from '@/src/types/blog'
 import { TweetFeedMediaMap } from '@/src/lib/tweet/loadTweetFeedMedia'
 import type { VendingConfig } from '@/src/lib/blog/vendingDefaults'
 
-export type ThemeId = 'anzifan' | 'touchgal' | 'gallery' | 'tweet' | 'tweet-light' | 'tweet-dark'
+export type ThemeId = 'anzifan' | 'touchgal' | 'gallery' | 'tweet' | 'tweet-light' | 'tweet-dark' | 'shop'
 
 /**
  * 各主题首页组件共用 props。

@@ -8,7 +8,7 @@ import {
   readPinnedFromNotionProperties,
   sortPostsByPinnedThenDate,
 } from '../pinnedPosts'
-import { readCoverDarkFromPageProperties, readCoverFromPageProperties, readPageCoverUrl, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, isArticlePasswordProtectedFromProperties } from '../../notion/readProperty'
+import { readCoverDarkFromPageProperties, readCoverFromPageProperties, readPageCoverUrl, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, isArticlePasswordProtectedFromProperties, readLinkedProductSkuFromPageProperties } from '../../notion/readProperty'
 import { isDefaultPostCover } from '../../gallery/postCover'
 import { getImageInfo } from '../getImageInfo'
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
@@ -152,6 +152,7 @@ const formatPost = async (
     downloadSize: readDownloadSizeFromPageProperties(properties),
     downloadCount: readDownloadCountFromPageProperties(properties),
     isPasswordProtected: isArticlePasswordProtectedFromProperties(properties),
+    linkedProductSku: readLinkedProductSkuFromPageProperties(properties),
   }
 
   const formattedPost = {
@@ -191,6 +192,7 @@ const formatPost = async (
       downloadSize: postOptions.downloadSize ?? '',
       downloadCount: postOptions.downloadCount ?? '',
       isPasswordProtected: postOptions.isPasswordProtected ?? false,
+      linkedProductSku: postOptions.linkedProductSku ?? '',
       useDefaultCover: isExplicitDefaultCover,
     },
   } as Post

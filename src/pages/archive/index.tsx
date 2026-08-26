@@ -14,6 +14,7 @@ import { initialTag } from '@/src/lib/blog/format/tag'
 import { withNavFooterStaticProps } from '@/src/lib/blog/withNavFooterStaticProps'
 import { addSubTitle } from '@/src/lib/util'
 import { GalleryArchive } from '@/src/themes/gallery/GalleryArchive'
+import { ShopArchive } from '@/src/themes/shop/ShopArchive'
 import {
   Category,
   NextPageWithLayout,
@@ -167,6 +168,18 @@ const Archive: NextPage<{
         pageCount={pageCount}
         currentPage={currentPage}
         totalCount={totalCount}
+      />
+    )
+  }
+
+  if (activeTheme === 'shop') {
+    return (
+      <ShopArchive
+        page={page}
+        items={items}
+        pageCount={pageCount}
+        currentPage={currentPage}
+        galleryFeedCovers={galleryFeedCovers}
       />
     )
   }

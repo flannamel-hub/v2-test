@@ -111,6 +111,8 @@ export type Post = {
     downloadCount: string
     /** 是否设置了全篇访问密码（不含明文密码） */
     isPasswordProtected?: boolean
+    /** shop 主题：关联商品 SKU（Notion linked_product_sku；留空表示未关联） */
+    linkedProductSku?: string
     /** Notion cover 字段显式设为站点默认封面 */
     useDefaultCover?: boolean
   }
