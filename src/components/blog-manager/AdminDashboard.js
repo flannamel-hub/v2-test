@@ -9826,23 +9826,7 @@ const [mounted, setMounted] = useState(false);
           /* 这里是之前的表单编辑代码... */
           <div className="editor-form-panel" style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <StepAccordion step={1} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>基础信息<span style={{fontSize:'10px', color:'#ff4d4f', border:'1px solid rgba(255,77,79,0.5)', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>必填</span></span>} isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
-               {!editingSimplePage ? (
-                 <div style={{ marginBottom: '20px', padding: '14px', borderRadius: '10px', border: '1px solid #3a3a42', background: '#1a1a1e' }}>
-                   <BlockCoverHint
-                     coverSettings={coverSettings}
-                     coverStatusText={coverStatusText}
-                     showManualCoverInput={showManualCoverInput}
-                     onToggleDefaultCover={handleToggleDefaultCover}
-                     onToggleManualInput={() => setShowManualCoverInput((v) => !v)}
-                      onManualUrlChange={(url) => {
-                        markDirty();
-                        setCoverSettings((prev) => ({ ...prev, manualUrl: url }));
-                      }}
-                     onApplyManualUrl={handleApplyManualCoverUrl}
-                   />
-                 </div>
-               ) : null}
-                <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
+              <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
                 <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>
                {!editingSimplePage ? (
                <div style={{marginTop:'4px', marginBottom:'0', paddingTop:'16px', borderTop:'1px solid #333'}}>
@@ -9962,7 +9946,23 @@ const [mounted, setMounted] = useState(false);
             ) : null}
 
             {!editingSimplePage ? (
-            <StepAccordion step={5} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
+            <StepAccordion step={5} title={<>封面设定</>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
+              <div style={{ marginBottom: '14px', padding: '14px', borderRadius: '10px', border: '1px solid #3a3a42', background: '#1a1a1e' }}>
+                <BlockCoverHint
+                  coverSettings={coverSettings}
+                  coverStatusText={coverStatusText}
+                  showManualCoverInput={showManualCoverInput}
+                  onToggleDefaultCover={handleToggleDefaultCover}
+                  onToggleManualInput={() => setShowManualCoverInput((v) => !v)}
+                  onManualUrlChange={(url) => {
+                    markDirty();
+                    setCoverSettings((prev) => ({ ...prev, manualUrl: url }));
+                  }}
+                  onApplyManualUrl={handleApplyManualCoverUrl}
+                />
+              </div>
+            </StepAccordion>
+            <StepAccordion step={6} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 6} onToggle={()=>setExpandedStep(expandedStep===6?0:6)}>
                <div>
                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>Gallery 主题下载弹窗中展示的链接内容，留空则显示「暂无下载」。</p>
