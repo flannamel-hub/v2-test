@@ -3041,20 +3041,7 @@ const BlockCoverHint = ({
       <div>
         🖼️ <b style={{ color: 'greenyellow' }}>封面说明</b>：可手动将图库中的图片或正文图片块设定为封面，未手动设定封面则自动采取正文首图或图库首图作为封面。可手动添加外链作为封面或使用系统默认封面。
       </div>
-      {coverStatusText ? (
-        <div
-          style={{
-            marginTop: '8px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: '#7dd3fc',
-          }}
-        >
-          {coverStatusText}
-        </div>
-      ) : null}
-    </div>
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
       <button
         type="button"
         className="neo-btn"
@@ -3099,6 +3086,7 @@ const BlockCoverHint = ({
         </>
       ) : null}
     </div>
+  </div>
   </div>
 );
 
@@ -9947,7 +9935,7 @@ const [mounted, setMounted] = useState(false);
 
             {!editingSimplePage ? (
             <>
-            <StepAccordion step={5} title={<>封面设定</>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
+            <StepAccordion step={5} title={<>封面</>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
               <div style={{ marginBottom: '14px', padding: '14px', borderRadius: '10px', border: '1px solid #3a3a42', background: '#1a1a1e' }}>
                 <BlockCoverHint
                   coverSettings={coverSettings}
