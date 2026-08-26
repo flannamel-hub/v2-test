@@ -9946,6 +9946,7 @@ const [mounted, setMounted] = useState(false);
             ) : null}
 
             {!editingSimplePage ? (
+            <>
             <StepAccordion step={5} title={<>封面设定</>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
               <div style={{ marginBottom: '14px', padding: '14px', borderRadius: '10px', border: '1px solid #3a3a42', background: '#1a1a1e' }}>
                 <BlockCoverHint
@@ -9979,6 +9980,7 @@ const [mounted, setMounted] = useState(false);
                  </div>
                </div>
             </StepAccordion>
+            </>
             ) : null}
 
             <BlockBuilder
