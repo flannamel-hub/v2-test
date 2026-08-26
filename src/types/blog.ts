@@ -153,6 +153,8 @@ export type SharedNavFooterStaticProps = {
     sitePlan?: 'free' | 'pro'
     /** BLOG 分层 P8:去除平台角标生效(服务端已按 plan=pro && brand_clean 收敛;缺省视为 false) */
     siteBrandClean?: boolean
+    /** P18-C2:shop 主题站点 ID(购物车 localStorage 分组 / 结算 URL site 参数) */
+    shopSiteId?: string
     /** Gallery 主题全局底部广告条 */
     galleryAdBanner?: {
       url: string

@@ -4,13 +4,14 @@ import { Post } from '@/src/types/blog'
 import React from 'react'
 import { PostNavLink } from '@/src/components/navigation/PostNavStallGuard'
 import { PostImage } from '@/src/components/card/CardInfo'
+import { ShopBuyButtons } from './ShopBuyButtons'
 
 type ShopPostCardProps = {
   post: Post
   galleryCoverSrc?: string | null
 }
 
-/** shop 主题文章卡片（商品化样式）；C2 将在卡片上加购买按钮 */
+/** shop 主题文章卡片(商品化样式);关联商品文章在卡片底部显示购买/加购按钮 */
 export function ShopPostCard({ post, galleryCoverSrc }: ShopPostCardProps) {
   const { title, slug, cover, date, category } = post
   const displayCover = resolveListPostCover(post, galleryCoverSrc)
@@ -56,15 +57,21 @@ export function ShopPostCard({ post, galleryCoverSrc }: ShopPostCardProps) {
             </article>
 
             <div className="flex items-center justify-between border-t border-neutral-100 pt-3 dark:border-white/5">
-              <time
-                dateTime={date.created}
-                className="text-xs font-semibold text-neutral-500 dark:text-neutral-400"
-              >
-                {formatDate(date.created)}
-              </time>
-              <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                阅读详情
-              </span>
+              {linkedSku ? (
+                <ShopBuyButtons sku={linkedSku} name={title} variant="card" />
+              ) : (
+                <>
+                  <time
+                    dateTime={date.created}
+                    className="text-xs font-semibold text-neutral-500 dark:text-neutral-400"
+                  >
+                    {formatDate(date.created)}
+                  </time>
+                  <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                    阅读详情
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>

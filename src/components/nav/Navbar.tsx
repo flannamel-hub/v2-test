@@ -11,15 +11,19 @@ import { NavIcon } from './NavIcon'
 import { NavItem } from './NavItem'
 import { NavMenuIcon } from './NavMenuIcon'
 import { ProPlusCreateButton } from './ProPlusCreateButton'
+import { ShopCartButton } from '@/src/themes/shop/ShopCartButton'
 
 const Navbar = ({
   items,
   title,
   subtitle,
+  showCart = false,
 }: {
   items: Page[]
   title: Title
   subtitle?: Title
+  /** P18-C2:shop 主题显示购物车入口(徽标 + 抽屉) */
+  showCart?: boolean
 }) => {
   const { isMobile, isTablet } = useScreenSize()
   const [isFolded, setIsFolded] = useState(false)
@@ -124,6 +128,7 @@ const Navbar = ({
               )}
             </div>
             <div className="z-50 flex items-center justify-end h-full gap-2 sm:gap-3">
+              {showCart ? <ShopCartButton /> : null}
               <button
                 onMouseEnter={handleMouseEnter}
                 onClick={handleMenuClick}

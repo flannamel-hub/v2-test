@@ -7,6 +7,7 @@ import { getPopupAdConfig } from '@/src/lib/blog/popupAdSettings'
 import { getVendingConfig } from '@/src/lib/blog/vendingSettings'
 import { DEFAULT_VENDING_URL } from '@/src/lib/blog/vendingDefaults'
 import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
+import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
 import { getCachedNavFooter } from '../notion/getCachedMem'
 import { getWidgetPages } from '../notion/getDatabase'
 import { isTransientNotionError, isNotionBuildPhase } from '../notion/transientErrors'
@@ -55,6 +56,8 @@ async function buildSharedProps(
     activeTheme,
     sitePlan: quotaState.plan,
     siteBrandClean,
+    // P18-C2:shop 主题购物车 localStorage 分组与结算 URL 的 site 参数
+    shopSiteId: getBlogSiteIdOrNull() || '',
     vendingConfig: vendingConfigForPlan,
     vendingEnabled: vendingConfigForPlan.enabled,
     announcementPopup,

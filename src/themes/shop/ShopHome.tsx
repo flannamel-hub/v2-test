@@ -2,10 +2,13 @@ import ContainerLayout from '@/src/components/post/ContainerLayout'
 import { WidgetCollection } from '@/src/components/section/WidgetCollection'
 import { ThemeHomeProps } from '../types'
 import { ShopPostCard } from './ShopPostCard'
+import { ShopProductsSection } from './ShopProductsSection'
 
 /**
- * shop（商城）主题首页：走默认 BlogLayout 壳层（Navbar + Footer），
- * Widget/贩售机等挂载沿用现有机制；文章以商品化卡片网格展示。
+ * shop(商城)主题首页:走默认 BlogLayout 壳层(Navbar + Footer),
+ * Widget/贩售机等挂载沿用现有机制。
+ * 「全部商品」= 本站商户商品集合(主站 products-public,客户端加载);
+ * 下方文章以商品化卡片网格展示。
  */
 export const ShopHome = ({
   posts,
@@ -21,9 +24,10 @@ export const ShopHome = ({
         vendingConfig={vendingConfig}
         vendingEnabled={vendingEnabled !== false}
       />
+      <ShopProductsSection />
       <div data-aos="fade-up" data-aos-delay={300}>
         <h2 className="mb-6 text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
-          全部商品
+          全部文章
         </h2>
       </div>
     </ContainerLayout>
