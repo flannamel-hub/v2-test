@@ -565,7 +565,7 @@ const GalleryOnlyTag = () => (
 
 // P18-C3: shop 系列主题专用标注（浅粉底 pill；样式参照 GalleryOnlyTag）
 const ShopOnlyTag = () => (
-  <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.3px', color: '#be185d', background: 'linear-gradient(135deg,#fce7f3,#fdf2f8)', padding: '2px 8px', borderRadius: '999px', boxShadow: '0 1px 3px rgba(190,24,93,0.18)', border: '1px solid rgba(190,24,93,0.22)', verticalAlign: 'baseline' }}>（shop 系列主题专用）</span>
+  <span className="gallery-only-tag">(shop主题专用)</span>
 );
 
 const ViewModeButton = ({ label, active, onClick }) => (
@@ -7417,6 +7417,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const handleCrawlerRetrySelected = async () => {
+    if (crawlerIngestBusy) return; // P11-C3: 进行中早退
     if (!crawlerIngestSelectedIds.length) return;
     const count = crawlerIngestSelectedIds.length;
     try {
@@ -7461,6 +7462,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const handleCrawlerResetProcessingSelected = async () => {
+    if (crawlerIngestBusy) return; // P11-C3: 进行中早退
     if (!crawlerIngestSelectedIds.length) return;
     try {
       const res = await fetch('/api/admin/crawler-ingest', {
@@ -8906,7 +8908,7 @@ const [mounted, setMounted] = useState(false);
                 <div onClick={openShopBanner} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #f472b6', cursor: 'pointer' }}>
                   <div style={{ fontSize: '28px' }}>🖼️</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>Banner <ShopOnlyTag /></div>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>Banner</div>
                     <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页顶部横幅 · 单图静态 / 多图轮播</div>
                   </div>
                   <div style={{ color: '#f472b6', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
@@ -9470,7 +9472,7 @@ const [mounted, setMounted] = useState(false);
         ) : view === 'shop-banner' ? (
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
-              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🖼️ Banner <ShopOnlyTag /></div>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🖼️ Banner</div>
               <div style={{fontSize:'12px', color:'#888'}}>Shop 主题首页顶部 · 单图静态 / 多图轮播</div>
             </div>
 
@@ -9482,7 +9484,7 @@ const [mounted, setMounted] = useState(false);
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>Banner 开关</div>
                     <div style={{fontSize:'12px', color:'#999'}}>
-                      {shopBanner.enabled ? '当前：已开启' : '当前：已关闭'} · 仅 Shop 系列主题首页生效，其他主题不展示
+                      {shopBanner.enabled ? '当前：已开启' : '当前：已关闭'} · 仅在 shop 主题首页展示，其他主题不展示
                     </div>
                   </div>
                   <button
@@ -9507,13 +9509,29 @@ const [mounted, setMounted] = useState(false);
                 </div>
                 <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
                   <div>
-                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>图片地址 <span style={{color:'#ff4d4f'}}>*</span> <span style={{color:'#777', fontWeight:'normal'}}>(每行一条，第 2 条起自动轮播)</span></label>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>图片地址 <span style={{color:'#ff4d4f'}}>*</span> <span style={{color:'#777', fontWeight:'normal'}}>(拖入图片自动上传，每行一条，第 2 条起自动轮播)</span></label>
                     <textarea
                       className="glow-input"
                       value={shopBanner.imagesText}
                       disabled={shopBannerSaving}
                       onChange={e=>setShopBanner({...shopBanner, imagesText: e.target.value})}
-                      placeholder={'https://example.com/banner-1.jpg\nhttps://example.com/banner-2.jpg'}
+                      onDrop={e => {
+                        const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
+                        if (files.length === 0) return;
+                        e.preventDefault();
+                        (async () => {
+                          for (const f of files) {
+                            try {
+                              const url = await uploadImageToLsky(f);
+                              if (url) setShopBanner(prev => ({ ...prev, imagesText: prev.imagesText ? prev.imagesText.replace(/\s+$/,'') + '\n' + url : url }));
+                            } catch (err) {
+                              alert('上传失败：' + (err?.message || '未知错误'));
+                            }
+                          }
+                        })();
+                      }}
+                      onDragOver={e => e.preventDefault()}
+                      placeholder={'拖入图片自动上传\n或手动填写：https://example.com/banner-1.jpg'}
                       style={{minHeight:'130px', lineHeight:1.7}}
                     />
                   </div>
@@ -9522,7 +9540,7 @@ const [mounted, setMounted] = useState(false);
                     <input className="glow-input" value={shopBanner.link} disabled={shopBannerSaving} onChange={e=>setShopBanner({...shopBanner, link: e.target.value})} placeholder="https://example.com 或 /archive" />
                   </div>
                   <div style={{fontSize:'12px', color:'#888', lineHeight:1.7, padding:'14px 16px', background:'#2f2f33', borderRadius:'10px'}}>
-                    仅 Shop 系列主题生效：1 张图片为静态展示，2 张及以上自动轮播（约 5 秒一切换，支持手动切换与移动端滑动）。建议使用宽幅横图（如 1600×500）。
+                    1 张图片为静态展示，2 张及以上自动轮播（约 5 秒一切换，支持手动切换与移动端滑动）。建议使用宽幅横图（如 1600×500）。
                   </div>
                 </div>
                 <button
