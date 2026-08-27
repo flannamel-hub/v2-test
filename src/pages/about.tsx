@@ -19,6 +19,7 @@ import { TweetShell } from '@/src/themes/tweet/TweetShell'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
 import { pickTweetShellWidgets } from '@/src/themes/tweet/tweetShellWidgets'
 import { applyThemePageLayout } from '@/src/themes/themeLayout'
+import { isShopTheme } from '@/src/themes/shop/shopTheme'
 
 const { ABOUT } = CONFIG.DEFAULT_SPECIAL_PAGES
 
@@ -70,9 +71,12 @@ const About: NextPage<{
         <div className="break-words rounded-2xl bg-white px-8 py-4 dark:bg-neutral-900">
           <BlockRender blocks={blocks} />
         </div>
-        <div className="mt-6" data-aos="fade-up">
-          {widgets && <WidgetCollection widgets={widgets} />}
-        </div>
+        {/* E1:shop 主题 /about 仅正文,不渲染 standard 首页残留组件(profile/公告入口) */}
+        {!isShopTheme(activeTheme) && (
+          <div className="mt-6" data-aos="fade-up">
+            {widgets && <WidgetCollection widgets={widgets} />}
+          </div>
+        )}
       </ContainerLayout>
     </>
   )

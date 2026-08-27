@@ -18,7 +18,7 @@ function readAnnouncementPost(widgets: {
 
 /**
  * Shop 首页(v2 修正 2026-08-28 P18-C4-4B):仿独角数卡 Home.vue
- * Banner(Hero) → 精选商品 Featured Products(标题+副标题+商品化卡片网格)
+ * Banner(Hero) → 精选商品 Featured Products(标题+商品化卡片网格)
  * → 最新动态 Latest Updates(公告卡) → Footer(壳层)。
  * 精选区展示全部文章(C4-3B 修正):有商品字段渲染商品卡,无商品渲染普通卡。
  */
@@ -34,14 +34,7 @@ export const ShopHome = ({
       : null
   const announcement = readAnnouncementPost(widgets)
 
-  const hasProduct = (p: (typeof posts)[number]) =>
-    Boolean(
-      p.options?.linkedProductSku?.trim() ||
-        p.options?.linkedProductUrl?.trim() ||
-        p.options?.linkedProductPrice?.trim()
-    )
   // C4-4B:展示全部文章(不再只筛商品文章),前 10 篇
-  const hasAnyProduct = posts.some(hasProduct)
   const featured = posts.slice(0, 10)
 
   return (
@@ -71,11 +64,6 @@ export const ShopHome = ({
             <h2 className="text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white md:text-3xl">
               精选商品
             </h2>
-            <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-              {hasAnyProduct
-                ? '本站精选的数字作品与商品'
-                : '最新发布的内容'}
-            </p>
           </div>
         </div>
 
@@ -100,9 +88,11 @@ export const ShopHome = ({
           <h2 className="mb-6 text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
             最新动态
           </h2>
-          <div
+          {/* F1:整卡可点,点击任意位置进入公告内页 */}
+          <Link
+            href={`/post/${announcement.slug}`}
             data-aos="fade-up"
-            className="rounded-2xl border border-neutral-200/70 bg-white p-5 shadow-card transition-shadow hover:shadow-lg dark:border-neutral-800/70 dark:bg-neutral-900 md:p-6"
+            className="block rounded-2xl border border-neutral-200/70 bg-white p-5 shadow-card transition-shadow hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/20 dark:border-neutral-800/70 dark:bg-neutral-900 dark:focus-visible:ring-white/30 md:p-6"
           >
             <div className="mb-2 text-xs text-neutral-400 dark:text-neutral-500">
               {announcement.date?.created || ''}
@@ -115,13 +105,10 @@ export const ShopHome = ({
                 {announcement.excerpt}
               </p>
             ) : null}
-            <Link
-              href={`/post/${announcement.slug}`}
-              className="mt-4 inline-flex items-center text-sm font-medium text-neutral-900 underline decoration-neutral-300 underline-offset-4 transition-colors hover:decoration-neutral-900 dark:text-white dark:decoration-neutral-600 dark:hover:decoration-white"
-            >
-              阅读全文
-            </Link>
-          </div>
+            <span className="mt-4 inline-flex items-center text-sm font-medium text-neutral-900 underline decoration-neutral-300 underline-offset-4 dark:text-white dark:decoration-neutral-600">
+              查看详情
+            </span>
+          </Link>
         </section>
       ) : null}
     </>
