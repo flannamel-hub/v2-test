@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FiMinus, FiPlus, FiTrash2, FiX } from 'react-icons/fi'
+import { FiMinus, FiPlus, FiShoppingCart, FiTrash2, FiX } from 'react-icons/fi'
 import {
   buildCheckoutUrl,
   cartTotalQty,
@@ -27,6 +27,14 @@ import { useShopSiteId } from './ShopSiteContext'
  * - C2:同 SKU 加购在 shopCart.addToCart 内合并数量(封顶 MAX_CART_QTY=99)。
  * - C3:列表行数量 ±(下限 1/上限 99)、删除单条;顶部「清空购物车」两步确认
  *   + 轻提示;空车保留「购物车是空的」+「去商店逛逛」。
+ * - C4(批4):面板不透明优雅化(浅色近白 / dark:bg-neutral-900/95 +
+ *   border-white/10 rounded-l-2xl),与视口留边 top-3 right-3 bottom-3、
+ *   宽 w-[min(430px,92vw)],挂载后 rAF 平滑滑入(motion-reduce 关闭过渡)。
+ * - C5(批4):打开时不再锁 document.body 滚动,背景页面可正常滚动,仅遮罩 fixed。
+ * - C6(批4):外层遮罩 onClick={onClose} 点击空白关闭;面板内 stopPropagation,
+ *   列表/按钮点击不冒泡关闭(叉/Esc 仍可关)。
+ * - C7(批4):「去结算」改 <a target="_blank" rel="noopener noreferrer">,新标签
+ *   打开 store 结算页,避免浏览器后退键回到贩售机;URL 仍走 buildCheckoutUrl。
  *
  * 数据 = BLOG 侧 localStorage(shop_cart_v1,按 site_id 分组);
  * 「去结算」把条目编码进 URL 跳 {storeUrl}/cart?site=...&items=sku:qty,…
@@ -73,18 +81,16 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
     }
   }, [open, refresh])
 
-  // Esc 关闭 + 打开时锁定背景滚动
+  // Esc 关闭(P18-C4-3 C5:不再锁定 body 滚动——打开抽屉时背景页面可正常滚动,
+  // 仅遮罩本身 fixed 覆盖视口)
   useEffect(() => {
     if (!open) return
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handleKey)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     return () => {
       window.removeEventListener('keydown', handleKey)
-      document.body.style.overflow = prevOverflow
     }
   }, [open, onClose])
 
@@ -159,7 +165,7 @@ type ShopCartDrawerContentProps = {
   onClose: () => void
 }
 
-/** 抽屉展示层(纯 props 无副作用;独立导出供冒烟/测试直接渲染) */
+/** 抽屉展示层(纯 props 无外部副作用;独立导出供冒烟/测试直接渲染) */
 export function ShopCartDrawerContent({
   items,
   checkoutUrl,
@@ -177,6 +183,14 @@ export function ShopCartDrawerContent({
     ? prices.reduce((sum: number, p, idx) => sum + (p ?? 0) * items[idx].qty, 0)
     : null
 
+  // C4:挂载后下一帧切入 translate-x-0,配合 transition 实现平滑滑入
+  // (renderToStaticMarkup/SSR 输出初始态,不影响结构断言)
+  const [entered, setEntered] = useState(false)
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setEntered(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
   return (
     <div
       className="fixed inset-0 z-[60]"
@@ -188,11 +202,27 @@ export function ShopCartDrawerContent({
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity duration-200 ease-out"
         onClick={onClose}
       />
-      <aside className="absolute right-0 top-0 flex h-full w-full max-w-sm transform-gpu flex-col border-l border-neutral-200 bg-white shadow-2xl transition-transform duration-300 ease-out dark:border-white/10 dark:bg-[#1c1c1e]">
-        <header className="flex items-center justify-between border-b border-neutral-100 px-5 py-4 dark:border-white/5">
-          <h2 className="text-base font-extrabold tracking-tight text-neutral-900 dark:text-white">
-            购物车
-          </h2>
+      <aside
+        onClick={(e) => e.stopPropagation()}
+        className={`absolute bottom-3 right-3 top-3 flex w-[min(430px,92vw)] transform-gpu flex-col overflow-hidden rounded-l-2xl border border-neutral-200/80 bg-white/95 shadow-2xl transition-transform duration-300 ease-out motion-reduce:transition-none dark:border-white/10 dark:bg-neutral-900/95 ${
+          entered ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <header className="flex items-center justify-between gap-3 border-b border-neutral-100 px-5 py-4 dark:border-white/5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <FiShoppingCart
+              className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200"
+              aria-hidden
+            />
+            <h2 className="text-base font-extrabold tracking-tight text-neutral-900 dark:text-white">
+              购物车
+            </h2>
+            {totalQty > 0 ? (
+              <span className="shrink-0 rounded-full bg-neutral-900/5 px-2 py-0.5 text-xs font-semibold text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
+                共 {totalQty} 件
+              </span>
+            ) : null}
+          </div>
           <div className="flex items-center gap-1.5">
             {items.length > 0 ? (
               <button
@@ -296,8 +326,11 @@ export function ShopCartDrawerContent({
                     : `共 ${totalQty} 件`}
                 </span>
               </div>
+              {/* C7:新标签打开 store 结算页,避免结算后后退键落回贩售机/BLOG */}
               <a
                 href={checkoutUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-3 block w-full rounded-xl bg-green-600 py-2.5 text-center text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-green-500"
               >
                 去结算

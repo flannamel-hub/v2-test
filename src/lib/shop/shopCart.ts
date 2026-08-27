@@ -207,7 +207,10 @@ export function buildCheckoutUrl(
   items: ShopCartItem[]
 ): string {
   const itemsParam = items
-    .map((item) => `${item.sku.trim()}:${Math.max(1, Math.round(item.qty) || 1)}`)
+    .map((item) => {
+      const price = parseItemPrice(item.price)
+      return `${item.sku.trim()}:${Math.max(1, Math.round(item.qty) || 1)}${price != null ? `:${price}` : ''}`
+    })
     .join(',')
   return `${storeUrl}/cart?site=${encodeURIComponent(siteId || '')}&items=${encodeURIComponent(itemsParam)}`
 }
