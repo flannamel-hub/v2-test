@@ -2827,7 +2827,7 @@ const ADMIN_THEMES = [
   { id: 'tweet', label: 'tweet·灰色', color: '#6b7280', desc: '时间线卡片 · 灰底可切换深浅' },
   { id: 'tweet-light', label: 'tweet·浅色', color: '#38bdf8', desc: '时间线卡片 · 固定纯白浅色' },
   { id: 'tweet-dark', label: 'tweet·暗', color: '#0f1419', desc: '时间线卡片 · 纯黑 X 暗色风格' },
-  { id: 'shop', label: '商城', color: '#22c55e', desc: '商城风格 · 文章关联商品' },
+  { id: 'shop', label: 'shop', color: '#22c55e', desc: '商城风格 · 文章关联商品' },
 ];
 
 function formatThemeSwitchQuotaRemaining(remainingMs) {

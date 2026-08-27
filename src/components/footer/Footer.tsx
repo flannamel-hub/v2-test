@@ -21,6 +21,7 @@ const Footer = ({
   socialLinks,
   path,
   wide = false,
+  hideThemeSwitch = false,
 }: {
   showBeian?: boolean
   color?: ApiColor | 'pure'
@@ -34,6 +35,8 @@ const Footer = ({
   }
   /** P18-C4-4A: shop 主题容器对齐 max-w-7xl(其他主题保持 lg:w-screen-lg) */
   wide?: boolean
+  /** P18-C4-3 A4: shop 主题不渲染浅色/深色切换(其他主题不受影响) */
+  hideThemeSwitch?: boolean
 }) => {
   const thisYear = new Date().getFullYear()
   // BLOG 分层 P8:专业版开启「去除平台角标」后隐藏「Powered by PRO+」,
@@ -120,7 +123,7 @@ const Footer = ({
                 ))}
               </div>
             )}
-            <ThemeSwitch />
+            {!hideThemeSwitch && <ThemeSwitch />}
             
             {/* 新增：Admin 后台入口按钮 */}
             {/* 使用 a 标签防止 Next.js 预加载触发 Middleware 登录框 */}

@@ -98,6 +98,7 @@ export default function withNavFooter(
               logo={props.logo}
               socialLinks={themeId === 'shop' ? socialLinks?.links ?? null : undefined}
               wide={themeId === 'shop'}
+              hideThemeSwitch={themeId === 'shop'}
               path={{
                 text: props.siteSubtitle?.text ?? '',
                 href: props.siteSubtitle?.slug ?? '',
