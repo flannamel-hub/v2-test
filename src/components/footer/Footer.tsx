@@ -8,6 +8,8 @@ import { colorMap } from '../../lib/colors'
 import { classNames } from '../../lib/util'
 import { ApiColor } from '../../types/notion'
 import { useIsBrandCleanSite, useSiteBrand } from '@/src/components/theme/SitePlanContext'
+import type { SocialLink } from '@/src/lib/blog/format/childrenDatabase/socialLinksDatabase'
+import { SocialLinks } from '@/src/components/widget/SocialLinks'
 import { Logo } from './Logo'
 import ThemeSwitch from './ThemeSwitch'
 
@@ -16,12 +18,15 @@ const Footer = ({
   color,
   title,
   logo,
+  socialLinks,
   path,
 }: {
   showBeian?: boolean
   color?: ApiColor | 'pure'
   title?: Title
   logo?: DatabaseObjectResponse['icon']
+  /** P18-C4-1.3: shop 主题页脚社媒(现有 social-links widget;无则不渲染) */
+  socialLinks?: SocialLink[] | null
   path?: {
     text: string
     href: string
@@ -88,6 +93,11 @@ const Footer = ({
 
           {/* 🟢 核心修改区：将 ThemeSwitch 和 Admin 按钮包裹在一起 */}
           <div className="flex items-center gap-3">
+            {socialLinks && socialLinks.length > 0 ? (
+              <div className="mr-1 hidden sm:block">
+                <SocialLinks links={socialLinks} variant="standard" />
+              </div>
+            ) : null}
             <ThemeSwitch />
             
             {/* 新增：Admin 后台入口按钮 */}

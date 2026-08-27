@@ -142,16 +142,17 @@
 | `announcement-popup` | 公告弹窗（通知） | `title`/`excerpt`/`cover`；**无跳转按钮**；旧 `button_text`/`button_url` 保存时清空，字段不存在则忽略 |
 | `popup-ad` | 弹窗广告 | `title`/`excerpt`/`cover`/`button_text`/`button_url`；`Published`=开；**仅首页**；`sessionStorage` 每会话一次；与公告同时开时先公告后广告 |
 | `click-ad` | 遮罩广告 | `title`=备注名，`excerpt`=广告 URL，`Published`=开；**仅首页**；`localStorage` 每天一次；排除贩售机/弹窗；原点击仍有效 + `window.open` 新标签 |
+| `banner` | Shop 首页 Banner（P18-C4-1） | `title`=图片 URL（逗号分隔多图，兼容换行/中文逗号），`excerpt`=可选跳转链接（http(s) 或 / 开头）；`Published`=开；**仅 shop 主题首页顶部**；1 图静态、多图自动轮播（零依赖，约 5s/张，支持按钮/圆点/触摸滑动）；前台读取 `shopBannerSettings.getShopBannerConfig`，index 仅在 shop 主题时下发 `shopBanner` prop |
 | `social-links` | 社交媒体 | 父级 `status` 控制开关；内嵌 SocialLinks 子数据库 |
 
 `[page].tsx` 会过滤：
 
 - `CONFIG.DEFAULT_SPECIAL_PAGES` 全部值：`tag`、`category`、`archive`、`friends`、`about`、`download`
-- 以及：`theme-config`、`gallery-ad`、`vending`、`announcement-popup`、`popup-ad`、`click-ad`、`social-links`
+- 以及：`theme-config`、`gallery-ad`、`vending`、`announcement-popup`、`popup-ad`、`click-ad`、`social-links`、`banner`
 
 新建文章保留 slug（`RESERVED_POST_SLUGS`）：
 
-- `announcement`、`about`、`download`、`theme-config`、`gallery-ad`、`vending`、`announcement-popup`、`popup-ad`、`click-ad`、`social-links`
+- `announcement`、`about`、`download`、`theme-config`、`gallery-ad`、`vending`、`announcement-popup`、`popup-ad`、`click-ad`、`social-links`、`banner`
 
 注意：后台 `AdminDashboard.js` 内 `SPECIAL_PAGE_SLUGS` 列表更短（主要用于列表分类），与上述两处不完全一致；改 slug 保留规则时建议三处一起核对。
 
@@ -222,6 +223,7 @@
 - 分类/标签/友链/关于/下载等页面 shop 暂走默认渲染（与 anzifan 相同）；归档页有 shop 分支（`archive/index.tsx`、`archive/[page].tsx`）。
 - `shouldLoadGalleryFeedCovers` 已包含 shop（列表封面回退链与 anzifan 一致）。
 - 文章↔商品映射（P18-C3 改为人工挂链接）：Notion 属性三字段 `linked_product_url`（商品链接，url/rich_text 均可）、`linked_product_sku`（商品码，兼容 `Linked_product_sku` / `linkedProductSku` / `关联商品` 列名；select 与 rich_text 均可读写）、`linked_product_price`（价格，rich_text，纯展示）；前台 pipeline 输出为 `post.options.linkedProductUrl / linkedProductSku / linkedProductPrice`。后台编辑入口是 **Step7「商品信息」**（浅粉 `ShopOnlyTag` 标注，shop 系列主题专用；三字段均可留空），保存时列不存在会自动补建（rich_text）。前台「立即购买」优先 `linked_product_url`，为空时兜底 `{NEXT_PUBLIC_STORE_URL}/p/{sku}`；「加入购物车」仅在有 sku 时渲染；`buildCheckoutUrl` 结算仍按 sku 编码。C1 的 Step1「关联商品」下拉与系统侧 `GET /api/admin/merchant-products` 调用已移除（API 文件保留，后台不再调用；前台 `ShopProductsSection` 仍走公开端点 `/api/shop/products`）。
+- **shop v1 基础设施（P18-C4-1，2026-08-27）**：① Banner——`ShopBanner.tsx` 渲染于 ShopHome 顶部（见上表 `banner` 行），后台「组件」Tab 有 `ShopOnlyTag` 标注的「Banner」卡片（图片 URL 每行一条、跳转链接、开关）；保存走 `/api/admin/banner`（路由内 `verifyAdminRequest`），revalidate scope=`banner`（仅刷 `/`）。② 顶部导航——`withNavFooter` 在 shop 主题用 `ShopNavbar`（Logo+首页+已发布自定义页面+「游客查单」外链 `store.pro-pl.us/orders`+购物车徽标）替换默认 Navbar；移动端汉堡菜单收纳导航链接，查单与购物车常驻可见。③ ShopHome 底部「最新动态」公告区（读 `widgets.announcement`，无则整块不渲染）；Footer 仅在 shop 主题下发社媒（`social-links` widget，无则隐藏）。
 
 ### 读取与保存
 
@@ -300,6 +302,7 @@
 | `GET /api/admin/site-plan` | 站点会员计划只读（P4-FIX 广告位灰态判定；仅 BLOG 后台浏览器调用，只返回 plan） |
 | `GET /api/admin/merchant-products` | 主站商户商品列表代理（P18-C1 建立；P18-C3 起后台不再调用，文件保留；路由内 `verifyAdminRequest`；前台 `ShopProductsSection` 改走公开端点 `/api/shop/products`） |
 | `GET/POST /api/admin/social-links` | 社媒组件配置 |
+| `GET/POST /api/admin/banner` | shop 首页 Banner 配置（P18-C4-1；路由内 `verifyAdminRequest`，未登录 401；图片最多 8 张，开启时必须有图；保存后 revalidate scope=`banner` 仅刷 `/`） |
 | `GET /api/admin/theme-cooldown` | 主题切换配额状态（命名历史遗留） |
 | `POST /api/admin/revalidate` | ISR 刷新；支持即时刷新与 `action: drain` 消费队列 |
 | `GET/POST /api/admin/full-redeploy` | 全量 redeploy（Deploy Hook + 冷却） |
@@ -311,7 +314,7 @@
 - `src/middleware.ts` 的 matcher 虽包含 `/api/admin/:path*`，但当前实现分支只判断 `pathname.startsWith('/admin')`；因此不能仅凭路由名称或 matcher 认定全部 Admin API 已受 middleware 保护。
 - `/api/admin/upload` 是浏览器后台专用敏感接口，已在路由内调用 `verifyAdminRequest(req)`；未登录或错误凭据返回 401，并且不会读取 `LSKY_TOKEN`、请求体或转发兰空。`npm run test:upload-auth` 覆盖未登录、错误 Basic、正确 Basic 与正确 Cookie。
 - `/api/admin/crawler-ingest` 也已有路由内 `verifyAdminRequest`，敏感操作再叠加维护密码。
-- 当前代码调用盘点中，`posts`、`post`、`gallery*`、`upload`、`gallery-ad`、`popup-ad`、`click-ad`、`social-links`、`theme-cooldown`、`config`、`taxonomy`、`full-redeploy`、`crawler-ingest`、`site-plan` 只在 BLOG 后台浏览器使用；`friends*`、`announcement-popup`、`vending`、`revalidate` 同时被平台服务端调用。
+- 当前代码调用盘点中，`posts`、`post`、`gallery*`、`upload`、`gallery-ad`、`popup-ad`、`click-ad`、`social-links`、`theme-cooldown`、`config`、`taxonomy`、`full-redeploy`、`crawler-ingest`、`site-plan`、`banner` 只在 BLOG 后台浏览器使用；`friends*`、`announcement-popup`、`vending`、`revalidate` 同时被平台服务端调用。
 - 平台目前会服务端调用 `/api/admin/friends*`、`/api/admin/announcement-popup`、`/api/admin/vending` 与 `/api/admin/revalidate`，这些调用尚未统一携带 BLOG Basic/Cookie。未设计并部署明确的服务到服务凭据前，禁止把 middleware 分支直接扩大到全部 `/api/admin/*`，否则会破坏现有组件同步。
 - 长期目标仍是按调用方分类：浏览器后台接口使用管理员会话，平台联动接口使用独立服务端鉴权，公开只读能力放在非 admin 路由；不得继续依赖匿名 Admin API。
 

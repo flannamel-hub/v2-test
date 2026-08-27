@@ -3,6 +3,7 @@ import Navbar from './nav/Navbar'
 import { SitePopups } from './widget/SitePopups'
 import { ThemeNavShell } from '@/src/themes/themeLayout'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
+import { ShopNavbar } from '@/src/themes/shop/ShopNavbar'
 import { ShopSiteProvider } from '@/src/themes/shop/ShopSiteContext'
 import { SiteBrandProvider, SitePlanProvider } from '@/src/components/theme/SitePlanContext'
 import { Page, SharedNavFooterStaticProps } from '@/src/types/blog'
@@ -70,16 +71,24 @@ export default function withNavFooter(
         <SiteBrandProvider brandClean={siteBrandClean} siteName={siteName}>
           <ShopSiteProvider siteId={shopSiteId}>
           <main className="flex flex-col justify-start min-h-screen">
-          <Navbar
-            items={items}
-            title={props.siteTitle}
-            subtitle={
-              props.enableNavSubtitle && props.siteSubtitle
-                ? props.siteSubtitle
-                : undefined
-            }
-            showCart={showShopCart}
-          />
+          {themeId === 'shop' ? (
+            <ShopNavbar
+              items={items}
+              title={props.siteTitle}
+              logo={props.logo}
+            />
+          ) : (
+            <Navbar
+              items={items}
+              title={props.siteTitle}
+              subtitle={
+                props.enableNavSubtitle && props.siteSubtitle
+                  ? props.siteSubtitle
+                  : undefined
+              }
+              showCart={showShopCart}
+            />
+          )}
           <WrappedComponent {...props} />
           <div className="mt-auto">
             <Footer
@@ -87,6 +96,7 @@ export default function withNavFooter(
               color={pureFooter ? 'pure' : undefined}
               showBeian={showBeian}
               logo={props.logo}
+              socialLinks={themeId === 'shop' ? socialLinks?.links ?? null : undefined}
               path={{
                 text: props.siteSubtitle?.text ?? '',
                 href: props.siteSubtitle?.slug ?? '',

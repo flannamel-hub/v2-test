@@ -103,6 +103,7 @@ function resolveSaveRevalidateScope(type, slug) {
     if (slug === 'popup-ad') return 'popup-ad';
     if (slug === 'click-ad') return 'click-ad';
     if (slug === 'social-links') return 'social-links';
+    if (slug === 'banner') return 'banner';
     return 'widget';
   }
   if (type === 'Page' || SPECIAL_PAGE_SLUGS.has(slug)) {
@@ -4634,6 +4635,15 @@ const [mounted, setMounted] = useState(false);
   });
   const [clickAdLoading, setClickAdLoading] = useState(false);
   const [clickAdSaving, setClickAdSaving] = useState(false);
+  // P18-C4-1: shop 主题首页 Banner(Notion Widget slug=banner;仅 shop 生效)
+  const [shopBanner, setShopBanner] = useState({
+    id: null,
+    enabled: false,
+    imagesText: '',
+    link: '',
+  });
+  const [shopBannerLoading, setShopBannerLoading] = useState(false);
+  const [shopBannerSaving, setShopBannerSaving] = useState(false);
   const [friendDraft, setFriendDraft] = useState({ name: '', url: '', avatar: '' });
   const [friendDraftUploading, setFriendDraftUploading] = useState(false);
   const [friendBtnStatus, setFriendBtnStatus] = useState({}); // { [id|'draft']: 'saving' | 'done' }
@@ -6206,6 +6216,99 @@ const [mounted, setMounted] = useState(false);
     loadClickAd();
   };
 
+  // P18-C4-1: Banner 加载/保存(仅 shop 主题首页生效)
+  const loadShopBanner = async () => {
+    setShopBannerLoading(true);
+    try {
+      const r = await fetch('/api/admin/banner');
+      const d = await r.json();
+      if (d.success) {
+        setShopBanner({
+          id: d.banner?.id || null,
+          enabled: d.banner?.enabled === true,
+          imagesText: Array.isArray(d.banner?.images) ? d.banner.images.join('\n') : '',
+          link: d.banner?.link || '',
+        });
+      } else {
+        alert('加载 Banner 失败：' + (d.error || '未知错误'));
+      }
+    } catch (e) {
+      alert('加载 Banner 失败：' + e.message);
+    } finally {
+      setShopBannerLoading(false);
+    }
+  };
+
+  const openShopBanner = () => {
+    setView('shop-banner');
+    loadShopBanner();
+  };
+
+  const saveShopBanner = async (patch = {}) => {
+    if (shopBannerSaving) return; // P11-C3: 进行中早退
+    const imagesText = patch.imagesText ?? shopBanner.imagesText ?? '';
+    const images = imagesText.split('\n').map(s => s.trim()).filter(Boolean);
+    const link = (patch.link ?? shopBanner.link ?? '').trim();
+    const enabled = typeof patch.enabled === 'boolean' ? patch.enabled : shopBanner.enabled === true;
+    const invalidImage = images.find(u => !/^https?:\/\//i.test(u));
+    if (invalidImage) {
+      alert('图片地址请填写 http(s) 开头的直链：' + invalidImage);
+      return;
+    }
+    if (images.length > 8) {
+      alert('Banner 图片最多 8 张');
+      return;
+    }
+    if (link && !/^https?:\/\//i.test(link) && !link.startsWith('/')) {
+      alert('跳转链接请填写 http(s) 开头的网址，或 / 开头的站内路径');
+      return;
+    }
+    if (enabled && images.length === 0) {
+      alert('开启 Banner 前请至少填写一张图片地址');
+      return;
+    }
+    setShopBannerSaving(true);
+    try {
+      const r = await fetch('/api/admin/banner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, images, link }),
+      });
+      const d = await r.json();
+      if (!d.success) {
+        alert('保存 Banner 失败：' + (d.error || '未知错误'));
+        return;
+      }
+      const saved = d.banner || { enabled, images, link };
+      setShopBanner({
+        id: saved.id || null,
+        enabled: saved.enabled === true,
+        imagesText: Array.isArray(saved.images) ? saved.images.join('\n') : imagesText,
+        link: saved.link || '',
+      });
+      showAdminToast(saved.enabled ? 'Banner 已保存，正在更新前台…' : 'Banner 已关闭，正在更新前台…');
+      void runBatchedRevalidation({
+        listScope: 'banner',
+        freshTheme: true,
+        contentChange: true,
+        progressLabels: {
+          listing: '正在统计 Banner 页面…',
+          running: '正在更新 Banner…',
+          doneOk: 'Banner 已同步到前台页面',
+          donePartial: '部分页面会稍后自动更新',
+          hintPartial: '个别页面未能更新，可重新保存 Banner',
+          hintOk: 'Banner 相关页面已更新',
+        },
+      }).then((rev) => {
+        if (rev.failed > 0) showAdminToast(`部分页面更新失败（${rev.failed}/${rev.total}）`);
+      }).catch((e) => console.warn('Banner 增量刷新失败', e));
+    } catch (e) {
+      alert('保存 Banner 失败：' + e.message);
+    } finally {
+      setShopBannerSaving(false);
+    }
+  };
+
   const saveClickAd = async (patch = {}) => {
     if (clickAdSaving) return; // P11-C3: 进行中早退
     if (adsLocked) return; // 免费版广告位不可用(灰态防绕过;前台也不会渲染)
@@ -7027,7 +7130,7 @@ const [mounted, setMounted] = useState(false);
             queuePriority: 10,
           });
           showRevalidateFeedback(rev, showAdminToast);
-        } else if (saveScope === 'gallery-ad' || saveScope === 'vending' || saveScope === 'announcement-popup' || saveScope === 'popup-ad' || saveScope === 'click-ad' || saveScope === 'social-links') {
+        } else if (saveScope === 'gallery-ad' || saveScope === 'vending' || saveScope === 'announcement-popup' || saveScope === 'popup-ad' || saveScope === 'click-ad' || saveScope === 'social-links' || saveScope === 'banner') {
           const scope = saveScope;
           void triggerContentRevalidation({
             scope,
@@ -8219,7 +8322,7 @@ const [mounted, setMounted] = useState(false);
       p.slug !== ANNOUNCEMENT_SLUG &&
       p.favourited
   ).length;
-  const siteInfoWidget = posts.find(p => p.type === 'Widget' && !['gallery-ad', 'vending', 'announcement-popup', 'popup-ad', 'click-ad', 'social-links'].includes(p.slug));
+  const siteInfoWidget = posts.find(p => p.type === 'Widget' && !['gallery-ad', 'vending', 'announcement-popup', 'popup-ad', 'click-ad', 'social-links', 'banner'].includes(p.slug));
   const pinnedDividerIndex = activeTab === 'Post' ? filtered.findIndex(p => !p.pinned) : -1;
   const publishDatesSet = (() => {
     const s = new Set();
@@ -8800,6 +8903,16 @@ const [mounted, setMounted] = useState(false);
                 </div>
               )}
               {activeTab === 'Widget' && viewMode !== 'folder' && (
+                <div onClick={openShopBanner} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #f472b6', cursor: 'pointer' }}>
+                  <div style={{ fontSize: '28px' }}>🖼️</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>Banner <ShopOnlyTag /></div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页顶部横幅 · 单图静态 / 多图轮播</div>
+                  </div>
+                  <div style={{ color: '#f472b6', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                </div>
+              )}
+              {activeTab === 'Widget' && viewMode !== 'folder' && (
                 <div onClick={openVending} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #f97316', cursor: 'pointer' }}>
                   <div style={{ fontSize: '28px' }}>🛒</div>
                   <div style={{ flex: 1 }}>
@@ -9350,6 +9463,75 @@ const [mounted, setMounted] = useState(false);
                   }}
                 >
                   {contentProtectSaving ? '保存中…' : (contentProtectEnabled ? '已开启' : '已关闭')}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : view === 'shop-banner' ? (
+          <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🖼️ Banner <ShopOnlyTag /></div>
+              <div style={{fontSize:'12px', color:'#888'}}>Shop 主题首页顶部 · 单图静态 / 多图轮播</div>
+            </div>
+
+            {shopBannerLoading ? (
+              <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
+            ) : (
+              <div>
+                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
+                  <div>
+                    <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>Banner 开关</div>
+                    <div style={{fontSize:'12px', color:'#999'}}>
+                      {shopBanner.enabled ? '当前：已开启' : '当前：已关闭'} · 仅 Shop 系列主题首页生效，其他主题不展示
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={shopBannerSaving}
+                    onClick={() => saveShopBanner({ enabled: !shopBanner.enabled })}
+                    style={{
+                      minWidth: '88px',
+                      padding: '12px 20px',
+                      border: 'none',
+                      borderRadius: '999px',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      cursor: shopBannerSaving ? 'wait' : 'pointer',
+                      background: shopBanner.enabled ? '#22c55e' : '#555',
+                      color: '#fff',
+                      opacity: shopBannerSaving ? 0.6 : 1,
+                    }}
+                  >
+                    {shopBannerSaving ? '保存中…' : (shopBanner.enabled ? '已开启' : '已关闭')}
+                  </button>
+                </div>
+                <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
+                  <div>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>图片地址 <span style={{color:'#ff4d4f'}}>*</span> <span style={{color:'#777', fontWeight:'normal'}}>(每行一条，第 2 条起自动轮播)</span></label>
+                    <textarea
+                      className="glow-input"
+                      value={shopBanner.imagesText}
+                      disabled={shopBannerSaving}
+                      onChange={e=>setShopBanner({...shopBanner, imagesText: e.target.value})}
+                      placeholder={'https://example.com/banner-1.jpg\nhttps://example.com/banner-2.jpg'}
+                      style={{minHeight:'130px', lineHeight:1.7}}
+                    />
+                  </div>
+                  <div>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>跳转链接 <span style={{color:'#777', fontWeight:'normal'}}>(可选)</span></label>
+                    <input className="glow-input" value={shopBanner.link} disabled={shopBannerSaving} onChange={e=>setShopBanner({...shopBanner, link: e.target.value})} placeholder="https://example.com 或 /archive" />
+                  </div>
+                  <div style={{fontSize:'12px', color:'#888', lineHeight:1.7, padding:'14px 16px', background:'#2f2f33', borderRadius:'10px'}}>
+                    仅 Shop 系列主题生效：1 张图片为静态展示，2 张及以上自动轮播（约 5 秒一切换，支持手动切换与移动端滑动）。建议使用宽幅横图（如 1600×500）。
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => saveShopBanner()}
+                  disabled={shopBannerSaving}
+                  style={{width:'100%', padding:'18px', background: shopBannerSaving ? '#333' : '#fff', color: shopBannerSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: shopBannerSaving ? 'wait' : 'pointer', marginTop:'32px'}}
+                >
+                  {shopBannerSaving ? '保存中…' : '保存 Banner'}
                 </button>
               </div>
             )}

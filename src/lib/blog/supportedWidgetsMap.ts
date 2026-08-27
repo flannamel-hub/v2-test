@@ -1,5 +1,6 @@
 import { BlogStats, Widget } from '@/src/types/blog'
 import { formatAnnouncementPopupWidget } from './format/widget/announcementPopup'
+import { formatBannerWidget } from './format/widget/banner'
 import { formatGalleryAdWidget } from './format/widget/galleryAd'
 import { formatClickAdWidget } from './format/widget/clickAd'
 import { formatPopupAdWidget } from './format/widget/popupAd'
@@ -48,6 +49,10 @@ export const supportedWidgetsMap: {
   },
   'click-ad': {
     formatFn: formatClickAdWidget,
+    database: [],
+  },
+  banner: {
+    formatFn: formatBannerWidget,
     database: [],
   },
 }
