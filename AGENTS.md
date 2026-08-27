@@ -224,6 +224,8 @@
 - `shouldLoadGalleryFeedCovers` 已包含 shop（列表封面回退链与 anzifan 一致）。
 - 文章↔商品映射（P18-C3 改为人工挂链接）：Notion 属性三字段 `linked_product_url`（商品链接，url/rich_text 均可）、`linked_product_sku`（商品码，兼容 `Linked_product_sku` / `linkedProductSku` / `关联商品` 列名；select 与 rich_text 均可读写）、`linked_product_price`（价格，rich_text，纯展示）；前台 pipeline 输出为 `post.options.linkedProductUrl / linkedProductSku / linkedProductPrice`。后台编辑入口是 **Step7「商品信息」**（浅粉 `ShopOnlyTag` 标注，shop 系列主题专用；三字段均可留空），保存时列不存在会自动补建（rich_text）。前台「立即购买」优先 `linked_product_url`，为空时兜底 `{NEXT_PUBLIC_STORE_URL}/p/{sku}`；「加入购物车」仅在有 sku 时渲染；`buildCheckoutUrl` 结算仍按 sku 编码。C1 的 Step1「关联商品」下拉与系统侧 `GET /api/admin/merchant-products` 调用已移除（API 文件保留，后台不再调用；前台 `ShopProductsSection` 仍走公开端点 `/api/shop/products`）。
 - **shop v1 基础设施（P18-C4-1，2026-08-27）**：① Banner——`ShopBanner.tsx` 渲染于 ShopHome 顶部（见上表 `banner` 行），后台「组件」Tab 有 `ShopOnlyTag` 标注的「Banner」卡片（图片 URL 每行一条、跳转链接、开关）；保存走 `/api/admin/banner`（路由内 `verifyAdminRequest`），revalidate scope=`banner`（仅刷 `/`）。② 顶部导航——`withNavFooter` 在 shop 主题用 `ShopNavbar`（Logo+首页+已发布自定义页面+「游客查单」外链 `store.pro-pl.us/orders`+购物车徽标）替换默认 Navbar；移动端汉堡菜单收纳导航链接，查单与购物车常驻可见。③ ShopHome 底部「最新动态」公告区（读 `widgets.announcement`，无则整块不渲染）；Footer 仅在 shop 主题下发社媒（`social-links` widget，无则隐藏）。
+- **shop 视觉重构（P18-C4-4A，2026-08-28，完全还原独角数卡，仅首页/归档；内页沿用 standard）**：① 容器统一——shop 组件一律 `mx-auto w-full max-w-7xl px-4 md:px-6`（1280px；ShopHome 三处/ShopNavbar/ShopCatalogSection/ShopArchive 已换，`ShopArchive` 不再用共享 `ContainerLayoutFull`）；② ShopNavbar 重写——`fixed top-0 left-0 right-0 z-50` + 毛玻璃，壳层 `withNavFooter` 对 shop 在 `<main>` 加 `pt-14` 补偿（全页面生效）；导航项=图标+文字（首页 FiHome/商品中心 FiGrid→`/archive`/自定义页 FiBookOpen/更多 FiMoreHorizontal→`/friends`），自定义页过滤 slug ∈ {tag,category,archive,friends}（about/download 保留）；右侧=游客查单（ghost）/购物车（`ShopCartButton` 改 ghost 图标+文字+右上角数量徽标，neutral-900/white 反色）/主题切换（`next-themes` Sun/Moon，挂载前渲染 Moon）；已移除 Logo 图标与 `logo` prop；③ ShopBanner 重写——高度阶梯 `min-h-[200px] sm:min-h-[240px] md:min-h-[320px] lg:min-h-[420px]`、全图 `bg-black/50` 遮罩、文字层固定（标题 max-w-4xl semibold、副标题 text-gray-100、按钮「查看更多」rounded-full bg-black/40 border-white/25 backdrop-blur→`/archive`），`banner.link` 整图链接逻辑已删除（字段被忽略），多图=右上左右箭头+底部左侧白点圆点，无「Banner」胶囊；④ Footer 新增 `wide` prop（shop 传 true 用 max-w-7xl，其他主题默认容器不变）。
+
 
 ### 读取与保存
 
@@ -302,6 +304,7 @@
 | `GET /api/admin/site-plan` | 站点会员计划只读（P4-FIX 广告位灰态判定；仅 BLOG 后台浏览器调用，只返回 plan） |
 | `GET /api/admin/merchant-products` | 主站商户商品列表代理（P18-C1 建立；P18-C3 起后台不再调用，文件保留；路由内 `verifyAdminRequest`；前台 `ShopProductsSection` 改走公开端点 `/api/shop/products`） |
 | `GET/POST /api/admin/social-links` | 社媒组件配置 |
+| `GET/POST /api/admin/content-protect` | P14 内容保护开关；GET 公开只读（读者端 `_app` 挂载后拉取，`no-store`，未配置/018 未执行安全缺省 false）；POST 路由内 `verifyAdminRequest` + 维护密码豁免，写 `blog_site_settings.content_protect`（update→无行 upsert），仅写该列 |
 | `GET/POST /api/admin/banner` | shop 首页 Banner 配置（P18-C4-1；路由内 `verifyAdminRequest`，未登录 401；图片最多 8 张，开启时必须有图；保存后 revalidate scope=`banner` 仅刷 `/`） |
 | `GET /api/admin/theme-cooldown` | 主题切换配额状态（命名历史遗留） |
 | `POST /api/admin/revalidate` | ISR 刷新；支持即时刷新与 `action: drain` 消费队列 |
@@ -516,6 +519,15 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 | `migrations/010_revalidate_queue.sql` | ISR revalidate 队列 |
 | `migrations/011_gallery_feed_previews_rpc.sql` | `get_gallery_feed_previews` RPC |
 | `migrations/012_image_host_governance.sql` | 全平台共享图床单例、审计事件、原子激活/回滚 RPC（P3 已生产验收） |
+| `migrations/018_blog_site_settings_content_protect.sql` | P14 内容保护开关列 `content_protect`（+preflight/verify 脚本） |
+
+### 内容保护开关（P14，2026-08-27）
+
+- 站级开关存 `blog_site_settings.content_protect`（migration 018；未执行时 API 降级 false）。
+- 前台注入：`_app.tsx` 仅非 admin 路由挂载 `ContentProtectGuard`，客户端拉取 `GET /api/admin/content-protect`（公开只读）；`enabled=false` 时零副作用。
+- 防护行为（`src/lib/protection/contentProtectDom.ts`，可逆）：`contextmenu` 全站**静默**拦截（P14FIX 用户拍板：不弹提示条）；`copy`/`cut`/`dragstart` 拦截但 input/textarea/contentEditable 放行；全站 `img` draggable=false（MutationObserver 维护新增图片）+ 注入 `-webkit-user-drag:none` 样式；图库 lightbox 点击查看不受影响；`/admin` 不受影响。
+- 后台：「组件」Tab「内容保护」卡；保存即写库，读者端下次访问生效（客户端运行时行为，不走 revalidate）。
+- 自测：`npm run test:content-protect`（API 鉴权/读写 stub + 注入开启/关闭分支 + detach 可逆）。
 
 ### 图床共享配置治理（P3 已生产验收，P5 已上线，P6 version=2 已激活）
 
@@ -621,6 +633,7 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 - 密码保护：分别验证全篇密码与加密块，并清楚其安全边界。
 - 公告弹窗：确认无跳转按钮、浅/深色主题样式、「知道了」关闭后同会话不再弹；后台「广告位」Tab 含内页广告且「组件」Tab 仍含公告。
 - 图床：`npm run test:image-host` 必须通过鉴权顺序、origin/允许名单、path/query/hash、异常配置与上传返回规范化；Gallery 封面改动另跑 `npm run test:gallery-cover`；再执行针对性 ESLint、`npx tsc --noEmit`（区分既有基线）和生产构建。
+- 内容保护：`npm run test:content-protect` 必须通过 GET 公开只读缺省、POST 鉴权（Basic/Cookie/维护密码豁免）、update→upsert 读写、列缺失降级与注入开启/关闭/detach 可逆分支。
 
 ---
 

@@ -81,7 +81,7 @@ export function ShopCatalogSection({
   }
 
   return (
-    <div className="mx-auto w-full px-4 md:px-6 lg:w-screen-lg lg:px-11">
+    <div className="mx-auto w-full max-w-7xl px-4 md:px-6">
       {title ? (
         <h2
           data-aos="fade-up"

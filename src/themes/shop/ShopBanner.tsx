@@ -1,29 +1,18 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { FiArrowRight, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import type { ShopBannerConfig } from '@/src/lib/blog/shopBannerDefaults'
 import { classNames } from '@/src/lib/util'
 
-/** P18-C4-1: shop 主题首页 Banner。单图=静态展示,多图=自动轮播(零依赖)。 */
+/**
+ * P18-C4-4A:shop 首页 Banner(完全还原独角数卡 Home.vue Hero)。
+ * rounded-2xl 卡片容器;内容区 min-h 阶梯高度;bg-black/50 全遮罩;
+ * 文字层固定不随图切换(标题/副标题中下区,「查看更多」按钮在下,忽略 banner.link);
+ * 多图:右上左右箭头 + 底部左侧白点圆点;自动轮播(零依赖)+ 悬停暂停 + 触摸滑动。
+ */
 const AUTO_PLAY_INTERVAL_MS = 5000
 const SWIPE_THRESHOLD_PX = 40
-
-function ChevronIcon({ dir }: { dir: 'left' | 'right' }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-4 w-4"
-      aria-hidden
-    >
-      {dir === 'left' ? <polyline points="15 18 9 12 15 6" /> : <polyline points="9 18 15 12 9 6" />}
-    </svg>
-  )
-}
 
 export function ShopBanner({
   banner,
@@ -40,8 +29,6 @@ export function ShopBanner({
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
   const touchStartXRef = useRef<number | null>(null)
-
-  const isExternalLink = /^https?:\/\//i.test(banner.link || '')
 
   useEffect(() => {
     if (count <= 1 || paused) return
@@ -66,7 +53,7 @@ export function ShopBanner({
           alt={count > 1 ? `Banner ${i + 1}` : 'Banner'}
           loading={i === 0 ? 'eager' : 'lazy'}
           className={classNames(
-            'absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-out',
+            'absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out',
             i === index ? 'opacity-100' : 'pointer-events-none opacity-0'
           )}
         />
@@ -74,9 +61,9 @@ export function ShopBanner({
     </>
   )
 
-  const track = (
+  return (
     <div
-      className="relative h-44 w-full overflow-hidden rounded-2xl border border-neutral-200/70 bg-neutral-100 dark:border-neutral-800/70 dark:bg-neutral-900 sm:h-56 md:h-72 lg:h-80"
+      className="relative w-full overflow-hidden rounded-2xl border border-neutral-200/70 bg-neutral-100 dark:border-neutral-800/70 dark:bg-neutral-900"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onTouchStart={(e) => {
@@ -92,48 +79,56 @@ export function ShopBanner({
       }}
     >
       {slides}
-      {/* 文字层+按钮:固定不随图切换(多图只切图) */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-start justify-center gap-3 bg-gradient-to-r from-black/45 via-black/20 to-transparent px-6 md:px-12">
-        {headline ? (
-          <h2 className="max-w-xl text-2xl font-extrabold leading-tight text-white drop-shadow md:text-4xl">
-            {headline}
-          </h2>
-        ) : null}
-        {subline ? (
-          <p className="max-w-lg text-sm text-white/85 drop-shadow md:text-base">
-            {subline}
-          </p>
-        ) : null}
-        <Link
-          href="/archive"
-          className="pointer-events-auto mt-2 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-neutral-900 shadow-lg transition-all hover:-translate-y-0.5 hover:bg-neutral-100 hover:shadow-xl"
-        >
-          查看更多
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        </Link>
-      </div>
-      {count > 1 ? (
-        <>
-          <button
-            type="button"
-            aria-label="上一张"
-            onClick={() => go(index - 1)}
-            className="absolute left-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-black/25 text-white backdrop-blur-sm transition hover:bg-black/40 md:flex"
+      {/* 全图遮罩(独角数卡同款) */}
+      <div className="absolute inset-0 bg-black/50" aria-hidden />
+
+      {/* 文字层:固定不随图切换;justify-between,标题/副标题中下区,按钮+圆点在下 */}
+      <div className="relative flex min-h-[200px] flex-col justify-between p-5 sm:min-h-[240px] sm:p-6 md:min-h-[320px] md:p-10 lg:min-h-[420px]">
+        {count > 1 ? (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              aria-label="上一张"
+              onClick={() => go(index - 1)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-black/20 text-white transition hover:bg-black/35 md:h-9 md:w-9"
+            >
+              <FiChevronLeft className="h-3.5 w-3.5" aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label="下一张"
+              onClick={() => go(index + 1)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-black/20 text-white transition hover:bg-black/35 md:h-9 md:w-9"
+            >
+              <FiChevronRight className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        ) : (
+          <div aria-hidden className="h-0" />
+        )}
+
+        <div className="flex flex-col items-start gap-2 sm:gap-3">
+          {headline ? (
+            <h2 className="max-w-4xl text-xl font-semibold tracking-[-0.02em] text-white sm:text-2xl md:text-3xl">
+              {headline}
+            </h2>
+          ) : null}
+          {subline ? (
+            <p className="max-w-3xl text-xs leading-relaxed text-gray-100 sm:text-sm">
+              {subline}
+            </p>
+          ) : null}
+          <Link
+            href="/archive"
+            className="mt-1 inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/40 px-4 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-black/30"
           >
-            <ChevronIcon dir="left" />
-          </button>
-          <button
-            type="button"
-            aria-label="下一张"
-            onClick={() => go(index + 1)}
-            className="absolute right-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-black/25 text-white backdrop-blur-sm transition hover:bg-black/40 md:flex"
-          >
-            <ChevronIcon dir="right" />
-          </button>
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2">
+            查看更多
+            <FiArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Link>
+        </div>
+
+        {count > 1 ? (
+          <div className="mt-4 flex items-center gap-2">
             {images.map((_, i) => (
               <button
                 key={i}
@@ -144,15 +139,13 @@ export function ShopBanner({
                   'h-2 rounded-full transition-all duration-300',
                   i === index
                     ? 'w-6 bg-white'
-                    : 'w-2 bg-white/50 hover:bg-white/80'
+                    : 'w-2 bg-white/45 hover:bg-white/70'
                 )}
               />
             ))}
           </div>
-        </>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   )
-
-  return track
 }

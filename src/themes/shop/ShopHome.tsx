@@ -49,7 +49,7 @@ export const ShopHome = ({
       {banner ? (
         <div
           data-aos="fade-up"
-          className="mx-auto w-full px-4 pt-8 md:px-6 lg:w-screen-lg lg:px-11"
+          className="mx-auto w-full max-w-7xl px-4 pt-8 md:px-6"
         >
           <ShopBanner
             banner={banner}
@@ -65,7 +65,7 @@ export const ShopHome = ({
       ) : null}
 
       {/* 精选商品 Featured Products */}
-      <section className="mx-auto w-full px-4 py-10 md:px-6 lg:w-screen-lg lg:px-11">
+      <section className="mx-auto w-full max-w-7xl px-4 py-10 md:px-6">
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white md:text-3xl">
@@ -94,7 +94,7 @@ export const ShopHome = ({
       {announcement ? (
         <section
           aria-label="最新动态"
-          className="mx-auto w-full px-4 pb-14 md:px-6 lg:w-screen-lg lg:px-11"
+          className="mx-auto w-full max-w-7xl px-4 pb-14 md:px-6"
         >
           <hr className="mb-8 border-neutral-200/70 dark:border-neutral-800/70" />
           <h2 className="mb-6 text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white">

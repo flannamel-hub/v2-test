@@ -70,13 +70,13 @@ export default function withNavFooter(
       <SitePlanProvider plan={sitePlan}>
         <SiteBrandProvider brandClean={siteBrandClean} siteName={siteName}>
           <ShopSiteProvider siteId={shopSiteId}>
-          <main className="flex flex-col justify-start min-h-screen">
+          <main
+            className={`flex flex-col justify-start min-h-screen${
+              themeId === 'shop' ? ' pt-14' : ''
+            }`}
+          >
           {themeId === 'shop' ? (
-            <ShopNavbar
-              items={items}
-              title={props.siteTitle}
-              logo={props.logo}
-            />
+            <ShopNavbar items={items} title={props.siteTitle} />
           ) : (
             <Navbar
               items={items}
@@ -97,6 +97,7 @@ export default function withNavFooter(
               showBeian={showBeian}
               logo={props.logo}
               socialLinks={themeId === 'shop' ? socialLinks?.links ?? null : undefined}
+              wide={themeId === 'shop'}
               path={{
                 text: props.siteSubtitle?.text ?? '',
                 href: props.siteSubtitle?.slug ?? '',

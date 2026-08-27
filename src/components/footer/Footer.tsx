@@ -20,6 +20,7 @@ const Footer = ({
   logo,
   socialLinks,
   path,
+  wide = false,
 }: {
   showBeian?: boolean
   color?: ApiColor | 'pure'
@@ -31,6 +32,8 @@ const Footer = ({
     text: string
     href: string
   }
+  /** P18-C4-4A: shop 主题容器对齐 max-w-7xl(其他主题保持 lg:w-screen-lg) */
+  wide?: boolean
 }) => {
   const thisYear = new Date().getFullYear()
   // BLOG 分层 P8:专业版开启「去除平台角标」后隐藏「Powered by PRO+」,
@@ -69,7 +72,13 @@ const Footer = ({
           : 'bg-neutral-100 dark:bg-neutral-800'
       )}
     >
-      <div className="flex flex-col px-6 mx-auto items-left lg:w-screen-lg lg:px-11">
+      <div
+        className={
+          wide
+            ? 'flex flex-col mx-auto items-left max-w-7xl w-full px-4 md:px-6'
+            : 'flex flex-col px-6 mx-auto items-left lg:w-screen-lg lg:px-11'
+        }
+      >
         <nav className="flex items-center justify-between py-4">
           {/* 原有的 Logo 和面包屑代码（保持注释状态） */}
           {/* <div className="flex flex-row items-center justify-center gap-1.5">

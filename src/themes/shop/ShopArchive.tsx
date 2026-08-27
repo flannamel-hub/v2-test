@@ -1,5 +1,4 @@
 import { LargeTitle } from '@/src/components/LargeTitle'
-import { ContainerLayoutFull } from '@/src/components/post/ContainerLayout'
 import { PaginationSection } from '@/src/components/section/PaginationSection'
 import { Page, Post } from '@/src/types/blog'
 import { ShopCatalogSection } from './ShopCatalogSection'
@@ -34,9 +33,9 @@ export function ShopArchive({
 
   return (
     <>
-      <ContainerLayoutFull>
+      <div className="mx-auto my-6 w-full max-w-7xl px-4 md:px-6">
         <LargeTitle title={title} />
-      </ContainerLayoutFull>
+      </div>
       <div className="pb-10">
         <ShopCatalogSection
           posts={allPosts}
