@@ -78,6 +78,13 @@ export function resolveNotionCoverForSave({
     const url = galleryItemUrl(item)
     return url && /^https?:\/\//i.test(url) ? url : ''
   }
+  // auto(默认):自动采取正文首图或图库首图作为封面(修复:原实现留空,导致新文章前台显示默认封面)
+  const autoBlock = findAutoCoverImageBlock(blocks)
+  const autoBlockUrl = autoBlock?.content?.trim()
+  if (autoBlockUrl && /^https?:\/\//i.test(autoBlockUrl)) return autoBlockUrl
+  const autoGalleryItem = findAutoCoverGalleryItem(galleryItems)
+  const autoGalleryUrl = galleryItemUrl(autoGalleryItem)
+  if (autoGalleryUrl && /^https?:\/\//i.test(autoGalleryUrl)) return autoGalleryUrl
   return ''
 }
 
