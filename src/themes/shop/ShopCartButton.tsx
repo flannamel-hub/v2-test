@@ -35,13 +35,14 @@ export function ShopCartButton() {
         type="button"
         aria-label={`购物车${count ? `,${count} 件商品` : ''}`}
         onClick={() => setOpen(true)}
-        className="relative flex h-12 items-center py-3 text-black dark:text-white"
+        className="relative inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-900/5 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-white"
       >
-        <FiShoppingCart className="h-[18px] w-[18px]" />
+        <FiShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="hidden sm:inline">购物车</span>
         {count ? (
           <span
             data-testid="shop-cart-badge"
-            className="absolute -right-1.5 top-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-green-600 px-1 text-[10px] font-bold leading-none text-white"
+            className="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-neutral-900 px-1 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-white dark:text-black"
           >
             {count > 99 ? '99+' : count}
           </span>
