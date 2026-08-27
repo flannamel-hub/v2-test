@@ -564,7 +564,7 @@ const GalleryOnlyTag = () => (
 
 // P18-C3: shop 系列主题专用标注（浅粉底 pill；样式参照 GalleryOnlyTag）
 const ShopOnlyTag = () => (
-  <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.3px', color: '#db2777', background: '#fdf2f8', padding: '1px 7px', borderRadius: '4px', boxShadow: '0 0 0 1px rgba(219,39,119,0.28)', verticalAlign: 'baseline' }}>shop 系列主题专用</span>
+  <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.3px', color: '#be185d', background: 'linear-gradient(135deg,#fce7f3,#fdf2f8)', padding: '2px 8px', borderRadius: '999px', boxShadow: '0 1px 3px rgba(190,24,93,0.18)', border: '1px solid rgba(190,24,93,0.22)', verticalAlign: 'baseline' }}>（shop 系列主题专用）</span>
 );
 
 const ViewModeButton = ({ label, active, onClick }) => (
