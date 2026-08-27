@@ -5,6 +5,7 @@ import {
   buildProductUrl,
   getStoreUrl,
 } from '@/src/lib/shop/shopCart'
+import { ShopCartSkuBadge } from './ShopCartSkuBadge'
 import { useShopSiteId } from './ShopSiteContext'
 
 /**
@@ -76,13 +77,14 @@ export function ShopBuyButtons({
   }
 
   // P18-C4-4B:卡片底栏图标形态——有商品码=加购,否则=立即购买
+  // P18-C4-3 B4:加购按钮右上角挂单 SKU 已购份数角标
   if (!isBar) {
     const added = canAddCart && addedQty != null
     return (
       <button
         type="button"
         aria-label={canAddCart ? '加入购物车' : '立即购买'}
-        className="grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 text-neutral-600 transition-colors duration-200 ease-out hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white"
+        className="relative grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 text-neutral-600 transition-colors duration-200 ease-out hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white"
         onClick={canAddCart ? handleAdd : handleBuyClick}
       >
         {added ? (
@@ -93,6 +95,7 @@ export function ShopBuyButtons({
         ) : (
           <FiShoppingCart className="h-4 w-4" aria-hidden />
         )}
+        {canAddCart ? <ShopCartSkuBadge sku={trimmedSku} /> : null}
       </button>
     )
   }

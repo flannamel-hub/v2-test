@@ -162,7 +162,7 @@ export function ShopArchive({
                 ) : null}
               </div>
             ) : layout === 'grid' ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(228px,1fr))] gap-4">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(228px,1fr))] items-stretch gap-4">
                 {visiblePosts.map((post) => (
                   <ShopPostCard
                     key={post.id}

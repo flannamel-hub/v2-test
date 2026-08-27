@@ -79,7 +79,7 @@ export const ShopHome = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-2 items-stretch gap-3 md:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {featured.map((post, idx) => (
             <ShopPostCard
               key={post.id || post.slug}
