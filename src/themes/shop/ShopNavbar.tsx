@@ -42,6 +42,17 @@ function resolvePageIcon(label: string): IconType {
   return FiFileText
 }
 
+/**
+ * P18C44-B3 D4:自定义页导航文案归一化——slug 为 `about`(或标题恰为「介绍」)
+ * 的导航项统一显示「关于」(用户站点自定义页名「介绍」,前台显示「关于」);
+ * 归一化后的文案同样命中 PAGE_ICON_RULES 的「关于」→ people 图标。
+ */
+export function normalizeShopNavLabel(slug: string, label: string): string {
+  const text = (label || '').trim()
+  if ((slug || '').trim() === 'about' || text === '介绍') return '关于'
+  return text
+}
+
 type ShopNavItem = {
   id: string
   label: string
@@ -126,7 +137,8 @@ export function ShopNavbar({
     ...items
       .filter((item) => !NAV_EXCLUDED_SLUGS.has(item.slug))
       .map((item) => {
-        const label = item.nav || item.title
+        // D4:slug=about / 标题「介绍」统一显示「关于」
+        const label = normalizeShopNavLabel(item.slug, item.nav || item.title)
         return {
           id: item.id,
           label,

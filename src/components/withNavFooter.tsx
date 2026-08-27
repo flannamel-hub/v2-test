@@ -4,7 +4,7 @@ import { SitePopups } from './widget/SitePopups'
 import { ThemeNavShell } from '@/src/themes/themeLayout'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
 import { ShopNavbar } from '@/src/themes/shop/ShopNavbar'
-import { ShopSiteProvider } from '@/src/themes/shop/ShopSiteContext'
+import { ShopSiteProvider, ShopSiteTitleProvider } from '@/src/themes/shop/ShopSiteContext'
 import { SiteBrandProvider, SitePlanProvider } from '@/src/components/theme/SitePlanContext'
 import { Page, SharedNavFooterStaticProps } from '@/src/types/blog'
 
@@ -41,6 +41,7 @@ export default function withNavFooter(
         <SitePlanProvider plan={sitePlan}>
         <SiteBrandProvider brandClean={siteBrandClean} siteName={siteName}>
           <ShopSiteProvider siteId={shopSiteId}>
+          <ShopSiteTitleProvider siteTitle={siteName}>
           <ThemeNavShell
             activeTheme={themeId}
             siteTitle={props.siteTitle}
@@ -56,6 +57,7 @@ export default function withNavFooter(
             clickAd={props.clickAd}
             activeTheme={themeId}
           />
+          </ShopSiteTitleProvider>
           </ShopSiteProvider>
         </SiteBrandProvider>
         </SitePlanProvider>
@@ -70,6 +72,7 @@ export default function withNavFooter(
       <SitePlanProvider plan={sitePlan}>
         <SiteBrandProvider brandClean={siteBrandClean} siteName={siteName}>
           <ShopSiteProvider siteId={shopSiteId}>
+          <ShopSiteTitleProvider siteTitle={siteName}>
           <main
             className={`flex flex-col justify-start min-h-screen${
               themeId === 'shop' ? ' pt-14' : ''
@@ -112,6 +115,7 @@ export default function withNavFooter(
             activeTheme={themeId}
           />
           </main>
+          </ShopSiteTitleProvider>
           </ShopSiteProvider>
         </SiteBrandProvider>
       </SitePlanProvider>

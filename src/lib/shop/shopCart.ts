@@ -198,13 +198,16 @@ export function buildProductUrl(storeUrl: string, sku: string): string {
 
 /**
  * 结算跳转链接:购物车条目编码进 URL。
- * `{storeUrl}/cart?site={site_id}&items={sku}:{qty},{sku}:{qty}`
- * items 整体 encodeURIComponent,防 SKU 内逗号/冒号/中文破坏结构。
+ * `{storeUrl}/cart?site={site_id}&site_title={title}&items={sku}:{qty},{sku}:{qty}`
+ * items 整体 encodeURIComponent,防 SKU 内逗号/冒号/中文破坏结构;
+ * site_title(P18C44-B3 D5)为可选站点标题,store 侧结算页展示「站点:xxx」,
+ * 为空/空白时不追加该参数(旧链接格式保持不变)。
  */
 export function buildCheckoutUrl(
   storeUrl: string,
   siteId: string,
-  items: ShopCartItem[]
+  items: ShopCartItem[],
+  siteTitle?: string
 ): string {
   const itemsParam = items
     .map((item) => {
@@ -212,7 +215,9 @@ export function buildCheckoutUrl(
       return `${item.sku.trim()}:${Math.max(1, Math.round(item.qty) || 1)}${price != null ? `:${price}` : ''}`
     })
     .join(',')
-  return `${storeUrl}/cart?site=${encodeURIComponent(siteId || '')}&items=${encodeURIComponent(itemsParam)}`
+  const title = (siteTitle || '').trim()
+  const siteTitleParam = title ? `&site_title=${encodeURIComponent(title)}` : ''
+  return `${storeUrl}/cart?site=${encodeURIComponent(siteId || '')}&items=${encodeURIComponent(itemsParam)}${siteTitleParam}`
 }
 
 /** 解析价格字符串为数字(如 "29.90"/"¥29.90");失败返回 null */

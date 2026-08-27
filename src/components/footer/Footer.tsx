@@ -105,24 +105,12 @@ const Footer = ({
 
           {/* 🟢 核心修改区：将 ThemeSwitch 和 Admin 按钮包裹在一起 */}
           <div className="flex items-center gap-3">
+            {/* P18C44-B3 D2:社媒关闭/未配置时不渲染任何占位,开启且有数据才显示 */}
             {socialLinks && socialLinks.length > 0 ? (
               <div className="mr-1 hidden sm:block">
                 <SocialLinks links={socialLinks} variant="standard" />
               </div>
-            ) : (
-              <div
-                className="mr-1 hidden h-6 items-center gap-2 sm:flex"
-                title="尚未配置社媒链接（组件中心 → 社交媒体）"
-                aria-hidden
-              >
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="inline-block h-[18px] w-[18px] rounded-full bg-neutral-300/70 dark:bg-neutral-700/60"
-                  />
-                ))}
-              </div>
-            )}
+            ) : null}
             {!hideThemeSwitch && <ThemeSwitch />}
             
             {/* 新增：Admin 后台入口按钮 */}

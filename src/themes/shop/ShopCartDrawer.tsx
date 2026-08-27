@@ -15,7 +15,7 @@ import {
   updateCartQty,
   type ShopCartItem,
 } from '@/src/lib/shop/shopCart'
-import { useShopSiteId } from './ShopSiteContext'
+import { useShopSiteId, useShopSiteTitle } from './ShopSiteContext'
 
 /**
  * P18-C2:shop 主题购物车抽屉;P18-C4-3 C1~C3 修复。
@@ -37,7 +37,7 @@ import { useShopSiteId } from './ShopSiteContext'
  *   打开 store 结算页,避免浏览器后退键回到贩售机;URL 仍走 buildCheckoutUrl。
  *
  * 数据 = BLOG 侧 localStorage(shop_cart_v1,按 site_id 分组);
- * 「去结算」把条目编码进 URL 跳 {storeUrl}/cart?site=...&items=sku:qty,…
+ * 「去结算」把条目编码进 URL 跳 {storeUrl}/cart?site=...&site_title=...&items=sku:qty,…
  * (BLOG 域与 store 域 localStorage 不共享,结算状态由 store 侧解析 URL 重建)。
  */
 
@@ -48,6 +48,8 @@ type ShopCartDrawerProps = {
 
 export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
   const siteId = useShopSiteId()
+  // P18C44-B3 D5:结算 URL 携带 site_title(store 侧展示「站点:xxx」)
+  const siteTitle = useShopSiteTitle()
   const [items, setItems] = useState<ShopCartItem[]>([])
   const [mounted, setMounted] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
@@ -142,7 +144,7 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
   return createPortal(
     <ShopCartDrawerContent
       items={items}
-      checkoutUrl={buildCheckoutUrl(getStoreUrl(), siteId, items)}
+      checkoutUrl={buildCheckoutUrl(getStoreUrl(), siteId, items, siteTitle)}
       confirmClear={confirmClear}
       toastMsg={toastMsg}
       onQty={handleQty}

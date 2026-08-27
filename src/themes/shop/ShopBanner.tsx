@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { FiArrowRight } from 'react-icons/fi'
 import type { ShopBannerConfig } from '@/src/lib/blog/shopBannerDefaults'
@@ -8,6 +8,10 @@ import { classNames } from '@/src/lib/util'
 /**
  * P18-C4-4A:shop 首页 Banner(完全还原独角数卡 Home.vue Hero)。
  * P18C43-D2:删除左右箭头按钮,圆点导航改为底部正中央悬浮。
+ * P18C44-B3 D3:轮播过渡修复——全部图片 eager 预加载(≤8 张);跟踪每张图
+ * 加载状态,自动轮播/圆点/滑动仅在目标图加载完成后才切换,保证始终是
+ * 两图叠加的 opacity crossfade,无白闪/瞬切;缓存图由 ref.complete 兜底标记
+ * (React 挂载前已完成的图不触发 onLoad)。
  * rounded-2xl 卡片容器;内容区 min-h 阶梯高度;bg-black/50 全遮罩;
  * 文字层固定不随图切换(标题/副标题中下区,「查看更多」按钮在下,忽略 banner.link);
  * 多图:底部居中圆点(active 长条/白色半透明)+ 自动轮播(零依赖)+ 悬停暂停 + 触摸滑动。
@@ -29,20 +33,34 @@ export function ShopBanner({
   const count = images.length
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
+  /** D3:按图片地址记录加载完成状态(同图复用同键) */
+  const [loadedMap, setLoadedMap] = useState<Record<string, boolean>>({})
   const touchStartXRef = useRef<number | null>(null)
+
+  const markLoaded = useCallback((src: string) => {
+    setLoadedMap((prev) => (prev[src] ? prev : { ...prev, [src]: true }))
+  }, [])
 
   useEffect(() => {
     if (count <= 1 || paused) return
     const timer = window.setInterval(() => {
-      setIndex((i) => (i + 1) % count)
+      setIndex((i) => {
+        const next = (i + 1) % count
+        // D3:下一张未加载完成前保持当前图(暂停推进),避免未就绪瞬切
+        return loadedMap[images[next]] ? next : i
+      })
     }, AUTO_PLAY_INTERVAL_MS)
     return () => window.clearInterval(timer)
-  }, [count, paused])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [count, paused, loadedMap])
 
   if (!banner.enabled || count === 0) return null
 
   const go = (next: number) => {
-    setIndex(((next % count) + count) % count)
+    const target = ((next % count) + count) % count
+    // D3:目标图未加载完成前保持当前图,确保切换发生在两张图就绪之间(crossfade)
+    if (target !== index && !loadedMap[images[target]]) return
+    setIndex(target)
   }
 
   const slides = (
@@ -50,9 +68,14 @@ export function ShopBanner({
       {images.map((src, i) => (
         <img
           key={`${src}#${i}`}
+          ref={(el) => {
+            // D3:缓存图在 React 挂载前可能已加载完成(onLoad 不再触发),ref 兜底标记
+            if (el && el.complete && el.naturalWidth > 0) markLoaded(src)
+          }}
           src={src}
           alt={count > 1 ? `Banner ${i + 1}` : 'Banner'}
-          loading={i === 0 ? 'eager' : 'lazy'}
+          loading="eager"
+          onLoad={() => markLoaded(src)}
           className={classNames(
             'absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out',
             i === index ? 'opacity-100' : 'pointer-events-none opacity-0'

@@ -22,3 +22,28 @@ export function ShopSiteProvider({
 export function useShopSiteId(): string {
   return useContext(ShopSiteContext)
 }
+
+/**
+ * P18C44-B3 D5:shop 主题站点标题上下文(结算 URL 的 site_title 参数)。
+ * withNavFooter 注入 getStaticProps 下发的 siteTitle.text;抽屉等深层组件
+ * 无需逐层透传 props。未包裹的路由默认空字符串(不追加 site_title 参数)。
+ */
+const ShopSiteTitleContext = createContext('')
+
+export function ShopSiteTitleProvider({
+  siteTitle,
+  children,
+}: {
+  siteTitle: string
+  children: React.ReactNode
+}) {
+  return (
+    <ShopSiteTitleContext.Provider value={siteTitle}>
+      {children}
+    </ShopSiteTitleContext.Provider>
+  )
+}
+
+export function useShopSiteTitle(): string {
+  return useContext(ShopSiteTitleContext)
+}
