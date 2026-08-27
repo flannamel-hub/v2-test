@@ -113,6 +113,10 @@ export type Post = {
     isPasswordProtected?: boolean
     /** shop 主题：关联商品 SKU（Notion linked_product_sku；留空表示未关联） */
     linkedProductSku?: string
+    /** shop 主题：商品购买链接（Notion linked_product_url；P18-C3 人工挂链，购买按钮优先使用） */
+    linkedProductUrl?: string
+    /** shop 主题：商品价格（Notion linked_product_price；纯展示） */
+    linkedProductPrice?: string
     /** Notion cover 字段显式设为站点默认封面 */
     useDefaultCover?: boolean
   }

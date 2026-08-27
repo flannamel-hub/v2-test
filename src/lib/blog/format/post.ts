@@ -8,7 +8,7 @@ import {
   readPinnedFromNotionProperties,
   sortPostsByPinnedThenDate,
 } from '../pinnedPosts'
-import { readCoverDarkFromPageProperties, readCoverFromPageProperties, readPageCoverUrl, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, isArticlePasswordProtectedFromProperties, readLinkedProductSkuFromPageProperties } from '../../notion/readProperty'
+import { readCoverDarkFromPageProperties, readCoverFromPageProperties, readPageCoverUrl, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, isArticlePasswordProtectedFromProperties, readLinkedProductSkuFromPageProperties, readLinkedProductUrlFromPageProperties, readLinkedProductPriceFromPageProperties } from '../../notion/readProperty'
 import { isDefaultPostCover } from '../../gallery/postCover'
 import { getImageInfo } from '../getImageInfo'
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig'
@@ -153,6 +153,8 @@ const formatPost = async (
     downloadCount: readDownloadCountFromPageProperties(properties),
     isPasswordProtected: isArticlePasswordProtectedFromProperties(properties),
     linkedProductSku: readLinkedProductSkuFromPageProperties(properties),
+    linkedProductUrl: readLinkedProductUrlFromPageProperties(properties),
+    linkedProductPrice: readLinkedProductPriceFromPageProperties(properties),
   }
 
   const formattedPost = {
@@ -193,6 +195,8 @@ const formatPost = async (
       downloadCount: postOptions.downloadCount ?? '',
       isPasswordProtected: postOptions.isPasswordProtected ?? false,
       linkedProductSku: postOptions.linkedProductSku ?? '',
+      linkedProductUrl: postOptions.linkedProductUrl ?? '',
+      linkedProductPrice: postOptions.linkedProductPrice ?? '',
       useDefaultCover: isExplicitDefaultCover,
     },
   } as Post

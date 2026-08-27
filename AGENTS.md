@@ -221,7 +221,7 @@
 - **shop 不使用独立壳层**：走默认 BlogLayout（Navbar + Footer），Widget、贩售机、公告/广告弹窗、图库统计等全部沿用现有机制（`usesStandaloneThemeLayout` 对 shop 返回 false）。
 - 分类/标签/友链/关于/下载等页面 shop 暂走默认渲染（与 anzifan 相同）；归档页有 shop 分支（`archive/index.tsx`、`archive/[page].tsx`）。
 - `shouldLoadGalleryFeedCovers` 已包含 shop（列表封面回退链与 anzifan 一致）。
-- 文章↔商品映射：Notion 属性 `linked_product_sku`（兼容 `Linked_product_sku` / `linkedProductSku` / `关联商品` 列名；select 与 rich_text 均可读写），前台 pipeline 输出为 `post.options.linkedProductSku`；后台编辑器 Step1「关联商品」下拉数据来自 `GET /api/admin/merchant-products`。
+- 文章↔商品映射（P18-C3 改为人工挂链接）：Notion 属性三字段 `linked_product_url`（商品链接，url/rich_text 均可）、`linked_product_sku`（商品码，兼容 `Linked_product_sku` / `linkedProductSku` / `关联商品` 列名；select 与 rich_text 均可读写）、`linked_product_price`（价格，rich_text，纯展示）；前台 pipeline 输出为 `post.options.linkedProductUrl / linkedProductSku / linkedProductPrice`。后台编辑入口是 **Step7「商品信息」**（浅粉 `ShopOnlyTag` 标注，shop 系列主题专用；三字段均可留空），保存时列不存在会自动补建（rich_text）。前台「立即购买」优先 `linked_product_url`，为空时兜底 `{NEXT_PUBLIC_STORE_URL}/p/{sku}`；「加入购物车」仅在有 sku 时渲染；`buildCheckoutUrl` 结算仍按 sku 编码。C1 的 Step1「关联商品」下拉与系统侧 `GET /api/admin/merchant-products` 调用已移除（API 文件保留，后台不再调用；前台 `ShopProductsSection` 仍走公开端点 `/api/shop/products`）。
 
 ### 读取与保存
 
@@ -298,7 +298,7 @@
 | `GET/POST /api/admin/popup-ad` | 首页弹窗广告配置（CTA 必填链接；会话一次） |
 | `GET/POST /api/admin/click-ad` | 首页遮罩广告配置（URL 必填；每天一次；排除贩售机） |
 | `GET /api/admin/site-plan` | 站点会员计划只读（P4-FIX 广告位灰态判定；仅 BLOG 后台浏览器调用，只返回 plan） |
-| `GET /api/admin/merchant-products` | 主站商户商品列表代理（P18-C1「关联商品」下拉；路由内 `verifyAdminRequest`；主站端点未部署/未配置 `MERCHANT_API_BASE` 时返回 `available:false` 降级为手填 SKU） |
+| `GET /api/admin/merchant-products` | 主站商户商品列表代理（P18-C1 建立；P18-C3 起后台不再调用，文件保留；路由内 `verifyAdminRequest`；前台 `ShopProductsSection` 改走公开端点 `/api/shop/products`） |
 | `GET/POST /api/admin/social-links` | 社媒组件配置 |
 | `GET /api/admin/theme-cooldown` | 主题切换配额状态（命名历史遗留） |
 | `POST /api/admin/revalidate` | ISR 刷新；支持即时刷新与 `action: drain` 消费队列 |

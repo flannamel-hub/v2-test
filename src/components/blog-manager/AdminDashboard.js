@@ -562,6 +562,11 @@ const GalleryOnlyTag = () => (
   <span className="gallery-only-tag">(Gallery主题专用)</span>
 );
 
+// P18-C3: shop 系列主题专用标注（浅粉底 pill；样式参照 GalleryOnlyTag）
+const ShopOnlyTag = () => (
+  <span style={{ display: 'inline-block', fontSize: '10px', fontWeight: 600, letterSpacing: '0.3px', color: '#db2777', background: '#fdf2f8', padding: '1px 7px', borderRadius: '4px', boxShadow: '0 0 0 1px rgba(219,39,119,0.28)', verticalAlign: 'baseline' }}>shop 系列主题专用</span>
+);
+
 const ViewModeButton = ({ label, active, onClick }) => (
   <button
     type="button"
@@ -4482,10 +4487,7 @@ const [mounted, setMounted] = useState(false);
   const [cardCatOpenId, setCardCatOpenId] = useState(null);
   const [cardCatMenuRect, setCardCatMenuRect] = useState(null);
   const [previewData, setPreviewData] = useState(null);
-  const [form, setForm] = useState({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '' });
-  // P18-C1: 关联商品——主站商户商品列表（进入编辑器时懒加载一次，失败降级手填 SKU）
-  const [merchantProducts, setMerchantProducts] = useState({ loaded: false, available: false, items: [], error: '' });
-  const merchantProductsLoadedRef = useRef(false);
+  const [form, setForm] = useState({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '', linked_product_url: '', linked_product_price: '' });
   const [currentId, setCurrentId] = useState(null);
   const [siteTitle, setSiteTitle] = useState('PROBLOG');
   const [navIdx, setNavIdx] = useState(1); 
@@ -4537,30 +4539,8 @@ const [mounted, setMounted] = useState(false);
     setEditorBlocks(next);
   }, [markDirty]);
 
-  // P18-C1: 进入编辑器时懒加载一次主站商户商品列表（失败降级手填 SKU，不阻断编辑）
-  useEffect(() => {
-    if (view !== 'edit') return;
-    if (merchantProductsLoadedRef.current) return;
-    merchantProductsLoadedRef.current = true;
-    (async () => {
-      try {
-        const r = await fetch('/api/admin/merchant-products');
-        const d = await r.json().catch(() => null);
-        if (d && d.success) {
-          setMerchantProducts({
-            loaded: true,
-            available: d.available === true,
-            items: Array.isArray(d.products) ? d.products : [],
-            error: d.error || '',
-          });
-        } else {
-          setMerchantProducts({ loaded: true, available: false, items: [], error: (d && d.error) || '商品列表加载失败' });
-        }
-      } catch (e) {
-        setMerchantProducts({ loaded: true, available: false, items: [], error: e.message || '商品列表加载失败' });
-      }
-    })();
-  }, [view]);
+  // P18-C3: 关联商品改为 Step7 人工挂链接三字段（商品链接/商品码/价格），
+  // 不再请求系统侧 /api/admin/merchant-products 商品下拉
 
   const [blogRefreshBusy, setBlogRefreshBusy] = useState(false);
   const [blogRefreshCooldownSec, setBlogRefreshCooldownSec] = useState(0);
@@ -5870,7 +5850,7 @@ const [mounted, setMounted] = useState(false);
       revokePendingEditorMedia(prev);
       return [];
     });
-    setForm({ title: '', slug: generateAdminPostSlug(), excerpt:'', content:'', category:'', tags:'', cover:'', status:'Published', type: 'Post', date: new Date().toISOString().split('T')[0], download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '' });
+    setForm({ title: '', slug: generateAdminPostSlug(), excerpt:'', content:'', category:'', tags:'', cover:'', status:'Published', type: 'Post', date: new Date().toISOString().split('T')[0], download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '', linked_product_url: '', linked_product_price: '' });
     setCurrentId(null);
     editingSlugRef.current = null;
     editingCategoryRef.current = null;
@@ -7223,7 +7203,7 @@ const [mounted, setMounted] = useState(false);
     editingCategoryRef.current = null;
     editingTagsRef.current = null;
     setCurrentId(null);
-    setForm({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '' });
+    setForm({ title: '', slug: '', excerpt: '', content: '', category: '', tags: '', cover: '', status: 'Published', type: 'Post', date: '', download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '', linked_product_url: '', linked_product_price: '' });
     setView('list');
   };
 
@@ -9862,45 +9842,9 @@ const [mounted, setMounted] = useState(false);
                   {form.article_password?.trim() ? (
                     <p style={{fontSize:'11px', color:'#fbbf24', margin:'8px 0 0', lineHeight:1.5}}>当前文章已启用全篇加密。</p>
                   ) : null}
-                </div>
-                ) : null}
-                {!editingSimplePage && form.type !== 'Widget' ? (
-                <div style={{marginTop:'16px', marginBottom:'0', paddingTop:'16px', borderTop:'1px solid #333'}}>
-                  <label style={{display:'block', fontSize:'11px', color:'#22c55e', marginBottom:'6px', fontWeight:'bold'}}>关联商品</label>
-                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>选择本商户的商品并绑定到这篇文章；shop 主题会在文章卡片与详情页展示。留空 = 不关联。</p>
-                  {merchantProducts.available && merchantProducts.items.length > 0 ? (
-                    <select
-                      className="glow-input"
-                      value={form.linked_product_sku || ''}
-                      onChange={e=>setFormDirty({...form, linked_product_sku:e.target.value})}
-                      style={{fontSize:'13px', maxWidth:'360px'}}
-                    >
-                      <option value="">不关联商品</option>
-                      {merchantProducts.items.map(mp => (
-                        <option key={mp.sku} value={mp.sku}>
-                          {mp.name}{mp.price ? `（${mp.price}）` : ''}{mp.sku !== mp.name ? ` · ${mp.sku}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <>
-                      <input
-                        className="glow-input"
-                        value={form.linked_product_sku || ''}
-                        onChange={e=>setFormDirty({...form, linked_product_sku:e.target.value})}
-                        placeholder="输入商品 SKU"
-                        style={{fontSize:'13px', maxWidth:'320px'}}
-                      />
-                      <p style={{fontSize:'11px', color:'#777', margin:'8px 0 0', lineHeight:1.5}}>
-                        {merchantProducts.loaded
-                          ? (merchantProducts.error || '主站商品列表暂不可用，可直接手填商品 SKU。')
-                          : '正在读取主站商品列表…'}
-                      </p>
-                    </>
-                  )}
-                </div>
-                ) : null}
-             </StepAccordion>
+                 </div>
+                 ) : null}
+              </StepAccordion>
             <StepAccordion step={2} title={editingSimplePage ? '发布时间' : (<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>分类与时间<span style={{fontSize:'10px', color:'#ff4d4f', border:'1px solid rgba(255,77,79,0.5)', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>必填</span></span>)} isOpen={expandedStep === 2} onToggle={()=>setExpandedStep(expandedStep===2?0:2)}>
                <div className={`editor-step-grid ${editingSimplePage ? 'editor-step-grid--single' : 'editor-step-grid--dual'}`}>
                  {!editingSimplePage ? (
@@ -10027,15 +9971,34 @@ const [mounted, setMounted] = useState(false);
                     <input className="glow-input" value={form.download_count || ''} onChange={e=>setFormDirty({...form, download_count:e.target.value})} placeholder="例如：82P、50P+2v" style={{fontSize:'13px'}} />
                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>填写后显示在首页卡片封面右下角，留空则不显示。</p>
                  </div>
-                 <div style={{marginTop:'12px'}}>
-                   <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>资源包大小 <GalleryOnlyTag /></label>
-                    <input className="glow-input" value={form.download_size || ''} onChange={e=>setFormDirty({...form, download_size:e.target.value})} placeholder="例如：639 MB、1.2 GB" style={{fontSize:'13px'}} />
-                   <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>填写后显示在下载页标题栏右侧，留空则不显示。</p>
-                 </div>
-               </div>
-            </StepAccordion>
-            </>
-            ) : null}
+                  <div style={{marginTop:'12px'}}>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>资源包大小 <GalleryOnlyTag /></label>
+                     <input className="glow-input" value={form.download_size || ''} onChange={e=>setFormDirty({...form, download_size:e.target.value})} placeholder="例如：639 MB、1.2 GB" style={{fontSize:'13px'}} />
+                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>填写后显示在下载页标题栏右侧，留空则不显示。</p>
+                  </div>
+                </div>
+             </StepAccordion>
+             {form.type !== 'Widget' ? (
+             <StepAccordion step={7} title={<>商品信息 <ShopOnlyTag /></>} isOpen={expandedStep === 7} onToggle={()=>setExpandedStep(expandedStep===7?0:7)}>
+                <div>
+                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>商品链接 <ShopOnlyTag /></label>
+                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>shop 主题「立即购买」按钮的跳转地址；留空但填了商品码时，默认跳商城商品页。</p>
+                   <input className="glow-input" value={form.linked_product_url || ''} onChange={e=>setFormDirty({...form, linked_product_url:e.target.value})} placeholder="例如：https://store.pro-pl.us/p/xxxx" style={{fontSize:'13px'}} />
+                  <div style={{marginTop:'12px'}}>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>商品码 <ShopOnlyTag /></label>
+                     <input className="glow-input" value={form.linked_product_sku || ''} onChange={e=>setFormDirty({...form, linked_product_sku:e.target.value})} placeholder="例如：SKU-1024" style={{fontSize:'13px'}} />
+                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>用于卡片信息展示与「加入购物车」结算；留空则不显示加购按钮。</p>
+                  </div>
+                  <div style={{marginTop:'12px'}}>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>商品价格 <ShopOnlyTag /></label>
+                     <input className="glow-input" value={form.linked_product_price || ''} onChange={e=>setFormDirty({...form, linked_product_price:e.target.value})} placeholder="例如：¥9.9" style={{fontSize:'13px'}} />
+                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>仅在卡片与详情页展示，留空则不显示。</p>
+                  </div>
+                </div>
+             </StepAccordion>
+             ) : null}
+             </>
+             ) : null}
 
             <BlockBuilder
               blocks={editorBlocks}

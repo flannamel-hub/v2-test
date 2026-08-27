@@ -11,11 +11,15 @@ type ShopPostCardProps = {
   galleryCoverSrc?: string | null
 }
 
-/** shop 主题文章卡片(商品化样式);关联商品文章在卡片底部显示购买/加购按钮 */
+/** shop 主题文章卡片(商品化样式);填写商品信息的文章在卡片底部显示 商品码/价格 与购买/加购按钮 */
 export function ShopPostCard({ post, galleryCoverSrc }: ShopPostCardProps) {
   const { title, slug, cover, date, category } = post
   const displayCover = resolveListPostCover(post, galleryCoverSrc)
   const linkedSku = post.options?.linkedProductSku?.trim()
+  const buyUrl = post.options?.linkedProductUrl?.trim()
+  const linkedPrice = post.options?.linkedProductPrice?.trim()
+  // P18-C3:任一商品字段(链接/商品码/价格)填写即视为商品文章
+  const hasProduct = Boolean(linkedSku || buyUrl || linkedPrice)
 
   return (
     <React.StrictMode>
@@ -34,7 +38,7 @@ export function ShopPostCard({ post, galleryCoverSrc }: ShopPostCardProps) {
               alt={title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
-            {linkedSku ? (
+            {hasProduct ? (
               <span className="absolute left-3 top-3 rounded-md bg-green-600/90 px-2 py-0.5 text-[11px] font-bold text-white">
                 商品
               </span>
@@ -57,8 +61,32 @@ export function ShopPostCard({ post, galleryCoverSrc }: ShopPostCardProps) {
             </article>
 
             <div className="flex items-center justify-between border-t border-neutral-100 pt-3 dark:border-white/5">
-              {linkedSku ? (
-                <ShopBuyButtons sku={linkedSku} name={title} variant="card" />
+              {hasProduct ? (
+                <div className="flex w-full flex-col gap-2">
+                  {linkedSku || linkedPrice ? (
+                    <div className="flex min-w-0 items-baseline justify-between gap-2">
+                      {linkedSku ? (
+                        <span className="truncate font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                          商品码:{linkedSku}
+                        </span>
+                      ) : (
+                        <span />
+                      )}
+                      {linkedPrice ? (
+                        <span className="shrink-0 text-sm font-extrabold text-rose-600 dark:text-rose-400">
+                          {linkedPrice}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <ShopBuyButtons
+                    sku={linkedSku}
+                    buyUrl={buyUrl}
+                    name={title}
+                    price={linkedPrice}
+                    variant="card"
+                  />
+                </div>
               ) : (
                 <>
                   <time

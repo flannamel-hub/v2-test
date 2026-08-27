@@ -133,6 +133,24 @@ export const LINKED_PRODUCT_SKU_PROPERTY_NAMES = [
   '关联商品',
 ]
 
+/** shop 主题商品购买链接（P18-C3 人工挂链；url / rich_text 均可读） */
+export const LINKED_PRODUCT_URL_PROPERTY_NAMES = [
+  'linked_product_url',
+  'Linked_product_url',
+  'linkedProductUrl',
+  'Linked_Product_Url',
+  '商品链接',
+]
+
+/** shop 主题商品价格（P18-C3 纯展示；rich_text / url 均可读） */
+export const LINKED_PRODUCT_PRICE_PROPERTY_NAMES = [
+  'linked_product_price',
+  'Linked_product_price',
+  'linkedProductPrice',
+  'Linked_Product_Price',
+  '商品价格',
+]
+
 export function pickNotionProperty(
   properties: PageObjectResponse['properties'],
   names: string[]
@@ -210,6 +228,44 @@ export function readLinkedProductSkuFromPageProperties(
   if (prop.type === 'select' && prop.select?.name) {
     return String(prop.select.name).trim()
   }
+  if (prop.type === 'rich_text') {
+    return readRichTextPlain(prop)?.trim() ?? ''
+  }
+  if (prop.type === 'url' && prop.url) {
+    return String(prop.url).trim()
+  }
+  return ''
+}
+
+/** 读取文章商品购买链接（P18-C3 linked_product_url；url/rich_text 兼容），留空表示未填写 */
+export function readLinkedProductUrlFromPageProperties(
+  properties: PageObjectResponse['properties']
+): string {
+  const prop = pickNotionProperty(
+    properties,
+    LINKED_PRODUCT_URL_PROPERTY_NAMES
+  )
+  if (!prop || typeof prop !== 'object' || !('type' in prop)) return ''
+
+  if (prop.type === 'url' && prop.url) {
+    return String(prop.url).trim()
+  }
+  if (prop.type === 'rich_text') {
+    return readRichTextPlain(prop)?.trim() ?? ''
+  }
+  return ''
+}
+
+/** 读取文章商品价格（P18-C3 linked_product_price；rich_text/url 兼容），留空表示未填写 */
+export function readLinkedProductPriceFromPageProperties(
+  properties: PageObjectResponse['properties']
+): string {
+  const prop = pickNotionProperty(
+    properties,
+    LINKED_PRODUCT_PRICE_PROPERTY_NAMES
+  )
+  if (!prop || typeof prop !== 'object' || !('type' in prop)) return ''
+
   if (prop.type === 'rich_text') {
     return readRichTextPlain(prop)?.trim() ?? ''
   }
