@@ -51,7 +51,16 @@ export const ShopHome = ({
           data-aos="fade-up"
           className="mx-auto w-full px-4 pt-8 md:px-6 lg:w-screen-lg lg:px-11"
         >
-          <ShopBanner banner={banner} />
+          <ShopBanner
+            banner={banner}
+            headline={
+              (widgets?.profile as { name?: string } | undefined)?.name || undefined
+            }
+            subline={
+              (widgets?.profile as { description?: string } | undefined)
+                ?.description || undefined
+            }
+          />
         </div>
       ) : null}
 
@@ -68,12 +77,6 @@ export const ShopHome = ({
                 : '最新发布的内容'}
             </p>
           </div>
-          <Link
-            href="/archive"
-            className="shrink-0 text-sm font-semibold text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
-          >
-            查看全部 →
-          </Link>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-3 xl:grid-cols-4">

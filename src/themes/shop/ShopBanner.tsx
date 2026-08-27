@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import type { ShopBannerConfig } from '@/src/lib/blog/shopBannerDefaults'
 import { classNames } from '@/src/lib/util'
 
@@ -24,7 +25,16 @@ function ChevronIcon({ dir }: { dir: 'left' | 'right' }) {
   )
 }
 
-export function ShopBanner({ banner }: { banner: ShopBannerConfig }) {
+export function ShopBanner({
+  banner,
+  headline,
+  subline,
+}: {
+  banner: ShopBannerConfig
+  /** Banner 两行文字(来自 Notion profile widget):大字 title / 小字 excerpt */
+  headline?: string
+  subline?: string
+}) {
   const images = banner.images.filter(Boolean)
   const count = images.length
   const [index, setIndex] = useState(0)
@@ -82,6 +92,29 @@ export function ShopBanner({ banner }: { banner: ShopBannerConfig }) {
       }}
     >
       {slides}
+      {/* 文字层+按钮:固定不随图切换(多图只切图) */}
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-start justify-center gap-3 bg-gradient-to-r from-black/45 via-black/20 to-transparent px-6 md:px-12">
+        {headline ? (
+          <h2 className="max-w-xl text-2xl font-extrabold leading-tight text-white drop-shadow md:text-4xl">
+            {headline}
+          </h2>
+        ) : null}
+        {subline ? (
+          <p className="max-w-lg text-sm text-white/85 drop-shadow md:text-base">
+            {subline}
+          </p>
+        ) : null}
+        <Link
+          href="/archive"
+          className="pointer-events-auto mt-2 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-neutral-900 shadow-lg transition-all hover:-translate-y-0.5 hover:bg-neutral-100 hover:shadow-xl"
+        >
+          查看更多
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+        </Link>
+      </div>
       {count > 1 ? (
         <>
           <button
@@ -120,20 +153,6 @@ export function ShopBanner({ banner }: { banner: ShopBannerConfig }) {
       ) : null}
     </div>
   )
-
-  if (banner.link) {
-    return (
-      <a
-        href={banner.link}
-        target={isExternalLink ? '_blank' : undefined}
-        rel={isExternalLink ? 'noopener noreferrer' : undefined}
-        className="block focus:outline-none"
-        aria-label="Banner 跳转链接"
-      >
-        {track}
-      </a>
-    )
-  }
 
   return track
 }

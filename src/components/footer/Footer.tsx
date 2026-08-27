@@ -97,7 +97,20 @@ const Footer = ({
               <div className="mr-1 hidden sm:block">
                 <SocialLinks links={socialLinks} variant="standard" />
               </div>
-            ) : null}
+            ) : (
+              <div
+                className="mr-1 hidden h-6 items-center gap-2 sm:flex"
+                title="尚未配置社媒链接（组件中心 → 社交媒体）"
+                aria-hidden
+              >
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="inline-block h-[18px] w-[18px] rounded-full bg-neutral-300/70 dark:bg-neutral-700/60"
+                  />
+                ))}
+              </div>
+            )}
             <ThemeSwitch />
             
             {/* 新增：Admin 后台入口按钮 */}

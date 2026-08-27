@@ -2,9 +2,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { FiClipboard } from 'react-icons/fi'
-import type { DatabaseObjectResponse } from '@notionhq/client/build/src/api-endpoints'
-import { Logo } from '@/src/components/footer/Logo'
-import { ProPlusCreateButton } from '@/src/components/nav/ProPlusCreateButton'
 import { classNames } from '@/src/lib/util'
 import type { Page, Title } from '@/src/types/blog'
 import { ShopCartButton } from './ShopCartButton'
@@ -64,11 +61,13 @@ export function ShopNavbar({
 
   const navItems: { id: string; label: string; href: string }[] = [
     { id: 'home', label: '首页', href: '/' },
+    { id: 'products', label: '商品中心', href: '/archive' },
     ...items.map((item) => ({
       id: item.id,
       label: item.nav || item.title,
       href: `/${item.slug}`,
     })),
+    { id: 'more', label: '更多', href: '/friends' },
   ]
 
   const isActive = (href: string) =>
@@ -91,10 +90,9 @@ export function ShopNavbar({
       <div className="mx-auto flex h-14 w-full items-center justify-between gap-3 px-4 md:px-6 lg:w-screen-lg lg:px-11">
         <Link
           href="/"
-          className="flex min-w-0 shrink-0 items-center gap-2 font-bold text-black dark:text-white"
+          className="flex min-w-0 shrink-0 items-center font-bold text-black dark:text-white"
           aria-label={title?.text || '首页'}
         >
-          <Logo logo={logo} />
           <span className="max-w-[10rem] truncate text-sm md:max-w-none md:text-base">
             {title?.text}
           </span>
@@ -120,9 +118,6 @@ export function ShopNavbar({
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {guestOrders}
           <ShopCartButton />
-          <div className="hidden md:block">
-            <ProPlusCreateButton />
-          </div>
           <button
             type="button"
             aria-label={menuOpen ? '关闭菜单' : '打开菜单'}

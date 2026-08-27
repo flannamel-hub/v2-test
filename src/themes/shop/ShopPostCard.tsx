@@ -45,7 +45,7 @@ function CardCover({
     <div
       className={classNames(
         'relative shrink-0 overflow-hidden bg-neutral-100 dark:bg-neutral-900',
-        variant === 'grid' ? 'h-44 w-full' : 'h-full min-h-[7rem] w-28 sm:w-40'
+        variant === 'grid' ? 'aspect-[4/3] w-full' : 'h-full min-h-[7rem] w-28 sm:w-40'
       )}
     >
       {hasCover ? (
@@ -109,9 +109,21 @@ export function ShopPostCard({
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-4 sm:p-5">
-            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400">
-              {category?.name}
-            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {category?.name ? (
+                <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
+                  {category.name}
+                </span>
+              ) : null}
+              {(post.tags || []).slice(0, 3).map((t) => (
+                <span
+                  key={t.id || t.name}
+                  className="rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500 dark:bg-white/5 dark:text-neutral-400"
+                >
+                  {t.name}
+                </span>
+              ))}
+            </div>
             <h2
               className={classNames(
                 'line-clamp-2 font-extrabold leading-tight tracking-tight text-neutral-900 dark:text-white',
@@ -148,23 +160,16 @@ export function ShopPostCard({
                 />
               </div>
             ) : (
-              <div className="mt-auto flex flex-col gap-2 pt-1">
-                {post.excerpt ? (
-                  <p className="line-clamp-2 text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                    {post.excerpt}
-                  </p>
-                ) : null}
-                <div className="flex items-center justify-between border-t border-neutral-100 pt-2.5 dark:border-white/5">
-                  <time
-                    dateTime={date.created}
-                    className="text-xs font-semibold text-neutral-500 dark:text-neutral-400"
-                  >
-                    {formatDate(date.created)}
-                  </time>
-                  <span className="text-[11px] font-semibold text-neutral-400 transition-colors group-hover:text-neutral-900 dark:text-neutral-500 dark:group-hover:text-white">
-                    阅读
-                  </span>
-                </div>
+              <div className="mt-auto flex items-center justify-between border-t border-neutral-100 pt-2.5 dark:border-white/5">
+                <time
+                  dateTime={date.created}
+                  className="text-xs font-semibold text-neutral-500 dark:text-neutral-400"
+                >
+                  {formatDate(date.created)}
+                </time>
+                <span className="text-[11px] font-semibold text-neutral-400 transition-colors group-hover:text-neutral-900 dark:text-neutral-500 dark:group-hover:text-white">
+                  阅读
+                </span>
               </div>
             )}
           </div>
