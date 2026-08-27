@@ -1,10 +1,13 @@
 import Link from 'next/link'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { FiMinus, FiPlus, FiTrash2, FiX } from 'react-icons/fi'
 import {
   buildCheckoutUrl,
   cartTotalQty,
+  clearCart,
   getStoreUrl,
+  MAX_CART_QTY,
   parseItemPrice,
   readCart,
   removeCartItem,
@@ -15,7 +18,16 @@ import {
 import { useShopSiteId } from './ShopSiteContext'
 
 /**
- * P18-C2:shop 主题购物车抽屉。
+ * P18-C2:shop 主题购物车抽屉;P18-C4-3 C1~C3 修复。
+ *
+ * - C1:抽屉必须 createPortal 到 document.body——ShopNavbar 的 `<header>` 带
+ *   `backdrop-blur-md`,会使 fixed 后代的包含块变成该 56px 导航条;直接渲染在
+ *   组件树原位时抽屉被压进导航条(列表区塌陷为 0 高,只露出溢出的合计/结算,
+ *   即「合计 4 件但列表空白」的线上症状)。portal 后 fixed 恢复相对视口。
+ * - C2:同 SKU 加购在 shopCart.addToCart 内合并数量(封顶 MAX_CART_QTY=99)。
+ * - C3:列表行数量 ±(下限 1/上限 99)、删除单条;顶部「清空购物车」两步确认
+ *   + 轻提示;空车保留「购物车是空的」+「去商店逛逛」。
+ *
  * 数据 = BLOG 侧 localStorage(shop_cart_v1,按 site_id 分组);
  * 「去结算」把条目编码进 URL 跳 {storeUrl}/cart?site=...&items=sku:qty,…
  * (BLOG 域与 store 域 localStorage 不共享,结算状态由 store 侧解析 URL 重建)。
@@ -30,6 +42,10 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
   const siteId = useShopSiteId()
   const [items, setItems] = useState<ShopCartItem[]>([])
   const [mounted, setMounted] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [toastMsg, setToastMsg] = useState('')
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = useCallback(() => {
     setItems(readCart(siteId))
@@ -38,6 +54,13 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // 关闭时复位两步确认与提示,避免下次打开残留
+  useEffect(() => {
+    if (open) return
+    setConfirmClear(false)
+    setToastMsg('')
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -65,25 +88,94 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
     }
   }, [open, onClose])
 
+  useEffect(() => {
+    return () => {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current)
+      if (toastTimer.current) clearTimeout(toastTimer.current)
+    }
+  }, [])
+
+  const showToast = useCallback((message: string) => {
+    setToastMsg(message)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToastMsg(''), 1800)
+  }, [])
+
+  const handleQty = useCallback(
+    (sku: string, nextQty: number) => {
+      updateCartQty(siteId, sku, nextQty)
+      refresh()
+    },
+    [siteId, refresh]
+  )
+
+  const handleRemove = useCallback(
+    (sku: string) => {
+      removeCartItem(siteId, sku)
+      refresh()
+    },
+    [siteId, refresh]
+  )
+
+  const handleClear = useCallback(() => {
+    if (!confirmClear) {
+      setConfirmClear(true)
+      if (confirmTimer.current) clearTimeout(confirmTimer.current)
+      confirmTimer.current = setTimeout(() => setConfirmClear(false), 3000)
+      return
+    }
+    if (confirmTimer.current) clearTimeout(confirmTimer.current)
+    setConfirmClear(false)
+    clearCart(siteId)
+    refresh()
+    showToast('购物车已清空')
+  }, [confirmClear, siteId, refresh, showToast])
+
   if (!open || !mounted) return null
 
+  return createPortal(
+    <ShopCartDrawerContent
+      items={items}
+      checkoutUrl={buildCheckoutUrl(getStoreUrl(), siteId, items)}
+      confirmClear={confirmClear}
+      toastMsg={toastMsg}
+      onQty={handleQty}
+      onRemove={handleRemove}
+      onClear={handleClear}
+      onClose={onClose}
+    />,
+    document.body
+  )
+}
+
+type ShopCartDrawerContentProps = {
+  items: ShopCartItem[]
+  checkoutUrl: string
+  confirmClear: boolean
+  toastMsg: string
+  onQty: (sku: string, qty: number) => void
+  onRemove: (sku: string) => void
+  onClear: () => void
+  onClose: () => void
+}
+
+/** 抽屉展示层(纯 props 无副作用;独立导出供冒烟/测试直接渲染) */
+export function ShopCartDrawerContent({
+  items,
+  checkoutUrl,
+  confirmClear,
+  toastMsg,
+  onQty,
+  onRemove,
+  onClear,
+  onClose,
+}: ShopCartDrawerContentProps) {
   const totalQty = cartTotalQty(items)
   const prices = items.map((item) => parseItemPrice(item.price))
   const hasFullPrices = items.length > 0 && prices.every((p) => p != null)
   const totalAmount = hasFullPrices
-    ? prices.reduce((sum, p, idx) => sum + (p ?? 0) * items[idx].qty, 0)
+    ? prices.reduce((sum: number, p, idx) => sum + (p ?? 0) * items[idx].qty, 0)
     : null
-  const checkoutUrl = buildCheckoutUrl(getStoreUrl(), siteId, items)
-
-  const handleQty = (sku: string, nextQty: number) => {
-    updateCartQty(siteId, sku, nextQty)
-    refresh()
-  }
-
-  const handleRemove = (sku: string) => {
-    removeCartItem(siteId, sku)
-    refresh()
-  }
 
   return (
     <div
@@ -101,14 +193,30 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
           <h2 className="text-base font-extrabold tracking-tight text-neutral-900 dark:text-white">
             购物车
           </h2>
-          <button
-            type="button"
-            aria-label="关闭购物车"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 transition-colors duration-200 ease-out hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-white"
-          >
-            <FiX className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {items.length > 0 ? (
+              <button
+                type="button"
+                aria-label="清空购物车"
+                onClick={onClear}
+                className={
+                  confirmClear
+                    ? 'rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors duration-200 ease-out hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20'
+                    : 'rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-500 transition-colors duration-200 ease-out hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-white'
+                }
+              >
+                {confirmClear ? '确认清空' : '清空'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              aria-label="关闭购物车"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 transition-colors duration-200 ease-out hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              <FiX className="h-4 w-4" />
+            </button>
+          </div>
         </header>
 
         {items.length === 0 ? (
@@ -141,7 +249,7 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
                       <button
                         type="button"
                         aria-label={`删除 ${item.name || item.sku}`}
-                        onClick={() => handleRemove(item.sku)}
+                        onClick={() => onRemove(item.sku)}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors duration-200 ease-out hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
                       >
                         <FiTrash2 className="h-4 w-4" />
@@ -152,19 +260,21 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
                         <button
                           type="button"
                           aria-label="减少数量"
-                          onClick={() => handleQty(item.sku, item.qty - 1)}
+                          disabled={item.qty <= 1}
+                          onClick={() => onQty(item.sku, item.qty - 1)}
                           className="flex h-7 w-7 items-center justify-center text-neutral-600 transition-colors duration-200 ease-out hover:text-neutral-900 disabled:opacity-40 dark:text-neutral-300 dark:hover:text-white"
                         >
                           <FiMinus className="h-3.5 w-3.5" />
                         </button>
-                        <span className="w-7 text-center text-xs font-bold text-neutral-900 dark:text-white">
+                        <span className="w-8 text-center text-xs font-bold text-neutral-900 dark:text-white">
                           {item.qty}
                         </span>
                         <button
                           type="button"
                           aria-label="增加数量"
-                          onClick={() => handleQty(item.sku, item.qty + 1)}
-                          className="flex h-7 w-7 items-center justify-center text-neutral-600 transition-colors duration-200 ease-out hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+                          disabled={item.qty >= MAX_CART_QTY}
+                          onClick={() => onQty(item.sku, item.qty + 1)}
+                          className="flex h-7 w-7 items-center justify-center text-neutral-600 transition-colors duration-200 ease-out hover:text-neutral-900 disabled:opacity-40 dark:text-neutral-300 dark:hover:text-white"
                         >
                           <FiPlus className="h-3.5 w-3.5" />
                         </button>
@@ -195,6 +305,15 @@ export function ShopCartDrawer({ open, onClose }: ShopCartDrawerProps) {
             </footer>
           </>
         )}
+
+        {toastMsg ? (
+          <div
+            role="status"
+            className="pointer-events-none absolute bottom-28 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-neutral-900/90 px-4 py-2 text-xs font-semibold text-white shadow-lg dark:bg-white/90 dark:text-black"
+          >
+            {toastMsg}
+          </div>
+        ) : null}
       </aside>
     </div>
   )

@@ -13,10 +13,16 @@
 
 export const SHOP_CART_STORAGE_KEY = 'shop_cart_v1'
 
-/** 购物车条目变更广播事件(window.dispatchEvent) */
+/** 购物车变更广播事件(window.dispatchEvent) */
 export const SHOP_CART_CHANGE_EVENT = 'shop-cart-change'
 
 export const DEFAULT_STORE_URL = 'https://store.pro-pl.us'
+
+/**
+ * 单 SKU 数量上限(P18-C4-3 C2/C3):BLOG 侧拿不到商品库存,
+ * 加购合并与手动调整统一封顶 99(徽标 99+ 展示同源)。
+ */
+export const MAX_CART_QTY = 99
 
 export type ShopCartItem = {
   sku: string
@@ -110,20 +116,20 @@ export function writeCart(siteId: string, items: ShopCartItem[]): boolean {
   return ok
 }
 
-/** 加入购物车:同 SKU 数量 +1;返回该 SKU 当前数量(失败返回 null) */
+/** 加入购物车:同 SKU 数量累加、不新增条目(封顶 MAX_CART_QTY);返回该 SKU 当前数量(失败返回 null) */
 export function addToCart(siteId: string, item: ShopCartItem): number | null {
   const sku = item.sku.trim()
   if (!sku) return null
   const items = readCart(siteId)
   const existing = items.find((i) => i.sku === sku)
   if (existing) {
-    existing.qty = Math.min(999, existing.qty + (item.qty || 1))
+    existing.qty = Math.min(MAX_CART_QTY, existing.qty + (item.qty || 1))
     existing.name = item.name || existing.name
     existing.price = item.price ?? existing.price
   } else {
     items.push({
       sku,
-      qty: Math.max(1, Math.min(999, Math.round(item.qty || 1))),
+      qty: Math.max(1, Math.min(MAX_CART_QTY, Math.round(item.qty || 1))),
       name: item.name,
       price: item.price ?? null,
     })
@@ -131,13 +137,13 @@ export function addToCart(siteId: string, item: ShopCartItem): number | null {
   return writeCart(siteId, items) ? (existing?.qty ?? items[items.length - 1].qty) : null
 }
 
-/** 调整数量(qty<=0 视为删除);返回是否变更成功 */
+/** 调整数量(钳制 1..MAX_CART_QTY;qty<=0 视为删除);返回是否变更成功 */
 export function updateCartQty(siteId: string, sku: string, qty: number): boolean {
   if (qty <= 0) return removeCartItem(siteId, sku)
   const items = readCart(siteId)
   const existing = items.find((i) => i.sku === sku)
   if (!existing) return false
-  existing.qty = Math.min(999, Math.max(1, Math.round(qty)))
+  existing.qty = Math.min(MAX_CART_QTY, Math.max(1, Math.round(qty)))
   return writeCart(siteId, items)
 }
 
