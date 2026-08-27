@@ -4644,6 +4644,12 @@ const [mounted, setMounted] = useState(false);
   });
   const [shopBannerLoading, setShopBannerLoading] = useState(false);
   const [shopBannerSaving, setShopBannerSaving] = useState(false);
+  // P18C43-D3: Banner 缩略图上传进度/失败提示 + 拖拽排序状态
+  const [shopBannerUpload, setShopBannerUpload] = useState(null); // { done, total }
+  const [shopBannerUploadError, setShopBannerUploadError] = useState('');
+  const [shopBannerDragOver, setShopBannerDragOver] = useState(false);
+  const [shopBannerDragIndex, setShopBannerDragIndex] = useState(null); // 缩略图排序拖拽源下标
+  const shopBannerDragDepthRef = useRef(0);
   const [friendDraft, setFriendDraft] = useState({ name: '', url: '', avatar: '' });
   const [friendDraftUploading, setFriendDraftUploading] = useState(false);
   const [friendBtnStatus, setFriendBtnStatus] = useState({}); // { [id|'draft']: 'saving' | 'done' }
@@ -6242,6 +6248,64 @@ const [mounted, setMounted] = useState(false);
   const openShopBanner = () => {
     setView('shop-banner');
     loadShopBanner();
+  };
+
+  // P18C43-D3: Banner 图片列表派生/写回(仍用换行分隔的 imagesText 承载,保存路径不变)
+  const getShopBannerImages = () => (shopBanner.imagesText || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const setShopBannerImages = (images) => setShopBanner(prev => ({ ...prev, imagesText: images.join('\n') }));
+
+  const resetShopBannerDragOver = () => {
+    shopBannerDragDepthRef.current = 0;
+    setShopBannerDragOver(false);
+  };
+
+  // P18C43-D3: 拖入/点选图片 → uploadImageToLsky 逐张上传 → 追加缩略图(上限 8 张)
+  const handleShopBannerFiles = async (fileList) => {
+    const files = Array.from(fileList || []).filter(f => f.type && f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    const current = getShopBannerImages();
+    if (current.length + files.length > 8) {
+      alert('Banner 图片最多 8 张（当前已有 ' + current.length + ' 张）');
+      return;
+    }
+    setShopBannerUploadError('');
+    setShopBannerUpload({ done: 0, total: files.length });
+    const uploaded = [];
+    try {
+      for (let i = 0; i < files.length; i++) {
+        try {
+          const url = await uploadImageToLsky(files[i]);
+          if (url) uploaded.push(url);
+        } catch (err) {
+          setShopBannerUploadError('第 ' + (i + 1) + ' 张上传失败：' + (err?.message || '未知错误'));
+        }
+        setShopBannerUpload({ done: i + 1, total: files.length });
+      }
+    } finally {
+      setShopBannerUpload(null);
+    }
+    if (uploaded.length > 0) {
+      const before = getShopBannerImages();
+      setShopBannerImages([...before, ...uploaded].slice(0, 8));
+    }
+  };
+
+  // P18C43-D3: 缩略图拖拽排序(拖到目标缩略图上松手即插入)
+  const handleShopBannerThumbDragStart = (index, e) => {
+    setShopBannerDragIndex(index);
+    try { e.dataTransfer.effectAllowed = 'move'; } catch (err) { /* noop */ }
+  };
+  const handleShopBannerThumbDrop = (index, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const from = shopBannerDragIndex;
+    setShopBannerDragIndex(null);
+    if (from == null || from === index) return;
+    const images = getShopBannerImages();
+    if (from < 0 || from >= images.length) return;
+    const [moved] = images.splice(from, 1);
+    images.splice(index, 0, moved);
+    setShopBannerImages(images);
   };
 
   const saveShopBanner = async (patch = {}) => {
@@ -9509,38 +9573,120 @@ const [mounted, setMounted] = useState(false);
                 </div>
                 <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
                   <div>
-                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>图片地址 <span style={{color:'#ff4d4f'}}>*</span> <span style={{color:'#777', fontWeight:'normal'}}>(拖入图片自动上传，每行一条，第 2 条起自动轮播)</span></label>
-                    <textarea
-                      className="glow-input"
-                      value={shopBanner.imagesText}
-                      disabled={shopBannerSaving}
-                      onChange={e=>setShopBanner({...shopBanner, imagesText: e.target.value})}
-                      onDrop={e => {
-                        const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
-                        if (files.length === 0) return;
-                        e.preventDefault();
-                        (async () => {
-                          for (const f of files) {
-                            try {
-                              const url = await uploadImageToLsky(f);
-                              if (url) setShopBanner(prev => ({ ...prev, imagesText: prev.imagesText ? prev.imagesText.replace(/\s+$/,'') + '\n' + url : url }));
-                            } catch (err) {
-                              alert('上传失败：' + (err?.message || '未知错误'));
-                            }
-                          }
-                        })();
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>Banner 图片 <span style={{color:'#ff4d4f'}}>*</span> <span style={{color:'#777', fontWeight:'normal'}}>(拖入或点击上传，第 2 张起自动轮播，缩略图可拖拽排序)</span></label>
+                    <label
+                      className="img-drop"
+                      style={{
+                        position:'relative',
+                        minHeight:'92px',
+                        padding:'16px',
+                        marginBottom:'12px',
+                        borderColor: shopBannerDragOver ? 'greenyellow' : undefined,
+                        background: shopBannerDragOver ? '#1f261b' : undefined,
+                        color: shopBannerDragOver ? 'greenyellow' : undefined,
+                        cursor: shopBannerSaving ? 'wait' : 'pointer',
                       }}
-                      onDragOver={e => e.preventDefault()}
-                      placeholder={'拖入图片自动上传\n或手动填写：https://example.com/banner-1.jpg'}
-                      style={{minHeight:'130px', lineHeight:1.7}}
-                    />
+                      onDragEnter={e => {
+                        if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+                        e.preventDefault();
+                        shopBannerDragDepthRef.current += 1;
+                        setShopBannerDragOver(true);
+                      }}
+                      onDragLeave={e => {
+                        if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+                        e.preventDefault();
+                        shopBannerDragDepthRef.current = Math.max(0, shopBannerDragDepthRef.current - 1);
+                        if (shopBannerDragDepthRef.current === 0) setShopBannerDragOver(false);
+                      }}
+                      onDragOver={e => {
+                        if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'copy';
+                        setShopBannerDragOver(true);
+                      }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        resetShopBannerDragOver();
+                        if (shopBannerSaving || shopBannerUpload) return;
+                        handleShopBannerFiles(e.dataTransfer?.files);
+                      }}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        style={{display:'none'}}
+                        disabled={shopBannerSaving}
+                        onChange={e => { handleShopBannerFiles(e.target.files); e.target.value = ''; }}
+                      />
+                      <div style={{pointerEvents:'none', textAlign:'center'}}>
+                        <div style={{fontSize:'13px', marginBottom:'4px', fontWeight: shopBannerDragOver || shopBannerUpload ? 'bold' : 'normal'}}>
+                          {shopBannerUpload
+                            ? `正在上传 ${shopBannerUpload.done}/${shopBannerUpload.total}…`
+                            : shopBannerDragOver
+                              ? '松开鼠标，添加到 Banner'
+                              : '拖拽或点击上传图片（支持多张）'}
+                        </div>
+                        <div style={{fontSize:'12px', color:'#777'}}>建议宽幅横图（如 1600×500）· 最多 8 张</div>
+                      </div>
+                    </label>
+                    {shopBannerUploadError ? (
+                      <div style={{color:'#ff7875', fontSize:'12px', marginBottom:'10px'}}>{shopBannerUploadError}</div>
+                    ) : null}
+                    {(() => {
+                      const bannerImages = getShopBannerImages();
+                      const canEditBanner = !shopBannerSaving && !shopBannerUpload;
+                      if (bannerImages.length === 0) {
+                        return (
+                          <div style={{fontSize:'12px', color:'#777', padding:'4px 2px'}}>还没有图片，先拖入或点击上方区域上传</div>
+                        );
+                      }
+                      return (
+                        <div style={{display:'flex', flexWrap:'wrap', gap:'10px'}}>
+                          {bannerImages.map((url, index) => (
+                            <div
+                              key={url + '#' + index}
+                              draggable={canEditBanner}
+                              onDragStart={e => handleShopBannerThumbDragStart(index, e)}
+                              onDragEnd={() => setShopBannerDragIndex(null)}
+                              onDragOver={e => { if (shopBannerDragIndex != null) e.preventDefault(); }}
+                              onDrop={e => { if (shopBannerDragIndex != null) handleShopBannerThumbDrop(index, e); }}
+                              style={{
+                                position:'relative',
+                                width:'132px',
+                                height:'74px',
+                                borderRadius:'8px',
+                                overflow:'hidden',
+                                background:'#222',
+                                border: shopBannerDragIndex === index ? '2px solid greenyellow' : '1px solid #555',
+                                opacity: shopBannerDragIndex != null && shopBannerDragIndex !== index ? 0.7 : 1,
+                                cursor: canEditBanner ? 'grab' : 'default',
+                                transition:'opacity 0.15s ease, border-color 0.15s ease',
+                              }}
+                              title={'第 ' + (index + 1) + ' 张 · 拖拽排序'}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt="" draggable={false} style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}} />
+                              <span style={{position:'absolute', left:'6px', top:'6px', background:'rgba(0,0,0,0.55)', color:'#fff', fontSize:'11px', lineHeight:1.4, padding:'1px 7px', borderRadius:'999px'}}>{index + 1}</span>
+                              <button
+                                type="button"
+                                disabled={!canEditBanner}
+                                onClick={() => setShopBannerImages(getShopBannerImages().filter((_, i) => i !== index))}
+                                style={{position:'absolute', right:'4px', top:'4px', width:'22px', height:'22px', borderRadius:'50%', border:'none', background:'rgba(0,0,0,0.55)', color:'#fff', fontSize:'14px', lineHeight:1, cursor: canEditBanner ? 'pointer' : 'not-allowed', opacity: canEditBanner ? 1 : 0.5}}
+                                title="删除"
+                              >×</button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>跳转链接 <span style={{color:'#777', fontWeight:'normal'}}>(可选)</span></label>
                     <input className="glow-input" value={shopBanner.link} disabled={shopBannerSaving} onChange={e=>setShopBanner({...shopBanner, link: e.target.value})} placeholder="https://example.com 或 /archive" />
                   </div>
                   <div style={{fontSize:'12px', color:'#888', lineHeight:1.7, padding:'14px 16px', background:'#2f2f33', borderRadius:'10px'}}>
-                    1 张图片为静态展示，2 张及以上自动轮播（约 5 秒一切换，支持手动切换与移动端滑动）。建议使用宽幅横图（如 1600×500）。
+                    1 张图片为静态展示，2 张及以上自动轮播（约 5 秒一切换，底部圆点可切换，支持移动端滑动）。建议使用宽幅横图（如 1600×500）。
                   </div>
                 </div>
                 <button

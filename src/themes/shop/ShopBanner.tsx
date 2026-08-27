@@ -1,15 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { FiArrowRight, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
+import { FiArrowRight } from 'react-icons/fi'
 import type { ShopBannerConfig } from '@/src/lib/blog/shopBannerDefaults'
 import { classNames } from '@/src/lib/util'
 
 /**
  * P18-C4-4A:shop 首页 Banner(完全还原独角数卡 Home.vue Hero)。
+ * P18C43-D2:删除左右箭头按钮,圆点导航改为底部正中央悬浮。
  * rounded-2xl 卡片容器;内容区 min-h 阶梯高度;bg-black/50 全遮罩;
  * 文字层固定不随图切换(标题/副标题中下区,「查看更多」按钮在下,忽略 banner.link);
- * 多图:右上左右箭头 + 底部左侧白点圆点;自动轮播(零依赖)+ 悬停暂停 + 触摸滑动。
+ * 多图:底部居中圆点(active 长条/白色半透明)+ 自动轮播(零依赖)+ 悬停暂停 + 触摸滑动。
  */
 const AUTO_PLAY_INTERVAL_MS = 5000
 const SWIPE_THRESHOLD_PX = 40
@@ -82,30 +83,9 @@ export function ShopBanner({
       {/* 全图遮罩(独角数卡同款) */}
       <div className="absolute inset-0 bg-black/50" aria-hidden />
 
-      {/* 文字层:固定不随图切换;justify-between,标题/副标题中下区,按钮+圆点在下 */}
+      {/* 文字层:固定不随图切换;标题/副标题中下区,按钮在下(P18C43-D2:箭头已删,顶部占位保留底部锚定) */}
       <div className="relative flex min-h-[200px] flex-col justify-between p-5 sm:min-h-[240px] sm:p-6 md:min-h-[320px] md:p-10 lg:min-h-[420px]">
-        {count > 1 ? (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              aria-label="上一张"
-              onClick={() => go(index - 1)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-black/20 text-white transition hover:bg-black/35 md:h-9 md:w-9"
-            >
-              <FiChevronLeft className="h-3.5 w-3.5" aria-hidden />
-            </button>
-            <button
-              type="button"
-              aria-label="下一张"
-              onClick={() => go(index + 1)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-black/20 text-white transition hover:bg-black/35 md:h-9 md:w-9"
-            >
-              <FiChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          </div>
-        ) : (
-          <div aria-hidden className="h-0" />
-        )}
+        <div aria-hidden className="h-0" />
 
         <div className="flex flex-col items-start gap-2 sm:gap-3">
           {headline ? (
@@ -126,26 +106,27 @@ export function ShopBanner({
             <FiArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </div>
-
-        {count > 1 ? (
-          <div className="mt-4 flex items-center gap-2">
-            {images.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                aria-label={`切换到第 ${i + 1} 张`}
-                onClick={() => go(i)}
-                className={classNames(
-                  'h-2 rounded-full transition-all duration-300',
-                  i === index
-                    ? 'w-6 bg-white'
-                    : 'w-2 bg-white/45 hover:bg-white/70'
-                )}
-              />
-            ))}
-          </div>
-        ) : null}
       </div>
+
+      {/* P18C43-D2:圆点导航改为底部正中央悬浮(原右上箭头+左下圆点已删) */}
+      {count > 1 ? (
+        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`切换到第 ${i + 1} 张`}
+              onClick={() => go(i)}
+              className={classNames(
+                'h-2 rounded-full transition-all duration-300',
+                i === index
+                  ? 'w-6 bg-white'
+                  : 'w-2 bg-white/45 hover:bg-white/70'
+              )}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
