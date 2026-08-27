@@ -39,8 +39,17 @@ export function ShopProductBar({ post }: { post: Post }) {
               </span>
             ) : null}
             {linkedPrice ? (
-              <span className="text-lg font-extrabold leading-none text-rose-600 dark:text-rose-400">
-                {linkedPrice}
+              <span className="flex flex-wrap items-baseline gap-x-1.5">
+                <span className="text-lg font-extrabold leading-none text-rose-600 dark:text-rose-400">
+                  {linkedPrice}
+                </span>
+                {/* C5(P18-C4-4 批2):极小价格提示,与首页卡片同步 */}
+                <span
+                  data-testid="shop-bar-price-note"
+                  className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500"
+                >
+                  价格以结算页为准
+                </span>
               </span>
             ) : null}
           </div>

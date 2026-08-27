@@ -1,33 +1,16 @@
-import { useEffect, useState } from 'react'
-import { readCart, SHOP_CART_CHANGE_EVENT } from '@/src/lib/shop/shopCart'
+import { useShopCartSkuQty } from './useShopCartSkuQty'
 import { useShopSiteId } from './ShopSiteContext'
 
 /**
  * P18-C4-3 B4:商品卡购物车按钮上的单 SKU 已购份数角标。
- * 数据源 readCart(siteId) 按 sku 聚合(localStorage 持久,刷新/跨页保持);
- * 监听 SHOP_CART_CHANGE_EVENT + storage 事件实时刷新。
- * 数量在客户端挂载后读取(SSR/首帧不渲染,避免 hydration 不一致);
- * 购物车无该 sku(或数量为 0)时不渲染。
+ * 数据源 useShopCartSkuQty(readCart 按 sku 聚合,localStorage 持久,
+ * SHOP_CART_CHANGE_EVENT + storage 实时刷新;P18-C4-4 批2 起与
+ * ShopBuyButtons 持久状态同源)。数量在客户端挂载后读取(SSR/首帧
+ * 不渲染,避免 hydration 不一致);购物车无该 sku(或数量为 0)时不渲染。
  */
 export function ShopCartSkuBadge({ sku }: { sku: string }) {
   const siteId = useShopSiteId()
-  const [qty, setQty] = useState<number | null>(null)
-
-  useEffect(() => {
-    const trimmedSku = sku.trim()
-    if (!trimmedSku) return
-    const refresh = () => {
-      const item = readCart(siteId).find((i) => i.sku === trimmedSku)
-      setQty(item && item.qty > 0 ? item.qty : 0)
-    }
-    refresh()
-    window.addEventListener(SHOP_CART_CHANGE_EVENT, refresh)
-    window.addEventListener('storage', refresh)
-    return () => {
-      window.removeEventListener(SHOP_CART_CHANGE_EVENT, refresh)
-      window.removeEventListener('storage', refresh)
-    }
-  }, [siteId, sku])
+  const qty = useShopCartSkuQty(siteId, sku)
 
   if (!qty) return null
   return (
