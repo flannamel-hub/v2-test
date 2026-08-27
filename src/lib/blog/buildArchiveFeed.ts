@@ -4,6 +4,7 @@ import { formatPosts, FORMAT_POST_LIST_OPTIONS } from '@/src/lib/blog/format/pos
 import { getAllTags, initialTag } from '@/src/lib/blog/format/tag'
 import { loadGalleryFeedCovers } from '@/src/lib/gallery/galleryFeedPreviews'
 import { shouldLoadGalleryFeedCovers } from '@/src/lib/gallery/shouldLoadGalleryFeedCovers'
+import { isShopTheme } from '@/src/themes/shop/shopTheme'
 import { getPostsAndPieces } from '@/src/lib/notion/getBlogData'
 import { createTagCategoryMap } from '@/src/lib/util'
 import { Post } from '@/src/types/blog'
@@ -92,6 +93,9 @@ export async function buildArchivePageProps(
     categoryTagMapById,
     totalCount: sortedPosts.length,
     galleryFeedCovers,
+    // P18-C4-2:shop 归档侧栏分类/标签/搜索需要对全量文章客户端过滤,
+    // 仅 shop 主题额外下发全量(其余主题不下发,避免 props 膨胀)
+    ...(isShopTheme(activeTheme) ? { shopAllPosts: sortedPosts } : {}),
   }
 }
 

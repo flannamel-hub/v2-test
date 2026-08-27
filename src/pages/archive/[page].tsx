@@ -89,6 +89,7 @@ const Archive: NextPage<{
   totalCount?: number
   activeTheme?: string
   galleryFeedCovers?: Record<string, string> | null
+  shopAllPosts?: Post[] | null
 }> = ({
   page,
   items,
@@ -101,6 +102,7 @@ const Archive: NextPage<{
   totalCount,
   activeTheme,
   galleryFeedCovers,
+  shopAllPosts,
 }) => {
   const [pageCountAfterFilter, setPageCountAfterFilter] = useState(pageCount)
   const [itemsAfterFilter, setItemsAfterFilter] = useState(items)
@@ -201,8 +203,9 @@ const Archive: NextPage<{
     return (
       <ShopArchive
         page={page}
-        items={itemsAfterFilter}
-        pageCount={pageCountAfterFilter}
+        items={items}
+        shopAllPosts={shopAllPosts ?? null}
+        pageCount={pageCount}
         currentPage={currentPage}
         galleryFeedCovers={galleryFeedCovers}
       />

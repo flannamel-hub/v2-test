@@ -1,56 +1,60 @@
-import { Empty } from '@/src/components/Empty'
 import { LargeTitle } from '@/src/components/LargeTitle'
 import { ContainerLayoutFull } from '@/src/components/post/ContainerLayout'
 import { PaginationSection } from '@/src/components/section/PaginationSection'
 import { Page, Post } from '@/src/types/blog'
-import { ShopPostCard } from './ShopPostCard'
+import { ShopCatalogSection } from './ShopCatalogSection'
 
 type ShopArchiveProps = {
   page: Page
+  /** 服务端当前页切片(未筛选时渲染 + 分页依据) */
   items: Post[]
+  /** shop 主题全量文章(buildArchivePageProps 仅为 shop 主题下发,客户端筛选数据源) */
+  shopAllPosts?: Post[] | null
   pageCount: number
   currentPage: number
   galleryFeedCovers?: Record<string, string> | null
 }
 
-/** shop 主题归档：商品化卡片网格 + 分页；壳层走默认 BlogLayout */
+/**
+ * shop 主题归档 v1(P18-C4-2.2 重做,独角数卡 products 版面+增强):
+ * 左分类栏+搜索+标签栏(分类栏下方,独有增强),右商品化卡片网格;
+ * 未筛选时保留现有 /archive/[page] 服务端分页(PaginationSection);
+ * 分类/标签/搜索组合筛选时对全量文章过滤并隐藏分页。
+ */
 export function ShopArchive({
   page,
   items,
+  shopAllPosts,
   pageCount,
   currentPage,
   galleryFeedCovers,
 }: ShopArchiveProps) {
   const { title } = page
+  const allPosts = shopAllPosts ?? items
 
   return (
     <>
       <ContainerLayoutFull>
         <LargeTitle title={title} />
       </ContainerLayoutFull>
-      <ContainerLayoutFull>
-        {items.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((post) => (
-              <ShopPostCard
-                key={post.id}
-                post={post}
-                galleryCoverSrc={galleryFeedCovers?.[post.slug] ?? null}
+      <div className="pb-10">
+        <ShopCatalogSection
+          posts={allPosts}
+          pageItems={items}
+          showTags
+          galleryFeedCovers={galleryFeedCovers}
+          pagination={
+            pageCount !== 0 ? (
+              <PaginationSection
+                currentPage={currentPage}
+                currentQuery={{}}
+                totalPages={pageCount}
+                basePath="archive"
               />
-            ))}
-          </div>
-        ) : (
-          <Empty />
-        )}
-        {pageCount !== 0 && (
-          <PaginationSection
-            currentPage={currentPage}
-            currentQuery={{}}
-            totalPages={pageCount}
-            basePath="archive"
-          />
-        )}
-      </ContainerLayoutFull>
+            ) : null
+          }
+        />
+      </div>
     </>
   )
 }
