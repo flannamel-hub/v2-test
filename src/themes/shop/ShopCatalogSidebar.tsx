@@ -62,10 +62,11 @@ function SearchInput({
 }
 
 /**
- * P18-C4-2:shop 目录筛选侧栏(参考独角数卡 CategorySidebar)。
- * 桌面(lg+):搜索框 + 「全部分类」列表卡片(+ 归档页标签栏,分类栏下方);
+ * P18-C4-2:shop 目录筛选侧栏(参考独角数卡 CategorySidebar;C4-4B 对齐 248px 版式)。
+ * 桌面(lg+):搜索框 + 「全部分类」列表卡片(+ 归档页标签栏,分类栏下方),整列 sticky;
  * 移动端:搜索框 + 分类/标签横向 chips 行。
- * 过滤状态由父组件 ShopCatalogSection 持有。
+ * 宽度由父级网格轨道 lg:grid-cols-[248px_1fr] 决定。
+ * 过滤状态由父组件(ShopArchive)持有。
  */
 export function ShopCatalogSidebar({
   categories,
@@ -82,12 +83,12 @@ export function ShopCatalogSidebar({
   const hasTags = tagList.length > 0 && onSelectTag
 
   return (
-    <div className="flex shrink-0 flex-col gap-3 lg:w-60 lg:gap-4">
+    <div className="grid min-w-0 gap-3 lg:sticky lg:top-20 lg:gap-5">
       <SearchInput searchQuery={searchQuery} onSearchQueryChange={onSearchQueryChange} />
 
       {/* 桌面侧栏:分类列表 + 标签栏 */}
       <aside className="hidden lg:block">
-        <div className="sticky top-20 rounded-2xl border border-neutral-200 bg-white p-4 shadow-card dark:border-white/10 dark:bg-[#1c1c1e] dark:shadow-2xl">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card dark:border-white/10 dark:bg-[#1c1c1e] dark:shadow-2xl">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-white">
             <span className="h-4 w-1 rounded-full bg-neutral-900 dark:bg-white" aria-hidden />
             分类

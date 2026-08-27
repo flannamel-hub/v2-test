@@ -1,3 +1,4 @@
+import { FiArrowRight, FiChevronRight } from 'react-icons/fi'
 import { classNames, formatDate } from '@/src/lib/util'
 import { resolveListPostCover } from '@/src/lib/gallery/resolveListPostCover'
 import { Post } from '@/src/types/blog'
@@ -9,12 +10,17 @@ import { ShopBuyButtons } from './ShopBuyButtons'
 type ShopPostCardProps = {
   post: Post
   galleryCoverSrc?: string | null
-  /** v2:网格(默认)/ 列表 两种形态 */
+  /** v3:网格(默认)/ 列表 两种形态 */
   variant?: 'grid' | 'list'
 }
 
+/** P18-C4-4B:独角数卡 ProductCard 版式(微上浮+阴影+描边提亮) */
 const CARD_SHELL =
-  'group relative flex transform-gpu cursor-pointer select-none flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-card dark:border-white/10 dark:bg-[#1c1c1e] dark:shadow-2xl transition-all duration-300 ease-out hover:scale-[1.015]'
+  'group relative flex h-full cursor-pointer select-none flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-card transition-all duration-300 ease-out hover:-translate-y-1 hover:border-neutral-900/30 hover:shadow-lg dark:border-white/10 dark:bg-[#1c1c1e] dark:hover:border-white/30'
+
+/** 封面右上图上标签(独角数卡同款:黑底白字毛玻璃小胶囊) */
+const IMAGE_TAG_BADGE =
+  'inline-flex items-center rounded-md border border-white/25 bg-black/55 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm md:px-3'
 
 /** 读取 Step7 三字段;任一填写即视为商品文章(P18-C3 约定) */
 function readProductFields(post: Post) {
@@ -34,11 +40,14 @@ function CardCover({
   title,
   categoryName,
   variant,
+  imageTags,
 }: {
   displayCover: Post['cover']
   title: string
   categoryName?: string
   variant: 'grid' | 'list'
+  /** 图上标签:文章 tags 前 2 个(仅网格形态渲染) */
+  imageTags: { id?: string; name: string }[]
 }) {
   const hasCover = Boolean(displayCover?.light?.src || displayCover?.dark?.src)
   return (
@@ -55,39 +64,46 @@ function CardCover({
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
       ) : (
-        // v2:无封面时的渐变回退
+        // v3:无封面时的渐变回退(保留)
         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-100 via-neutral-50 to-neutral-200 dark:from-neutral-800 dark:via-neutral-900 dark:to-neutral-800">
           <span className="select-none text-xs font-semibold uppercase tracking-widest text-neutral-300 dark:text-neutral-600">
             {categoryName || title.slice(0, 1) || 'Post'}
           </span>
         </div>
       )}
+
+      {variant === 'grid' && imageTags.length > 0 ? (
+        <div className="absolute right-2 top-2 z-20 flex flex-wrap justify-end gap-1 md:right-4 md:top-4 md:gap-2">
+          {imageTags.map((tag) => (
+            <span key={tag.id || tag.name} className={IMAGE_TAG_BADGE}>
+              {tag.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
 
-function ProductBadge() {
-  return (
-    <span className="absolute left-3 top-3 rounded-md bg-green-600/90 px-2 py-0.5 text-[11px] font-bold text-white">
-      商品
-    </span>
-  )
-}
-
 /**
- * shop 主题文章卡片 v2(P18-C4-2.3)。
- * 商品文章:封面 + 标题 + 商品码/价格 + 立即购买/加入购物车;
- * 普通文章:封面 + 标题 + 摘要 + 日期/阅读入口。
- * variant="grid" 网格卡 / variant="list" 横向列表卡。
+ * shop 主题文章卡片 v3(P18-C4-4B,按独角数卡 ProductCard.vue 逐点还原)。
+ * 封面(4/3,图上标签=文章 tags 前 2 个)+ 信息区(分类行/紧凑标题/商品徽章)
+ * + 底栏(商品→「价格」标签+大号价格+购物车图标按钮+详情箭头;无商品→日期+「阅读」箭头)。
+ * variant="grid" 网格卡 / variant="list" 横向列表卡(左缩略图右信息)。
  */
 export function ShopPostCard({
   post,
   galleryCoverSrc,
   variant = 'grid',
 }: ShopPostCardProps) {
-  const { title, slug, date, category } = post
+  const { title, slug, date, category, tags } = post
   const displayCover = resolveListPostCover(post, galleryCoverSrc)
   const { linkedSku, buyUrl, linkedPrice, hasProduct } = readProductFields(post)
+  const imageTags = (tags || []).slice(0, 2)
+  const showPrice = hasProduct && Boolean(linkedPrice)
+
+  const detailArrowClass =
+    'hidden items-center gap-1 text-xs font-bold uppercase text-neutral-500 transition-colors duration-200 ease-out group-hover:text-neutral-900 dark:text-neutral-400 dark:group-hover:text-white md:flex'
 
   return (
     <React.StrictMode>
@@ -98,80 +114,83 @@ export function ShopPostCard({
             variant === 'list' ? 'flex-row items-stretch' : ''
           )}
         >
-          <div className="relative">
-            <CardCover
-              displayCover={displayCover}
-              title={title}
-              categoryName={category?.name}
-              variant={variant}
-            />
-            {hasProduct ? <ProductBadge /> : null}
-          </div>
+          <CardCover
+            displayCover={displayCover}
+            title={title}
+            categoryName={category?.name}
+            variant={variant}
+            imageTags={imageTags}
+          />
 
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-4 sm:p-5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {category?.name ? (
-                <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
-                  {category.name}
-                </span>
-              ) : null}
-              {(post.tags || []).slice(0, 3).map((t) => (
-                <span
-                  key={t.id || t.name}
-                  className="rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500 dark:bg-white/5 dark:text-neutral-400"
-                >
-                  {t.name}
-                </span>
-              ))}
-            </div>
-            <h2
-              className={classNames(
-                'line-clamp-2 font-extrabold leading-tight tracking-tight text-neutral-900 dark:text-white',
-                variant === 'list' ? 'text-[15px] sm:text-base' : 'text-lg'
-              )}
-            >
+          <div className="flex min-w-0 flex-1 flex-col p-3 md:p-4">
+            {category?.name ? (
+              <div className="mb-1 truncate text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 md:mb-2">
+                分类 · {category.name}
+              </div>
+            ) : null}
+            <h2 className="line-clamp-2 text-sm font-bold leading-tight tracking-tight text-neutral-900 dark:text-white md:text-base">
               {title}
             </h2>
 
             {hasProduct ? (
-              <div className="mt-auto flex flex-col gap-2 pt-1">
-                {linkedSku || linkedPrice ? (
-                  <div className="flex min-w-0 items-baseline justify-between gap-2">
-                    {linkedSku ? (
-                      <span className="truncate font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                        商品码:{linkedSku}
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    {linkedPrice ? (
-                      <span className="shrink-0 text-base font-extrabold text-rose-600 dark:text-rose-400">
-                        {linkedPrice}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-                <ShopBuyButtons
-                  sku={linkedSku}
-                  buyUrl={buyUrl}
-                  name={title}
-                  price={linkedPrice}
-                  variant="card"
-                />
+              <div className="mt-2 flex flex-wrap items-center gap-1 md:gap-2">
+                <span className="inline-flex items-center rounded-md bg-green-50 px-1.5 py-0.5 text-[11px] font-semibold text-green-700 dark:bg-green-500/10 dark:text-green-400">
+                  商品可购
+                </span>
               </div>
-            ) : (
-              <div className="mt-auto flex items-center justify-between border-t border-neutral-100 pt-2.5 dark:border-white/5">
+            ) : null}
+
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-neutral-100 pt-2 dark:border-white/10 md:pt-4">
+              {showPrice ? (
+                <div className="flex min-w-0 flex-col">
+                  <span className="hidden text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 md:block">
+                    价格
+                  </span>
+                  <span className="text-sm font-bold text-rose-600 dark:text-rose-400 md:text-base">
+                    {linkedPrice}
+                  </span>
+                </div>
+              ) : (
                 <time
                   dateTime={date.created}
-                  className="text-xs font-semibold text-neutral-500 dark:text-neutral-400"
+                  className="truncate text-xs font-semibold text-neutral-500 dark:text-neutral-400"
                 >
                   {formatDate(date.created)}
                 </time>
-                <span className="text-[11px] font-semibold text-neutral-400 transition-colors group-hover:text-neutral-900 dark:text-neutral-500 dark:group-hover:text-white">
-                  阅读
-                </span>
+              )}
+
+              <div className="flex shrink-0 items-center gap-2">
+                {hasProduct ? (
+                  <ShopBuyButtons
+                    variant="icon"
+                    sku={linkedSku}
+                    buyUrl={buyUrl}
+                    name={title}
+                    price={linkedPrice}
+                  />
+                ) : null}
+                {hasProduct ? (
+                  <span className={detailArrowClass}>
+                    <FiArrowRight
+                      className="h-4 w-4 transition-transform duration-200 ease-out group-hover:translate-x-1"
+                      aria-hidden
+                    />
+                  </span>
+                ) : (
+                  <span className={detailArrowClass}>
+                    阅读
+                    <FiArrowRight
+                      className="h-4 w-4 transition-transform duration-200 ease-out group-hover:translate-x-1"
+                      aria-hidden
+                    />
+                  </span>
+                )}
+                <FiChevronRight
+                  className="h-4 w-4 text-neutral-400 dark:text-neutral-500 md:hidden"
+                  aria-hidden
+                />
               </div>
-            )}
+            </div>
           </div>
         </div>
       </PostNavLink>

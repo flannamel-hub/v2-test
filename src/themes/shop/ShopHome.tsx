@@ -17,10 +17,10 @@ function readAnnouncementPost(widgets: {
 }
 
 /**
- * Shop 首页(v1 修正 2026-08-27):仿独角数卡 Home.vue
- * Banner(Hero) → 精选商品 Featured Products(标题+副标题+「查看全部→」+商品化卡片网格)
+ * Shop 首页(v2 修正 2026-08-28 P18-C4-4B):仿独角数卡 Home.vue
+ * Banner(Hero) → 精选商品 Featured Products(标题+副标题+商品化卡片网格)
  * → 最新动态 Latest Updates(公告卡) → Footer(壳层)。
- * 分类栏+搜索+标签 = 归档页(/archive)版面,首页不再展示。
+ * 精选区展示全部文章(C4-3B 修正):有商品字段渲染商品卡,无商品渲染普通卡。
  */
 export const ShopHome = ({
   posts,
@@ -34,15 +34,15 @@ export const ShopHome = ({
       : null
   const announcement = readAnnouncementPost(widgets)
 
-  // 精选商品:优先取「带商品字段」的文章(前 8 篇);无商品文章时回退最新文章(普通卡)
   const hasProduct = (p: (typeof posts)[number]) =>
     Boolean(
       p.options?.linkedProductSku?.trim() ||
         p.options?.linkedProductUrl?.trim() ||
         p.options?.linkedProductPrice?.trim()
     )
-  const productPosts = posts.filter(hasProduct)
-  const featured = (productPosts.length > 0 ? productPosts : posts).slice(0, 8)
+  // C4-4B:展示全部文章(不再只筛商品文章),前 10 篇
+  const hasAnyProduct = posts.some(hasProduct)
+  const featured = posts.slice(0, 10)
 
   return (
     <>
@@ -72,14 +72,14 @@ export const ShopHome = ({
               精选商品
             </h2>
             <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-              {productPosts.length > 0
+              {hasAnyProduct
                 ? '本站精选的数字作品与商品'
                 : '最新发布的内容'}
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {featured.map((post, idx) => (
             <ShopPostCard
               key={post.id || post.slug}
