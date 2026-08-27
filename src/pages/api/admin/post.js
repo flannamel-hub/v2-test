@@ -836,9 +836,19 @@ export default async function handler(req, res) {
       if (type !== undefined) props["type"] = { select: { name: type } };
       if (date !== undefined) props["date"] = date ? { date: { start: date } } : null;
       if (cover !== undefined) {
-          const normalizedCover = normalizeMediaUrl(
+          let normalizedCover = normalizeMediaUrl(
             typeof cover === 'string' ? cover : ''
           );
+          // 服务端兜底(自动封面):cover 为空时从正文块提取第一张图片,不依赖客户端 coverSettings
+          if (!normalizedCover && Array.isArray(blocksData)) {
+            const imgBlock = blocksData.find(
+              (b) => b?.type === 'image' && typeof b.content === 'string' && b.content.trim()
+            );
+            if (imgBlock) {
+              const url = normalizeMediaUrl(imgBlock.content.trim());
+              if (url) normalizedCover = url;
+            }
+          }
           props['cover'] = normalizedCover ? { url: normalizedCover } : { url: null };
       }
       if (download !== undefined) {
