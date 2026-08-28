@@ -9,7 +9,9 @@ import { ShopBuyButtons } from './ShopBuyButtons'
  * 渲染于封面/图库区域下方:商品名称(P18C45UI B2,缺失回退文章标题)+ 价格 +
  * 「立即购买 / 加入购物车」。
  * - hasProduct 仅看 sku 非空(B1):查不到商品/已下架时 sku 保留、url/price/name 清空,
- *   本条仍渲染,价格缺失显示「—」+「价格以结算页为准」,购买/加购点击提示不可购买;
+ *   本条仍渲染,价格缺失显示「—」占位(P18C45UI 批3:「价格以结算页为准」提示已删),
+ *   购买/加购点击弹「当前不可购买」页内弹窗;
+ * - 价格颜色统一白色(P18C45UI 批3,与卡片一致);
  * - P18C45UI B2:不再展示「商品码 SKU」chip,优先显示商品名称(linkedProductName,
  *   缺失回退 post.title);
  * - 购买仅跳 buyUrl(P18-C4-5 联动写入),加购需有 sku;
@@ -50,33 +52,20 @@ export function ShopProductBar({ post }: { post: Post }) {
               {productName || '商品'}
             </span>
             {linkedPrice ? (
-              <span className="flex flex-wrap items-baseline gap-x-1.5">
-                <span className="text-lg font-extrabold leading-none text-rose-600 dark:text-rose-400">
-                  {linkedPrice}
-                </span>
-                {/* C5(P18-C4-4 批2):极小价格提示,与首页卡片同步 */}
-                <span
-                  data-testid="shop-bar-price-note"
-                  className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500"
-                >
-                  价格以结算页为准
-                </span>
+              /* P18C45UI 批3:价格统一白色;「价格以结算页为准」提示小字已删除 */
+              <span
+                data-testid="shop-bar-price"
+                className="text-lg font-extrabold leading-none text-white dark:text-white"
+              >
+                {linkedPrice}
               </span>
             ) : hasProduct ? (
-              /* B1:有 sku 无价格(查不到/下架仅存码)→ 占位「—」+提示,保持商品式样 */
-              <span className="flex flex-wrap items-baseline gap-x-1.5">
-                <span
-                  data-testid="shop-bar-price-placeholder"
-                  className="text-lg font-extrabold leading-none text-neutral-400 dark:text-neutral-500"
-                >
-                  —
-                </span>
-                <span
-                  data-testid="shop-bar-price-note"
-                  className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500"
-                >
-                  价格以结算页为准
-                </span>
+              /* B1:有 sku 无价格(查不到/下架仅存码)→ 占位「—」,保持商品式样 */
+              <span
+                data-testid="shop-bar-price-placeholder"
+                className="text-lg font-extrabold leading-none text-neutral-400 dark:text-neutral-500"
+              >
+                —
               </span>
             ) : null}
           </div>

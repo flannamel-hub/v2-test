@@ -233,7 +233,7 @@ function CardCover({
  *   标题(line-clamp-2 固定两行高)/tags 单行(h-6,无 tag 占位;B4 间距压缩 mt-1);
  *   摘要位已取消(B5),无 tags 无摘要时 tags 行保留一行高度占位,卡片等高不变;
  * - 底栏(border-t + pt)左侧一律价格位(B10):小标「价格」+ ¥ 大号价格
- *   (rose,与内页商品条同色;无价格/未关联商品显示「暂无」中性占位),
+ *   (P18C45UI 批3:白色,与内页商品条统一;无价格/未关联商品显示「暂无」中性占位),
  *   不再显示发布日期;「价格以结算页为准」提示已移除(B7);
  * - 右侧=「立即购买」纯文字按钮(B8:去图标)+ 购物车图标按钮(带 sku 已购
  *   份数角标,始终渲染,不可购时组件内部页内 toast 提示)+ 桌面端详情箭头
@@ -275,8 +275,9 @@ export function ShopPostCard({ post, galleryCoverSrc }: ShopPostCardProps) {
             <CardTagLine tags={tags || []} />
 
             <div className="mt-auto flex items-center justify-between gap-2 border-t border-neutral-100 pt-2 dark:border-white/10 md:pt-3">
-              {/* B10:底部价格位一律显示——有价显示 ¥ 价格(rose,与内页商品条一致);
-                  无价/未关联商品显示「暂无」中性占位;不显示发布日期;B7:价格提示已移除 */}
+              {/* B10:底部价格位一律显示——有价显示 ¥ 价格(P18C45UI 批3:白色,
+                  与内页商品条统一);无价/未关联商品显示「暂无」中性占位;
+                  不显示发布日期;B7:价格提示已移除 */}
               <div className="flex min-w-0 flex-col">
                 <span className="hidden text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 md:block">
                   价格
@@ -286,7 +287,7 @@ export function ShopPostCard({ post, galleryCoverSrc }: ShopPostCardProps) {
                   className={classNames(
                     footerValueClass,
                     linkedPrice
-                      ? 'text-rose-600 dark:text-rose-400'
+                      ? 'text-white dark:text-white'
                       : 'text-neutral-400 dark:text-neutral-500'
                   )}
                 >

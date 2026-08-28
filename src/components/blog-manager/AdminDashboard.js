@@ -4563,6 +4563,8 @@ const [mounted, setMounted] = useState(false);
 
   // P18C45FIX B2: Step7「添加商品信息」弹窗状态
   // result = { available, product: {sku,name,price,status}|null, error }
+  // P18C45UI 批3:弹窗改单一主按钮时序(关联商品→查询中…→确认使用该商品),
+  // 按钮与强调色统一蓝色(原粉红 #f472b6 已弃用)
   const [productLookup, setProductLookup] = useState({ open: false, sku: '', loading: false, result: null });
   const openProductLookupModal = () => {
     setProductLookup({ open: true, sku: String(form.linked_product_sku || '').trim(), loading: false, result: null });
@@ -4607,6 +4609,13 @@ const [mounted, setMounted] = useState(false);
     showAdminToast(`商品码已写入：${sku}（保存时再次校验）`, 3000);
   };
   const productLookupConfirmable = !!(productLookup.result && productLookup.result.available && productLookup.result.product && isShopLookupProductOnSale(productLookup.result.product));
+  // P18C45UI 批3:弹窗主按钮时序——未查到=「关联商品」(触发查询),
+  // 查到在售=「确认使用该商品」(写入表单并关闭);loading 时不响应
+  const runProductLookupPrimary = () => {
+    if (productLookup.loading) return;
+    if (productLookupConfirmable) { confirmProductLookup(); return; }
+    runProductLookupQuery();
+  };
 
   const [blogRefreshBusy, setBlogRefreshBusy] = useState(false);
   const [blogRefreshCooldownSec, setBlogRefreshCooldownSec] = useState(0);
@@ -10417,50 +10426,62 @@ const [mounted, setMounted] = useState(false);
                   onMouseDown={(e) => { if (e.target === e.currentTarget) setProductLookup((p) => ({ ...p, open: false })); }}
                   style={{ position:'fixed', inset:0, zIndex:10000, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(2px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}
                 >
-                  <div style={{ width:'100%', maxWidth:'420px', background:'#1f1f24', border:'1px solid #3a3a42', borderRadius:'14px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', padding:'22px' }}>
-                    <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'4px' }}>添加商品信息</div>
-                    <div style={{ fontSize:'12px', color:'#f9a8d4', marginBottom:'16px', lineHeight:1.6 }}>输入商品码当场查询系统商品，确认后写入表单。</div>
-                    <label style={{ display:'block', fontSize:'12px', color:'#bbb', marginBottom:'6px' }}>商品码（编号）</label>
-                    <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
-                      <input
-                        className="glow-input"
-                        autoFocus
-                        value={productLookup.sku}
-                        onChange={(e) => setProductLookup((p) => ({ ...p, sku: e.target.value.toUpperCase(), result: null }))}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && !productLookup.loading) runProductLookupQuery(); if (e.key === 'Escape') setProductLookup((p) => ({ ...p, open: false })); }}
-                        placeholder="例如：MHDTNQUK"
-                        style={{ flex:1, fontSize:'13px', letterSpacing:'0.5px', textTransform:'uppercase' }}
-                      />
-                      <button type="button" onClick={runProductLookupQuery} disabled={productLookup.loading} style={{ height:'38px', padding:'0 16px', borderRadius:'8px', cursor: productLookup.loading ? 'wait' : 'pointer', border:'none', background: productLookup.loading ? '#555' : '#f472b6', color: productLookup.loading ? '#999' : '#2a0a1a', fontSize:'13px', fontWeight:'bold', flex:'none' }}>
-                        {productLookup.loading ? '查询中…' : '查询'}
-                      </button>
-                    </div>
-                    {productLookup.loading ? (
-                      <div style={{ padding:'10px 2px 4px', fontSize:'12px', color:'#bbb', lineHeight:1.6 }}>正在查询系统商品…（超时约 8s，请稍候）</div>
-                    ) : productLookup.result ? (
-                      productLookup.result.available && productLookup.result.product && isShopLookupProductOnSale(productLookup.result.product) ? (
-                        <div style={{ padding:'12px 14px', borderRadius:'10px', border:'1px solid rgba(134,239,172,0.35)', background:'rgba(134,239,172,0.07)', marginBottom:'6px' }}>
-                          <p style={{ fontSize:'13px', color:'#e5e5e5', margin:'0 0 6px', lineHeight:1.5 }}>商品名称：{productLookup.result.product.name || '—'}</p>
-                          <p style={{ fontSize:'13px', color:'#e5e5e5', margin:'0 0 6px', lineHeight:1.5 }}>价格：{formatShopLookupPrice(productLookup.result.product.price)}</p>
-                          <p style={{ fontSize:'13px', color:'#86efac', margin:'0', lineHeight:1.5 }}>状态：在售</p>
-                        </div>
-                      ) : (
-                        <div style={{ padding:'10px 2px 4px', fontSize:'12px', color:'#ff6b6b', lineHeight:1.6 }}>
-                          {productLookup.result.available
-                            ? (productLookup.result.product
-                                ? `商品 ${productLookup.sku} 已下架，无法添加`
-                                : `商品码 ${productLookup.sku} 未找到，请核对后重试`)
-                            : `系统商品查询失败（${lookupErrorText(productLookup.result.error)}），可稍后重试`}
-                        </div>
-                      )
-                    ) : (
-                      <div style={{ padding:'4px 2px', fontSize:'11px', color:'#777', lineHeight:1.6 }}>查询后显示商品名称／价格／状态；保存时仍会以系统商品为准再校验一次。</div>
-                    )}
-                    <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'16px' }}>
-                      <button type="button" onClick={() => setProductLookup((p) => ({ ...p, open: false }))} style={{ height:'36px', padding:'0 16px', borderRadius:'8px', cursor:'pointer', border:'1px solid #444', background:'transparent', color:'#ccc', fontSize:'13px' }}>关闭</button>
-                      <button type="button" onClick={confirmProductLookup} disabled={!productLookupConfirmable} style={{ height:'36px', padding:'0 18px', borderRadius:'8px', cursor: productLookupConfirmable ? 'pointer' : 'not-allowed', border:'none', background: productLookupConfirmable ? '#f472b6' : '#555', color: productLookupConfirmable ? '#2a0a1a' : '#999', fontSize:'13px', fontWeight:'bold' }}>确认使用该商品</button>
-                    </div>
-                  </div>
+                   <div style={{ width:'100%', maxWidth:'420px', background:'#1f1f24', border:'1px solid #3a3a42', borderRadius:'14px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', padding:'22px' }}>
+                     <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'4px' }}>添加商品信息</div>
+                     {/* P18C45UI 批3:弹窗强调色统一蓝色(原粉红已改) */}
+                     <div style={{ fontSize:'12px', color:'#93c5fd', marginBottom:'16px', lineHeight:1.6 }}>输入商品码当场查询系统商品，确认后写入表单。</div>
+                     <label style={{ display:'block', fontSize:'12px', color:'#bbb', marginBottom:'6px' }}>商品码（编号）</label>
+                     <div style={{ marginBottom:'14px' }}>
+                       <input
+                         className="glow-input"
+                         autoFocus
+                         value={productLookup.sku}
+                         onChange={(e) => setProductLookup((p) => ({ ...p, sku: e.target.value.toUpperCase(), result: null }))}
+                         onKeyDown={(e) => { if (e.key === 'Enter' && !productLookup.loading) runProductLookupPrimary(); if (e.key === 'Escape') setProductLookup((p) => ({ ...p, open: false })); }}
+                         placeholder="例如：MHDTNQUK"
+                         style={{ width:'100%', fontSize:'13px', letterSpacing:'0.5px', textTransform:'uppercase' }}
+                       />
+                     </div>
+                     {productLookup.loading ? (
+                       <div style={{ padding:'10px 2px 4px', fontSize:'12px', color:'#bbb', lineHeight:1.6 }}>正在查询系统商品…（超时约 8s，请稍候）</div>
+                     ) : productLookup.result ? (
+                       productLookup.result.available && productLookup.result.product && isShopLookupProductOnSale(productLookup.result.product) ? (
+                         <div style={{ padding:'12px 14px', borderRadius:'10px', border:'1px solid rgba(134,239,172,0.35)', background:'rgba(134,239,172,0.07)', marginBottom:'6px' }}>
+                           <p style={{ fontSize:'13px', color:'#e5e5e5', margin:'0 0 6px', lineHeight:1.5 }}>商品名称：{productLookup.result.product.name || '—'}</p>
+                           <p style={{ fontSize:'13px', color:'#e5e5e5', margin:'0 0 6px', lineHeight:1.5 }}>价格：{formatShopLookupPrice(productLookup.result.product.price)}</p>
+                           <p style={{ fontSize:'13px', color:'#86efac', margin:'0', lineHeight:1.5 }}>状态：在售</p>
+                         </div>
+                       ) : (
+                         <div style={{ padding:'10px 2px 4px', fontSize:'12px', color:'#ff6b6b', lineHeight:1.6 }}>
+                           {productLookup.result.available
+                             ? (productLookup.result.product
+                                 ? `商品 ${productLookup.sku} 已下架，无法添加`
+                                 : `商品码 ${productLookup.sku} 未找到，请核对后重试`)
+                             : `系统商品查询失败（${lookupErrorText(productLookup.result.error)}），可稍后重试`}
+                         </div>
+                       )
+                     ) : (
+                       <div style={{ padding:'4px 2px', fontSize:'11px', color:'#777', lineHeight:1.6 }}>查询后显示商品名称／价格／状态；保存时仍会以系统商品为准再校验一次。</div>
+                     )}
+                     <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'16px' }}>
+                       <button type="button" onClick={() => setProductLookup((p) => ({ ...p, open: false }))} style={{ height:'36px', padding:'0 16px', borderRadius:'8px', cursor:'pointer', border:'1px solid #444', background:'transparent', color:'#ccc', fontSize:'13px' }}>关闭</button>
+                       {/* P18C45UI 批3:主按钮时序——「关联商品」(蓝)→查询中…→查到在售变「确认使用该商品」;
+                           未找到/下架/异常保持「关联商品」不变确认 */}
+                       <button
+                         type="button"
+                         onClick={runProductLookupPrimary}
+                         disabled={productLookup.loading}
+                         onMouseEnter={(e) => { if (productLookup.loading) return; e.currentTarget.style.background = '#3b82f6'; }}
+                         onMouseLeave={(e) => { if (productLookup.loading) return; e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.transform = 'none'; }}
+                         onMouseDown={(e) => { if (productLookup.loading) return; e.currentTarget.style.transform = 'translateY(1px)'; }}
+                         onMouseUp={(e) => { if (productLookup.loading) return; e.currentTarget.style.transform = 'none'; }}
+                         data-testid="shop-lookup-primary-button"
+                         style={{ height:'36px', padding:'0 18px', borderRadius:'8px', cursor: productLookup.loading ? 'wait' : 'pointer', border:'none', background: productLookup.loading ? '#555' : '#2563eb', color: productLookup.loading ? '#999' : '#fff', fontSize:'13px', fontWeight:'bold', transition:'background 0.2s, transform 0.15s' }}
+                       >
+                         {productLookup.loading ? '查询中…' : (productLookupConfirmable ? '确认使用该商品' : '关联商品')}
+                       </button>
+                     </div>
+                   </div>
                 </div>
                 )}
               </div>

@@ -74,7 +74,8 @@ function SearchInput({
  * (白/暗背景 + 边框 + 阴影),卡内顶部「搜索」小标题 + 输入框,下方「分类」小标题
  * + 圆角矩形分类按钮列表(「全部商品」固定第一项,选中=蓝色实心高亮,hover 变浅),
  * 标签栏保留(同卡片内,选中态同蓝);移动端:搜索框 + 分类/标签横向 chips。
- * 宽度由父级网格轨道 lg:grid-cols-[248px_1fr] 决定。
+ * P18C45UI 批3:根节点自带宽度(w-full lg:w-[248px] lg:shrink-0),
+ * 父级由网格轨道改为 flex 布局(侧栏固定宽 + 内容区 flex-1,整体居中)。
  * 过滤状态由父组件(ShopArchive)持有。
  */
 export function ShopCatalogSidebar({
@@ -91,7 +92,7 @@ export function ShopCatalogSidebar({
   const hasTags = tagList.length > 0 && onSelectTag
 
   return (
-    <div className="grid min-w-0 gap-3 lg:sticky lg:top-20 lg:gap-5">
+    <div className="grid w-full min-w-0 gap-3 lg:sticky lg:top-20 lg:w-[248px] lg:shrink-0 lg:gap-5">
       {/* 移动端:搜索框(桌面版搜索在下方卡片内) */}
       <div className="lg:hidden">
         <SearchInput searchQuery={searchQuery} onSearchQueryChange={onSearchQueryChange} />

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FiCheck, FiShoppingCart } from 'react-icons/fi'
 import {
@@ -26,10 +26,11 @@ import { useShopCartSkuQty } from './useShopCartSkuQty'
  * - 立即购买:仅跳 buyUrl(P18-C4-5 保存联动写入 {STORE}/p/{sku} 或人工挂链);
  *   P18C45FIX B1:无 buyUrl(含仅存 sku 未查到商品)点击提示「当前不可购买」,
  *   不再用 sku 兜底拼 {storeUrl}/p/{sku}(url 为空即表示当前无有效购买信息)。
- * - P18C45UI B2:不可购买提示由 window.alert 改为**页内轻提示 toast**——
+ * - P18C45UI 批3:不可购买提示改为**页内居中弹窗 modal**(原 B2 底部 toast 小条已删)——
  *   createPortal 挂 document.body(卡片外壳 hover:-translate-y-1 是 transform,
- *   直接原位渲染 fixed 会被压进卡片,参照购物车抽屉 C1 教训),底部居中小条,
- *   2 秒自动消失,深浅色双适配;前台不引入 toast 库。
+ *   直接原位渲染 fixed 会被压进卡片,参照购物车抽屉 C1 教训),遮罩+卡片,
+ *   标题「当前不可购买」+说明+「知道了」按钮,点击遮罩/按钮/Esc 关闭,
+ *   深浅色双适配;无自动消失计时。重复加购 confirm 仍为原生(用户指定保留)。
  */
 
 type ShopBuyButtonsProps = {
@@ -43,11 +44,11 @@ type ShopBuyButtonsProps = {
   variant?: 'bar' | 'icon'
 }
 
-/** P18C45FIX B1 / P18C45UI B2:不可购买提示文案(页内 toast,不再 window.alert) */
+/** P18C45FIX B1 / P18C45UI 批3:不可购买提示标题(页内居中弹窗,不再 window.alert) */
 export const NOT_PURCHASABLE_MESSAGE = '当前不可购买'
 
-/** P18C45UI B2:不可购买 toast 显示时长(ms) */
-export const NOT_PURCHASABLE_TOAST_MS = 2000
+/** P18C45UI 批3:不可购买弹窗说明文字 */
+export const NOT_PURCHASABLE_DESCRIPTION = '该商品暂未开放购买，请稍后再试。'
 
 /** C4:重复加购 confirm 文案 */
 export function duplicateAddConfirmMessage(currentQty: number): string {
@@ -98,34 +99,58 @@ export function ShopBuyButtons({
   const isBar = variant === 'bar'
   const added = canAddCart && cartQty > 0
 
-  // P18C45UI B2:页内不可购买 toast(portal 到 body,2s 自动消失)
-  const [toastVisible, setToastVisible] = useState(false)
+  // P18C45UI 批3:页内不可购买居中弹窗(portal 到 body;点遮罩/按钮/Esc 关闭,无自动消失)
+  const [modalOpen, setModalOpen] = useState(false)
   const [portalReady, setPortalReady] = useState(false)
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     setPortalReady(true)
-    return () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current)
-    }
   }, [])
+  useEffect(() => {
+    if (!modalOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModalOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [modalOpen])
   const notifyNotPurchasable = () => {
     if (typeof window === 'undefined') return
-    setToastVisible(true)
-    if (toastTimer.current) clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(
-      () => setToastVisible(false),
-      NOT_PURCHASABLE_TOAST_MS
-    )
+    setModalOpen(true)
   }
-  const toastNode =
-    portalReady && toastVisible
+  const closeNotPurchasableModal = () => setModalOpen(false)
+  const modalNode =
+    portalReady && modalOpen
       ? createPortal(
           <div
-            role="status"
-            data-testid="shop-not-purchasable-toast"
-            className="pointer-events-none fixed bottom-10 left-1/2 z-[70] -translate-x-1/2 whitespace-nowrap rounded-lg bg-neutral-900/90 px-4 py-2 text-xs font-semibold text-white shadow-lg dark:bg-white/90 dark:text-black"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shop-not-purchasable-title"
+            data-testid="shop-not-purchasable-modal"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-neutral-900/50 p-4 dark:bg-black/70"
+            onClick={closeNotPurchasableModal}
           >
-            {NOT_PURCHASABLE_MESSAGE}
+            <div
+              className="w-full max-w-xs rounded-2xl border border-neutral-200 bg-white p-5 text-center shadow-xl dark:border-white/10 dark:bg-[#1c1c1e]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3
+                id="shop-not-purchasable-title"
+                className="text-base font-bold text-neutral-900 dark:text-white"
+              >
+                {NOT_PURCHASABLE_MESSAGE}
+              </h3>
+              <p className="mt-2 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                {NOT_PURCHASABLE_DESCRIPTION}
+              </p>
+              <button
+                type="button"
+                data-testid="shop-not-purchasable-close"
+                className="mt-4 h-9 w-full rounded-xl bg-neutral-900 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                onClick={closeNotPurchasableModal}
+              >
+                知道了
+              </button>
+            </div>
           </div>,
           document.body
         )
@@ -186,7 +211,7 @@ export function ShopBuyButtons({
           )}
           <ShopCartSkuBadge sku={trimmedSku} />
         </button>
-        {toastNode}
+        {modalNode}
       </span>
     )
   }
@@ -224,7 +249,7 @@ export function ShopBuyButtons({
           {shopCartButtonLabel(cartQty)}
         </span>
       </button>
-      {toastNode}
+      {modalNode}
     </div>
   )
 }

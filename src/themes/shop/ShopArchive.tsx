@@ -25,9 +25,9 @@ const CLEAR_BUTTON =
  * shop 主题归档 v3(P18-C4-4 批1,按独角数卡 /products 版式完全还原):
  * P18C45FIX 批3(B3-①)顶部改居中式:大标题「商品中心」+ 副标题「浏览我们的精选商品」
  * + 下方分隔线(移除左对齐面包屑);
- * `grid items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr]` 双栏——
- * 左 248px sticky 侧栏(B3-② 独角数卡卡片式:搜索 + 分类按钮蓝色高亮 + 标签栏增强
- * + 移动端横向 chips);
+ * P18C45UI 批3:外层容器收窄为 max-w-6xl + mx-auto,内容区(侧边栏+卡片网格+分页)
+ * 改 flex 布局——侧栏固定 248px(ShopCatalogSidebar 根节点自带宽度),
+ * 卡片区 flex-1,整体在页面视觉中线居中(禁止左贴边留右侧空白);分页控件同容器内;
  * 右侧文章卡流式网格 `auto-fit minmax(228px,1fr)`(P18C45UI A3:空轨道折叠,
  * 行内不留尾部空档,网格各行列对齐区域中线);
  * 未筛选时保留现有 /archive/[page] 服务端分页(P18C45UI A1:弃用 standard
@@ -90,7 +90,8 @@ export function ShopArchive({
 
   return (
     <>
-      <div className="mx-auto w-full max-w-7xl px-4 pb-6 md:px-6">
+      {/* P18C45UI 批3:容器由 7xl 收窄为 max-w-6xl 居中;内容区整体居中 */}
+      <div className="mx-auto w-full max-w-6xl px-4 pb-6 md:px-6">
         {/* B3-①:居中大标题 + 副标题 + 分隔线(移除左对齐面包屑,按居中式规划) */}
         <div className="pb-2 pt-6 text-center md:pt-8">
           <h1 className="break-words text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white md:text-4xl">
@@ -105,7 +106,9 @@ export function ShopArchive({
           />
         </div>
 
-        <div className="grid items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr]">
+        {/* P18C45UI 批3:侧栏(248px 固定)+ 卡片区(flex-1)flex 布局,
+            随外层 max-w-6xl 容器整体居中;移动端纵向堆叠 */}
+        <div className="flex flex-col items-stretch gap-7 py-1.5 pb-9 lg:flex-row lg:items-start lg:justify-center">
           <ShopCatalogSidebar
             categories={categories}
             tags={tags}
@@ -117,7 +120,7 @@ export function ShopArchive({
             onSearchQueryChange={setSearchQuery}
           />
 
-          <section className="min-w-0" aria-label="商品列表">
+          <section className="min-w-0 flex-1" aria-label="商品列表">
             {/* A2:视图切换按钮已移除(仅保留网格);工具条仅筛选中显示清除入口 */}
             {hasFilter ? (
               <div className="mb-4 flex min-h-8 items-center gap-3">
