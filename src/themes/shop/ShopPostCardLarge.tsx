@@ -75,17 +75,6 @@ export function ShopPostCardLarge({ post, galleryCoverSrc }: ShopPostCardLargePr
                 <h2 className="min-w-0 truncate text-lg font-bold leading-snug tracking-tight text-neutral-900 dark:text-white md:text-xl">
                   {title}
                 </h2>
-                <span
-                  data-testid="shop-card-large-price"
-                  className={classNames(
-                    'inline-flex shrink-0 items-center rounded-lg px-3 py-1 text-lg font-normal leading-none tracking-tight md:text-xl',
-                    linkedPrice
-                      ? 'bg-white/10 text-white dark:bg-white/10 dark:text-white'
-                      : 'bg-neutral-500/10 text-neutral-400 dark:bg-white/10 dark:text-neutral-500'
-                  )}
-                >
-                  {priceLabel}
-                </span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <ShopBuyButtons
