@@ -3,6 +3,7 @@ import { GalleryAdBanner as GalleryAdBannerData } from '@/src/lib/gallery/loadGa
 import { PartialPost, Post } from '@/src/types/blog'
 import { BlockResponse } from '@/src/types/notion'
 import { formatTweetDate } from './tweetSearch'
+import { ArticleProductBuyBar } from '@/src/themes/shop/ArticleProductBuyBar'
 import { TweetAdBanner } from './TweetAdBanner'
 import { TweetPostContent } from './TweetPostContent'
 import { TweetPostFooter } from './TweetPostFooter'
@@ -37,6 +38,7 @@ export function TweetPostPage({
       {post.excerpt?.trim() ? (
         <p className="tweet-article-excerpt">{post.excerpt}</p>
       ) : null}
+      <ArticleProductBuyBar post={post} variant="tweet" />
       <TweetPostContent postSlug={post.slug} blocks={blocks} />
       {galleryAdBanner ? <TweetAdBanner banner={galleryAdBanner} /> : null}
       <TweetPostFooter previousPost={previousPost} nextPost={nextPost} />

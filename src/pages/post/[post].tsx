@@ -14,6 +14,7 @@ import CommentSection from '../../components/section/CommentSection'
 import { Section404 } from '../../components/section/Section404'
 import withNavFooter from '../../components/withNavFooter'
 import { GalleryPost } from '@/src/themes/gallery/GalleryPost'
+import { ArticleProductBuyBar } from '@/src/themes/shop/ArticleProductBuyBar'
 import { ShopPostPage } from '@/src/themes/shop/ShopPostPage'
 import { TweetPostPage } from '@/src/themes/tweet/TweetPostPage'
 import { TweetShell } from '@/src/themes/tweet/TweetShell'
@@ -285,6 +286,7 @@ const PostPage: NextPage<{
           <StandardGalleryPreviewProvider postSlug={post.slug}>
             <StandardPostHeader post={post} blocks={resolvedBlocks} />
             <ContentLayout>
+              <ArticleProductBuyBar post={post} variant="standard" />
               <PostMessage post={post} />
               <StandardPostContent
                 postSlug={post.slug}

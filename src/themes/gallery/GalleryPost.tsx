@@ -13,6 +13,7 @@ import { GalleryPostContent } from './GalleryPostContent'
 import { GalleryPostRecommendations } from './GalleryPostRecommendations'
 import { GalleryPostStats } from './GalleryPostStats'
 import { GalleryPostTitleLine } from './GalleryPostTitleDownloadMeta'
+import { ArticleProductBuyBar } from '@/src/themes/shop/ArticleProductBuyBar'
 import { galleryContentContainerClass, galleryPostTitleClass } from './galleryFonts'
 
 type GalleryPostProps = {
@@ -84,6 +85,8 @@ export const GalleryPost = ({
                 {post.excerpt}
               </p>
             ) : null}
+
+            <ArticleProductBuyBar post={post} variant="gallery" />
 
             <GalleryPostContent postSlug={post.slug} blocks={blocks} />
 
