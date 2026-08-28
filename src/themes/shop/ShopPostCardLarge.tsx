@@ -48,27 +48,29 @@ export function ShopPostCardLarge({ post, galleryCoverSrc }: ShopPostCardLargePr
       <PostNavLink href={{ pathname: '/post/[slug]', query: { slug } }} navKey={slug}>
         <div
           data-testid="shop-card-large"
-          className="group/card flex w-full cursor-pointer select-none flex-col transition-all duration-300 ease-out hover:-translate-y-1"
+          className="group/card flex w-full cursor-pointer select-none flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-card transition-all duration-300 ease-out hover:-translate-y-1 hover:border-neutral-900/40 hover:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.28)] dark:border-white/10 dark:bg-[#1c1c1e] dark:hover:border-white/40 dark:hover:shadow-[0_12px_32px_-12px_rgba(255,255,255,0.16)]"
         >
-          {/* 封面:16:9 全宽(与 Banner 容器等宽) */}
-          <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-2xl bg-neutral-100 dark:bg-neutral-900">
-            {hasCover ? (
-              <PostImage
-                cover={displayCover}
-                alt={title}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-100 via-neutral-50 to-neutral-200 dark:from-neutral-800 dark:via-neutral-900 dark:to-neutral-800">
-                <span className="select-none text-sm font-semibold uppercase tracking-widest text-neutral-300 dark:text-neutral-600">
-                  {category?.name || title.slice(0, 1) || 'Post'}
-                </span>
-              </div>
-            )}
+          {/* 封面:沿用 Banner 高度阶梯(min-h 200/240/320/420),与 Banner 同比例;与信息区同卡一体 */}
+          <div className="relative w-full shrink-0 overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+            <div className="min-h-[200px] sm:min-h-[240px] md:min-h-[320px] lg:min-h-[420px]">
+              {hasCover ? (
+                <PostImage
+                  cover={displayCover}
+                  alt={title}
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-100 via-neutral-50 to-neutral-200 dark:from-neutral-800 dark:via-neutral-900 dark:to-neutral-800">
+                  <span className="select-none text-sm font-semibold uppercase tracking-widest text-neutral-300 dark:text-neutral-600">
+                    {category?.name || title.slice(0, 1) || 'Post'}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* 功能 Bar:圆角卡(白/暗底 + border + 软阴影) */}
-          <div className="mt-4 flex min-w-0 flex-col rounded-2xl border border-neutral-200 bg-white p-5 shadow-card transition-all duration-300 ease-out group-hover/card:border-neutral-900/40 group-hover/card:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.28)] dark:border-white/10 dark:bg-[#1c1c1e] dark:group-hover/card:border-white/40 dark:group-hover/card:shadow-[0_12px_32px_-12px_rgba(255,255,255,0.16)] md:p-6">
+          {/* 信息区:集成在大卡底部(无独立边框,与封面同卡) */}
+          <div className="flex min-w-0 flex-col p-5 md:p-6">
             {/* 行1:分类 + tags(复用 CardTagLine,占满余宽) */}
             <div className="flex min-w-0 items-center gap-3">
               <span className="hidden h-6 shrink-0 items-center truncate text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 sm:flex">
