@@ -8,7 +8,7 @@ import {
   ThemeSwitchQuotaError,
   recordThemeSwitchIfNeeded,
 } from '@/src/lib/blog/themeSwitchQuota';
-import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCoverFromPageProperties, readPageCoverUrl, DOWNLOAD_SIZE_PROPERTY_NAMES, DOWNLOAD_COUNT_PROPERTY_NAMES, ARTICLE_PASSWORD_PROPERTY_NAMES, LINKED_PRODUCT_SKU_PROPERTY_NAMES, LINKED_PRODUCT_URL_PROPERTY_NAMES, LINKED_PRODUCT_PRICE_PROPERTY_NAMES, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readArticlePasswordFromPageProperties, readLinkedProductSkuFromPageProperties, readLinkedProductUrlFromPageProperties, readLinkedProductPriceFromPageProperties } from '@/src/lib/notion/readProperty';
+import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCoverFromPageProperties, readPageCoverUrl, DOWNLOAD_SIZE_PROPERTY_NAMES, DOWNLOAD_COUNT_PROPERTY_NAMES, ARTICLE_PASSWORD_PROPERTY_NAMES, LINKED_PRODUCT_SKU_PROPERTY_NAMES, LINKED_PRODUCT_URL_PROPERTY_NAMES, LINKED_PRODUCT_PRICE_PROPERTY_NAMES, LINKED_PRODUCT_NAME_PROPERTY_NAMES, readDownloadSizeFromPageProperties, readDownloadCountFromPageProperties, readArticlePasswordFromPageProperties, readLinkedProductSkuFromPageProperties, readLinkedProductUrlFromPageProperties, readLinkedProductPriceFromPageProperties, readLinkedProductNameFromPageProperties } from '@/src/lib/notion/readProperty';
 import { fetchMerchantProductBySku, isMerchantProductOnSale } from '@/src/lib/shop/merchantProducts';
 import { getStoreUrl, buildProductUrl } from '@/src/lib/shop/shopCart';
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
@@ -698,7 +698,7 @@ export default async function handler(req, res) {
         readNotionCoverUrl(p.cover) ||
         readPageCoverUrl(page.cover) ||
         '';
-      return res.status(200).json({ success: true, post: { id: page.id, title: p.title?.title?.[0]?.plain_text || p.Page?.title?.[0]?.plain_text || '无标题', slug: p.slug?.rich_text?.[0]?.plain_text || '', excerpt: p.excerpt?.rich_text?.[0]?.plain_text || '', category: p.category?.select?.name || '', tags: (p.tags?.multi_select || []).map(t => t.name).join(','), status: p.status?.status?.name || p.status?.select?.name || 'Published', type: p.type?.select?.name || 'Post', date: p.date?.date?.start || '', cover: coverUrl, pinned: readPinnedFromNotionProperties(p), favourited: readFavouritedFromNotionProperties(p), download: readDownloadProperty(p.download), download_size: readDownloadSizeFromPageProperties(p), download_count: readDownloadCountFromPageProperties(p), article_password: readArticlePasswordFromPageProperties(p), linked_product_sku: readLinkedProductSkuFromPageProperties(p), linked_product_url: readLinkedProductUrlFromPageProperties(p), linked_product_price: readLinkedProductPriceFromPageProperties(p), content: cleanContent, rawBlocks: rawBlocks, editorBlocks: editorBlocks } });
+      return res.status(200).json({ success: true, post: { id: page.id, title: p.title?.title?.[0]?.plain_text || p.Page?.title?.[0]?.plain_text || '无标题', slug: p.slug?.rich_text?.[0]?.plain_text || '', excerpt: p.excerpt?.rich_text?.[0]?.plain_text || '', category: p.category?.select?.name || '', tags: (p.tags?.multi_select || []).map(t => t.name).join(','), status: p.status?.status?.name || p.status?.select?.name || 'Published', type: p.type?.select?.name || 'Post', date: p.date?.date?.start || '', cover: coverUrl, pinned: readPinnedFromNotionProperties(p), favourited: readFavouritedFromNotionProperties(p), download: readDownloadProperty(p.download), download_size: readDownloadSizeFromPageProperties(p), download_count: readDownloadCountFromPageProperties(p), article_password: readArticlePasswordFromPageProperties(p), linked_product_sku: readLinkedProductSkuFromPageProperties(p), linked_product_url: readLinkedProductUrlFromPageProperties(p), linked_product_price: readLinkedProductPriceFromPageProperties(p), linked_product_name: readLinkedProductNameFromPageProperties(p), content: cleanContent, rawBlocks: rawBlocks, editorBlocks: editorBlocks } });
     }
 
     if (req.method === 'PATCH') {
@@ -799,7 +799,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { id, title, content, slug, excerpt, category, tags, status, date, type, cover, download, download_size, download_count, article_password, linked_product_sku, linked_product_url, linked_product_price, blocksData } = body;
+      const { id, title, content, slug, excerpt, category, tags, status, date, type, cover, download, download_size, download_count, article_password, linked_product_sku, linked_product_url, linked_product_price, linked_product_name, blocksData } = body;
       const useStructured = Array.isArray(blocksData);
 
       // 1. 获取目标页面属性，用于动态判定类型
@@ -884,7 +884,8 @@ export default async function handler(req, res) {
           }
       }
       // P18-C4-5:Step7 商品码联动——编辑只填码,保存/发布时服务端查系统商品,
-      // 自动写 linked_product_url({STORE}/p/{sku})与 linked_product_price(系统权威价):
+      // 自动写 linked_product_url({STORE}/p/{sku})、linked_product_price(系统权威价)
+      // 与 linked_product_name(商品名称,P18C45UI B2):
       // - 查到(在售):无论是否手改过商品码一律覆盖,展示价=结算价;
       // - 查不到/已下架(P18C45FIX B1):保留商品码,仅清空 url/price(前台保持商品式样,
       //   购买/加购点击提示「当前不可购买」),不阻塞保存,回执 linkedProductFetchError;
@@ -897,16 +898,20 @@ export default async function handler(req, res) {
           let resolvedSku = trimmedSkuInput;
           let resolvedUrl = '';
           let resolvedPrice = '';
+          // P18C45UI B2:商品名称写 Notion linked_product_name(内页商品条展示);
+          // 接口异常时回退表单回传的原名称(与 url/price「保留原记录」一致)
+          let resolvedName = '';
           if (trimmedSkuInput) {
               const lookup = await fetchMerchantProductBySku(trimmedSkuInput);
               if (lookup.available && lookup.product && isMerchantProductOnSale(lookup.product)) {
                   // 查到:覆盖链接+价格为系统权威值
                   resolvedUrl = buildProductUrl(getStoreUrl(), trimmedSkuInput);
                   resolvedPrice = String(lookup.product.price || '').trim();
-                  linkedProductSaved = { sku: trimmedSkuInput, url: resolvedUrl, price: resolvedPrice, name: lookup.product.name || '' };
+                  resolvedName = String(lookup.product.name || '').trim();
+                  linkedProductSaved = { sku: trimmedSkuInput, url: resolvedUrl, price: resolvedPrice, name: resolvedName };
               } else if (lookup.available) {
-                  // 主站权威否定(未找到/已下架):P18C45FIX B1 保留商品码,仅清 url/price
-                  // (前台根据 sku 判定展示商品区,但购买/加购提示不可购买)
+                  // 主站权威否定(未找到/已下架):P18C45FIX B1 保留商品码,仅清 url/price/name
+                  // (前台根据 sku 判定展示商品区,但购买/加购提示不可购买;名称缺失回退文章标题)
                   resolvedSku = trimmedSkuInput;
                   linkedProductSaved = { sku: trimmedSkuInput, url: '', price: '', name: '' };
                   linkedProductFetchError = (lookup.product && !isMerchantProductOnSale(lookup.product))
@@ -914,14 +919,15 @@ export default async function handler(req, res) {
                       : `商品码 ${trimmedSkuInput} 未找到，前台购买/加购将提示不可购买`;
                   console.warn('[linked-product]', linkedProductFetchError);
               } else {
-                  // 接口异常/未配置:不阻塞,保留原记录
+                  // 接口异常/未配置:不阻塞,保留原记录(名称用表单回传值)
                   resolvedUrl = String(linked_product_url || '').trim();
                   resolvedPrice = String(linked_product_price || '').trim();
+                  resolvedName = String(linked_product_name || '').trim();
                   linkedProductFetchError = `系统商品查询失败（${lookup.error || '未知错误'}），已保留原商品链接与价格`;
                   console.warn('[linked-product]', lookup.error || '系统商品查询失败');
               }
           } else {
-              // 商品码被清空 → 三字段联动清空(移除商品关联)
+              // 商品码被清空 → 四字段联动清空(移除商品关联)
               linkedProductSaved = { sku: '', url: '', price: '', name: '' };
           }
           let skuKey = findNotionPropertyKey(targetProps, LINKED_PRODUCT_SKU_PROPERTY_NAMES);
@@ -971,6 +977,24 @@ export default async function handler(req, res) {
           }
           if (priceKey) {
               props[priceKey] = buildRichTextProperty(resolvedPrice, targetProps[priceKey]);
+          }
+          // P18C45UI B2:同步写商品名称列 linked_product_name(rich_text;列不存在且有值时自动补建)
+          {
+              let nameKey = findNotionPropertyKey(targetProps, LINKED_PRODUCT_NAME_PROPERTY_NAMES);
+              if (!nameKey && resolvedName) {
+                  try {
+                      await withRetry(() => notion.databases.update({
+                          database_id: databaseId,
+                          properties: { linked_product_name: { rich_text: {} } },
+                      }));
+                      nameKey = 'linked_product_name';
+                  } catch (dbErr) {
+                      console.warn('create linked_product_name property failed:', dbErr);
+                  }
+              }
+              if (nameKey) {
+                  props[nameKey] = buildRichTextProperty(resolvedName, targetProps[nameKey]);
+              }
           }
       }
 

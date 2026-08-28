@@ -10404,9 +10404,13 @@ const [mounted, setMounted] = useState(false);
                   <button type="button" onClick={()=>{ setFormDirty({...form, linked_product_sku: ''}); showAdminToast('已清除商品关联，保存后生效', 2600); }} style={{height:'28px', padding:'0 12px', borderRadius:'8px', cursor:'pointer', border:'1px solid #555', background:'transparent', color:'#aaa', fontSize:'12px'}}>清除关联</button>
                 </div>
                 ) : null}
-                <button type="button" onClick={openProductLookupModal} style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'1.5px dashed rgba(244,114,182,0.55)', background:'rgba(244,114,182,0.06)', color:'#f9a8d4', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'0.2s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', flexWrap:'wrap'}}>
-                  <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 添加商品信息
-                  <span style={{fontSize:'10px', fontWeight:'600', color:'#f9a8d4', background:'rgba(244,114,182,0.15)', border:'1px solid rgba(244,114,182,0.4)', borderRadius:'4px', padding:'1px 7px', letterSpacing:'0.3px'}}>仅 shop 主题支持添加商品</span>
+                <button type="button" onClick={openProductLookupModal}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
+                  onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; }}
+                  onMouseUp={(e) => { e.currentTarget.style.transform = 'none'; }}
+                  style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(37,99,235,0.35)'}}>
+                   <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 添加商品信息
                 </button>
                 {productLookup.open && (
                 <div
@@ -10415,7 +10419,7 @@ const [mounted, setMounted] = useState(false);
                 >
                   <div style={{ width:'100%', maxWidth:'420px', background:'#1f1f24', border:'1px solid #3a3a42', borderRadius:'14px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', padding:'22px' }}>
                     <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'4px' }}>添加商品信息</div>
-                    <div style={{ fontSize:'12px', color:'#f9a8d4', marginBottom:'16px', lineHeight:1.6 }}>仅 shop 主题支持添加商品；输入商品码当场查询系统商品，确认后写入表单。</div>
+                    <div style={{ fontSize:'12px', color:'#f9a8d4', marginBottom:'16px', lineHeight:1.6 }}>输入商品码当场查询系统商品，确认后写入表单。</div>
                     <label style={{ display:'block', fontSize:'12px', color:'#bbb', marginBottom:'6px' }}>商品码（编号）</label>
                     <div style={{ display:'flex', gap:'8px', marginBottom:'14px' }}>
                       <input

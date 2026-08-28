@@ -151,6 +151,15 @@ export const LINKED_PRODUCT_PRICE_PROPERTY_NAMES = [
   '商品价格',
 ]
 
+/** shop 主题商品名称（P18C45UI B2 内页展示；rich_text / url 均可读） */
+export const LINKED_PRODUCT_NAME_PROPERTY_NAMES = [
+  'linked_product_name',
+  'Linked_product_name',
+  'linkedProductName',
+  'Linked_Product_Name',
+  '商品名称',
+]
+
 export function pickNotionProperty(
   properties: PageObjectResponse['properties'],
   names: string[]
@@ -263,6 +272,25 @@ export function readLinkedProductPriceFromPageProperties(
   const prop = pickNotionProperty(
     properties,
     LINKED_PRODUCT_PRICE_PROPERTY_NAMES
+  )
+  if (!prop || typeof prop !== 'object' || !('type' in prop)) return ''
+
+  if (prop.type === 'rich_text') {
+    return readRichTextPlain(prop)?.trim() ?? ''
+  }
+  if (prop.type === 'url' && prop.url) {
+    return String(prop.url).trim()
+  }
+  return ''
+}
+
+/** 读取文章商品名称（P18C45UI B2 linked_product_name；rich_text/url 兼容），留空表示未填写 */
+export function readLinkedProductNameFromPageProperties(
+  properties: PageObjectResponse['properties']
+): string {
+  const prop = pickNotionProperty(
+    properties,
+    LINKED_PRODUCT_NAME_PROPERTY_NAMES
   )
   if (!prop || typeof prop !== 'object' || !('type' in prop)) return ''
 

@@ -117,6 +117,8 @@ export type Post = {
     linkedProductUrl?: string
     /** shop 主题：商品价格（Notion linked_product_price；纯展示） */
     linkedProductPrice?: string
+    /** shop 主题：商品名称（Notion linked_product_name；P18C45UI B2 内页商品条展示，缺失回退标题） */
+    linkedProductName?: string
     /** Notion cover 字段显式设为站点默认封面 */
     useDefaultCover?: boolean
   }

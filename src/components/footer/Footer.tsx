@@ -103,7 +103,7 @@ const Footer = ({
             )}
           </div> */}
 
-          {/* 🟢 核心修改区：将 ThemeSwitch 和 Admin 按钮包裹在一起 */}
+          {/* 🟢 核心修改区：将 ThemeSwitch 和社媒包裹在一起(P18C45UI B2:Admin 齿轮移至底部 Powered by 行) */}
           <div className="flex items-center gap-3">
             {/* P18C44-B3 D2:社媒关闭/未配置时不渲染任何占位,开启且有数据才显示 */}
             {socialLinks && socialLinks.length > 0 ? (
@@ -112,22 +112,6 @@ const Footer = ({
               </div>
             ) : null}
             {!hideThemeSwitch && <ThemeSwitch />}
-            
-            {/* 新增：Admin 后台入口按钮 */}
-            {/* 使用 a 标签防止 Next.js 预加载触发 Middleware 登录框 */}
-            <a 
-              href="/admin" 
-              target="_blank"
-              rel="noopener noreferrer" 
-              className="flex items-center justify-center w-6 h-6 rounded-full text-blue-500/30 hover:text-blue-500 hover:bg-blue-500/10 transition-all duration-300 cursor-pointer"
-              title="管理后台"
-            >
-              {/* 齿轮图标 SVG */}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-              </svg>
-            </a>
           </div>
 
         </nav>
@@ -172,6 +156,22 @@ const Footer = ({
                 </Link>
               </p> */}
             </div>
+            {/* P18C45UI B2:Admin 后台入口按钮移到「Powered by」行后面(同行靠右侧) */}
+            {/* 使用 a 标签防止 Next.js 预加载触发 Middleware 登录框 */}
+            <a
+              href="/admin"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="footer-admin-gear"
+              className="flex items-center justify-center w-6 h-6 rounded-full text-blue-500/30 hover:text-blue-500 hover:bg-blue-500/10 transition-all duration-300 cursor-pointer"
+              title="管理后台"
+            >
+              {/* 齿轮图标 SVG */}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </a>
             {/* {CONFIG.PAST_BLOG_INFO && (
               <p className="flex flex-col items-end shrink-0 text-neutral-300 dark:text-neutral-600">
                 <a

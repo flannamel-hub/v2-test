@@ -35,6 +35,8 @@ import { useShopSiteId, useShopSiteTitle } from './ShopSiteContext'
  *   列表/按钮点击不冒泡关闭(叉/Esc 仍可关)。
  * - C7(批4):「去结算」改 <a target="_blank" rel="noopener noreferrer">,新标签
  *   打开 store 结算页,避免浏览器后退键回到贩售机;URL 仍走 buildCheckoutUrl。
+ * - P18C45UI B2:条目行只显示名称(缺失用「商品」占位)+ 数量/小计,
+ *   不再展示商品码/SKU 编号。
  *
  * 数据 = BLOG 侧 localStorage(shop_cart_v1,按 site_id 分组);
  * 「去结算」把条目编码进 URL 跳 {storeUrl}/cart?site=...&site_title=...&items=sku:qty,…
@@ -267,20 +269,19 @@ export function ShopCartDrawerContent({
             <ul className="flex-1 divide-y divide-neutral-100 overflow-y-auto px-5 dark:divide-white/5">
               {items.map((item) => {
                 const price = parseItemPrice(item.price)
+                // P18C45UI B2:条目行不再显示商品码/SKU,只留名称;名缺失用「商品」占位
+                const itemName = item.name?.trim() || '商品'
                 return (
                   <li key={item.sku} className="flex flex-col gap-2 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-neutral-900 dark:text-white">
-                          {item.name || item.sku}
-                        </p>
-                        <p className="mt-0.5 truncate font-mono text-xs text-neutral-500 dark:text-neutral-400">
-                          {item.sku}
+                          {itemName}
                         </p>
                       </div>
                       <button
                         type="button"
-                        aria-label={`删除 ${item.name || item.sku}`}
+                        aria-label={`删除 ${itemName}`}
                         onClick={() => onRemove(item.sku)}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors duration-200 ease-out hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
                       >
