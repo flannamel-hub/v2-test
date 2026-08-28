@@ -61,15 +61,15 @@ export function ArticleProductBuyBar({
 
   const asideClass = isStandard
     ? 'my-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-2xl border border-green-600/20 bg-green-50/70 px-5 py-4 dark:border-green-400/20 dark:bg-green-400/5'
-    : 'my-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-neutral-200 bg-white px-4 py-3.5 dark:border-white/10 dark:bg-white/5'
+    : 'my-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-neutral-200 bg-neutral-50/60 px-5 py-4 dark:border-white/10 dark:bg-[#1c1c1e]'
 
   const iconChipClass = isStandard
     ? 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green-600/10 text-green-600 dark:text-green-400'
-    : 'grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-neutral-100 text-neutral-600 dark:bg-white/10 dark:text-neutral-300'
+    : 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-white/10 dark:text-blue-400'
 
   const priceClass = isStandard
     ? 'text-lg font-extrabold leading-none text-green-700 dark:text-green-400'
-    : 'text-lg font-extrabold leading-none text-neutral-900 dark:text-white'
+    : 'text-xl font-extrabold leading-none text-blue-600 dark:text-blue-400'
 
   const buyClass = isStandard
     ? 'rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
@@ -133,13 +133,13 @@ export function ArticleProductBuyBar({
             <span
               data-testid="article-buy-bar-name"
               title={productName}
-              className="min-w-0 max-w-full truncate text-sm font-bold text-neutral-900 dark:text-white"
+              className="min-w-0 max-w-full truncate text-base font-bold text-neutral-800 dark:text-neutral-100"
             >
               {productName || '商品'}
             </span>
             {linkedPrice ? (
               <span data-testid="article-buy-bar-price" className={priceClass}>
-                ¥{linkedPrice.replace(/^[¥￥]\s*/, '')}
+                ¥{linkedPrice.replace(/^[¥￥]?\s*/, '')}
               </span>
             ) : (
               /* 有 sku 无价格(查不到/下架仅存码)→「—」占位,保持商品式样 */
