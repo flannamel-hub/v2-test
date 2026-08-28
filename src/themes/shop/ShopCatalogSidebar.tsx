@@ -16,17 +16,24 @@ type ShopCatalogSidebarProps = {
 
 const CHIP_BASE =
   'flex shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ease-out'
+/** B3-②:选中态统一独角数卡蓝(实心高亮,hover 变浅) */
 const CHIP_ACTIVE =
-  'border-transparent bg-neutral-900 text-white dark:bg-white dark:text-black'
+  'border-transparent bg-blue-500 text-white hover:bg-blue-400'
 const CHIP_IDLE =
   'border-neutral-200 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white'
 
+/** B3-②:独角数卡 CategorySidebar 桌面版按钮(圆角矩形 + 选中蓝色实心) */
 const SIDEBAR_ITEM_BASE =
-  'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors duration-200 ease-out'
+  'flex w-full items-center gap-2 rounded-xl border px-4 py-2.5 text-left text-sm transition-all duration-200 ease-out'
 const SIDEBAR_ITEM_ACTIVE =
-  'bg-neutral-900 font-semibold text-white dark:bg-white dark:text-black'
+  'border-transparent bg-blue-500 font-semibold text-white hover:bg-blue-400'
 const SIDEBAR_ITEM_IDLE =
-  'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white'
+  'border-transparent text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white'
+
+/** B3-②:卡内小节标题(搜索/分类/标签,独角数卡蓝色竖条 + 加粗) */
+const SIDEBAR_HEADING =
+  'flex items-center gap-2 text-base font-bold text-neutral-900 dark:text-white'
+const SIDEBAR_HEADING_BAR = 'h-5 w-1 rounded-full bg-blue-500'
 
 function SearchInput({
   searchQuery,
@@ -63,8 +70,10 @@ function SearchInput({
 /**
  * P18-C4-2:shop 目录筛选侧栏(参考独角数卡 CategorySidebar;C4-4B 对齐 248px 版式)。
  * P18-C4-4 批1(A2):搜索文案改「搜索商品名称」,分类列表仅名称不带计数。
- * 桌面(lg+):搜索框 + 「全部」分类列表卡片(+ 归档页标签栏,分类栏下方),整列 sticky;
- * 移动端:搜索框 + 分类/标签横向 chips 行。
+ * P18C45FIX 批3(B3-②):改独角数卡卡片式——桌面侧栏整体一张圆角卡片
+ * (白/暗背景 + 边框 + 阴影),卡内顶部「搜索」小标题 + 输入框,下方「分类」小标题
+ * + 圆角矩形分类按钮列表(「全部商品」固定第一项,选中=蓝色实心高亮,hover 变浅),
+ * 标签栏保留(同卡片内,选中态同蓝);移动端:搜索框 + 分类/标签横向 chips。
  * 宽度由父级网格轨道 lg:grid-cols-[248px_1fr] 决定。
  * 过滤状态由父组件(ShopArchive)持有。
  */
@@ -83,26 +92,42 @@ export function ShopCatalogSidebar({
 
   return (
     <div className="grid min-w-0 gap-3 lg:sticky lg:top-20 lg:gap-5">
-      <SearchInput searchQuery={searchQuery} onSearchQueryChange={onSearchQueryChange} />
+      {/* 移动端:搜索框(桌面版搜索在下方卡片内) */}
+      <div className="lg:hidden">
+        <SearchInput searchQuery={searchQuery} onSearchQueryChange={onSearchQueryChange} />
+      </div>
 
-      {/* 桌面侧栏:分类列表 + 标签栏 */}
+      {/* 桌面侧栏:B3-② 独角数卡卡片式(搜索 + 分类 + 标签同卡) */}
       <aside className="hidden lg:block">
-        <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-card dark:border-white/10 dark:bg-[#1c1c1e] dark:shadow-2xl">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-white">
-            <span className="h-4 w-1 rounded-full bg-neutral-900 dark:bg-white" aria-hidden />
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-card dark:border-white/10 dark:bg-[#1c1c1e] dark:shadow-2xl">
+          <div className="mb-5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+              搜索
+            </span>
+            <div className="mt-2.5">
+              <SearchInput
+                searchQuery={searchQuery}
+                onSearchQueryChange={onSearchQueryChange}
+              />
+            </div>
+          </div>
+
+          <h2 className={classNames('mb-3', SIDEBAR_HEADING)}>
+            <span className={SIDEBAR_HEADING_BAR} aria-hidden />
             分类
           </h2>
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             <li>
               <button
                 type="button"
                 onClick={() => onSelectCategory(null)}
+                aria-current={selectedCategoryId === null ? 'true' : undefined}
                 className={classNames(
                   SIDEBAR_ITEM_BASE,
                   selectedCategoryId === null ? SIDEBAR_ITEM_ACTIVE : SIDEBAR_ITEM_IDLE
                 )}
               >
-                <span>全部</span>
+                <span className="truncate">全部商品</span>
               </button>
             </li>
             {categories.map((category) => (
@@ -114,6 +139,7 @@ export function ShopCatalogSidebar({
                       selectedCategoryId === category.id ? null : category.id
                     )
                   }
+                  aria-current={selectedCategoryId === category.id ? 'true' : undefined}
                   className={classNames(
                     SIDEBAR_ITEM_BASE,
                     selectedCategoryId === category.id
@@ -128,12 +154,9 @@ export function ShopCatalogSidebar({
           </ul>
 
           {hasTags ? (
-            <div className="mt-4 border-t border-neutral-100 pt-4 dark:border-white/10">
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-white">
-                <span
-                  className="h-4 w-1 rounded-full bg-neutral-900 dark:bg-white"
-                  aria-hidden
-                />
+            <div className="mt-5 border-t border-neutral-100 pt-4 dark:border-white/10">
+              <h2 className={classNames('mb-3', SIDEBAR_HEADING)}>
+                <span className={SIDEBAR_HEADING_BAR} aria-hidden />
                 标签
               </h2>
               <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
@@ -169,7 +192,7 @@ export function ShopCatalogSidebar({
             selectedCategoryId === null ? CHIP_ACTIVE : CHIP_IDLE
           )}
         >
-          全部
+          全部商品
         </button>
         {categories.map((category) => (
           <button

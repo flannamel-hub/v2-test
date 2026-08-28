@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import Link from 'next/link'
-import { FiChevronRight, FiGrid, FiList, FiPackage } from 'react-icons/fi'
+import { FiGrid, FiList, FiPackage } from 'react-icons/fi'
 import { PaginationSection } from '@/src/components/section/PaginationSection'
 import { getCategoriesInfo } from '@/src/lib/blog/format/category'
 import { getTagsInfo } from '@/src/lib/blog/format/tag'
@@ -24,9 +23,11 @@ const CLEAR_BUTTON =
 
 /**
  * shop 主题归档 v3(P18-C4-4 批1,按独角数卡 /products 版式完全还原):
- * 顶部面包屑(首页 ›)+ 大标题「商品中心」(替代「归档」 LargeTitle);
+ * P18C45FIX 批3(B3-①)顶部改居中式:大标题「商品中心」+ 副标题「浏览我们的精选商品」
+ * + 下方分隔线(移除左对齐面包屑);
  * `grid items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr]` 双栏——
- * 左 248px sticky 侧栏(搜索商品名称 + 分类列表仅名称无计数 + 标签栏增强 + 移动端横向 chips);
+ * 左 248px sticky 侧栏(B3-② 独角数卡卡片式:搜索 + 分类按钮蓝色高亮 + 标签栏增强
+ * + 移动端横向 chips);
  * 右侧文章卡流式网格 `auto-fill minmax(228px,1fr)`(替代固定列),工具条不显示篇数;
  * 未筛选时保留现有 /archive/[page] 服务端分页(PaginationSection);
  * 分类/标签/搜索组合筛选时对全量文章过滤并隐藏分页。
@@ -88,25 +89,19 @@ export function ShopArchive({
   return (
     <>
       <div className="mx-auto w-full max-w-7xl px-4 pb-6 md:px-6">
-        {/* A1:面包屑 + 大标题「商品中心」(独角数卡 products 页版式,替代「归档」) */}
-        <nav
-          aria-label="面包屑"
-          className="flex items-center gap-1.5 py-5 pb-1 text-[13.5px] font-semibold text-neutral-500 dark:text-neutral-400"
-        >
-          <Link
-            href="/"
-            className="flex-none transition-colors duration-200 ease-out hover:text-neutral-900 dark:hover:text-white"
-          >
-            首页
-          </Link>
-          <FiChevronRight className="h-4 w-4 flex-none" aria-hidden />
-          <span className="min-w-0 truncate text-neutral-900 dark:text-white">
+        {/* B3-①:居中大标题 + 副标题 + 分隔线(移除左对齐面包屑,按居中式规划) */}
+        <div className="pb-2 pt-6 text-center md:pt-8">
+          <h1 className="break-words text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white md:text-4xl">
             商品中心
-          </span>
-        </nav>
-        <h1 className="mb-3.5 break-words text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
-          商品中心
-        </h1>
+          </h1>
+          <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400 md:text-base">
+            浏览我们的精选商品
+          </p>
+          <div
+            aria-hidden="true"
+            className="mt-5 h-px w-full bg-neutral-200 dark:bg-white/10"
+          />
+        </div>
 
         <div className="grid items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr]">
           <ShopCatalogSidebar

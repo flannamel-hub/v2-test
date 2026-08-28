@@ -14,9 +14,9 @@ import { useShopCartSkuQty } from './useShopCartSkuQty'
  * shop 主题购买动作按钮组(卡片/内页共用;P18-C2 建立,P18-C4-4 批2 C2~C4 强化)。
  *
  * - variant="bar"(文章页商品条,无外层 Link 包裹):「立即购买 / 加入购物车」按钮组。
- * - variant="icon"(卡片底栏,嵌在 PostNavLink 的 <a> 内):「立即购买」闪电小按钮
- *   (C2,购物车按钮左侧,新窗口打开商品链接)+ 加购图标按钮(右上角挂单 SKU
- *   已购份数角标);均 stopPropagation 防触发外层卡片导航。
+ * - variant="icon"(卡片底栏,嵌在 PostNavLink 的 <a> 内):「立即购买」文字按钮
+ *   (B3-⑤:⚡ 闪电 + 文字,黑底小号圆角,新窗口打开商品链接)+ 加购图标按钮
+ *   (右上角挂单 SKU 已购份数角标);均 stopPropagation 防触发外层卡片导航。
  * - 加购按钮持久状态(C3):读购物车真实数量(useShopCartSkuQty,localStorage
  *   持久 + 事件实时刷新),已加入时图标钮绿色描边+勾、bar 显示「已加入 ×N」,
  *   不再有 2 秒临时反馈;卡片/内页同组件,状态天然一致。
@@ -121,8 +121,9 @@ export function ShopBuyButtons({
     window.open(productUrl, '_blank', 'noopener,noreferrer')
   }
 
-  // P18-C4-4 批2:卡片底栏图标形态——闪电「立即购买」(C2,黑底主按钮)+
-  // 加购图标按钮;加购持久状态(C3):已加入时绿色描边 + 勾图标,份数角标常驻;
+  // P18-C4-4 批2 + P18C45FIX 批3(B3-⑤):卡片底栏形态——「立即购买」文字按钮
+  // (⚡ 闪电 + 文字,黑底小号圆角)+ 加购图标按钮(份数角标);
+  // 加购持久状态(C3):已加入时绿色描边 + 勾图标,份数角标常驻;
   // P18C45FIX B1:两钮均始终渲染,不可购时点击提示
   if (!isBar) {
     return (
@@ -131,10 +132,11 @@ export function ShopBuyButtons({
           type="button"
           aria-label="立即购买"
           title="立即购买"
-          className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-900 text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+          className="flex h-8 items-center gap-1 rounded-lg bg-neutral-900 px-2.5 text-xs font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
           onClick={handleBuyClick}
         >
-          <FiZap className="h-4 w-4" aria-hidden />
+          <FiZap className="h-3.5 w-3.5" aria-hidden />
+          立即购买
         </button>
         <button
           type="button"

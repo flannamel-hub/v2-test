@@ -1,4 +1,5 @@
 import { FiArrowRight, FiChevronRight } from 'react-icons/fi'
+import { useRouter } from 'next/router'
 import { classNames, formatDate } from '@/src/lib/util'
 import { resolveListPostCover } from '@/src/lib/gallery/resolveListPostCover'
 import { Post } from '@/src/types/blog'
@@ -18,9 +19,37 @@ type ShopPostCardProps = {
 const CARD_SHELL =
   'group relative flex h-full cursor-pointer select-none flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-card transition-all duration-300 ease-out hover:-translate-y-1 hover:border-neutral-900/30 hover:shadow-lg dark:border-white/10 dark:bg-[#1c1c1e] dark:hover:border-white/30'
 
-/** C1:标题下 Notion tags 单行 chip 样式(紧凑中性小胶囊) */
-const TAG_CHIP_CLASS =
-  'min-w-0 max-w-full truncate rounded-md bg-neutral-100 px-1.5 text-[11px] font-medium leading-none text-neutral-500 dark:bg-white/10 dark:text-neutral-400'
+/**
+ * C1:标题下 Notion tags 单行 chip;B3-④ 升级为多色可点击——
+ * 按名 hash 取色(indigo/emerald/amber/sky/rose/neutral 浅底色 + 暗色 15% 透明底),
+ * text-xs + px-2 放大,单击跳 /tag/{id}(同窗,stopPropagation 防触发卡片导航)。
+ */
+const TAG_CHIP_BASE =
+  'min-w-0 max-w-full cursor-pointer truncate rounded-md px-2 py-0.5 text-xs font-medium leading-5 transition-colors duration-150 ease-out'
+
+/** B3-④:tag 预设色板(亮色浅底/暗色透明底,hover 提亮) */
+const TAG_COLOR_PALETTE: string[] = [
+  'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-300 dark:hover:bg-indigo-500/25',
+  'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:hover:bg-emerald-500/25',
+  'bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25',
+  'bg-sky-50 text-sky-600 hover:bg-sky-100 dark:bg-sky-500/15 dark:text-sky-300 dark:hover:bg-sky-500/25',
+  'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:hover:bg-rose-500/25',
+  'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 dark:bg-white/10 dark:text-neutral-400 dark:hover:bg-white/20',
+]
+
+/** B3-④:tag 名 hash → 色板下标(纯函数,供冒烟直测;同名同色) */
+export function tagColorIndex(name: string): number {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash) % TAG_COLOR_PALETTE.length
+}
+
+/** B3-④:tag 跳转链接(/tag 路由按 tag id 匹配,encodeURIComponent 编码) */
+export function tagHref(tag: { id?: string; name: string }): string {
+  return `/tag/${encodeURIComponent(tag.id || tag.name)}`
+}
 
 /**
  * 读取 Step7 三字段;P18C45FIX B1:hasProduct 仅看 sku 非空
@@ -75,12 +104,15 @@ export function foldSingleLineTags(
  * - 超宽截断:挂载后按 clientWidth 测量折叠为「+N」(resize 重算;被折叠的
  *   chip 以 absolute invisible 留在 DOM 供测量),SSR/首帧全量渲染由
  *   overflow-hidden 保证不换行;
+ * - B3-④:chip 多色(tagColorIndex 按名 hash)+ 放大(text-xs/px-2)+
+ *   可点击(单击同窗跳 /tag/{id},preventDefault+stopPropagation 防外层卡片导航);
  * - 与独角数卡区分:独角数卡该位置是系统状态徽章(游客可购/人工交付等),
  *   我们这里是站长的 Notion tags,仅展示位置相同、语义不同,勿混。
  */
 function CardTagLine({ tags }: { tags: { id?: string; name: string }[] }) {
+  const router = useRouter()
   const rowRef = useRef<HTMLDivElement | null>(null)
-  const chipRefs = useRef<(HTMLSpanElement | null)[]>([])
+  const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
   // visibleCount != null:仅下标 < visibleCount 的 chip 可见,余下折叠为 +N;
   // null = 全部可见(未测量或放得下)
   const [visibleCount, setVisibleCount] = useState<number | null>(null)
@@ -124,24 +156,33 @@ function CardTagLine({ tags }: { tags: { id?: string; name: string }[] }) {
       {tags.map((tag, i) => {
         const hidden = visibleCount != null && i >= visibleCount
         return (
-          <span
+          <button
             key={tag.id || tag.name}
+            type="button"
+            aria-label={`按标签筛选 ${tag.name}`}
             ref={(el) => {
               chipRefs.current[i] = el
             }}
+            onClick={(e) => {
+              // 同窗跳转 /tag/{id};阻止触发外层 PostNavLink 卡片导航
+              e.preventDefault()
+              e.stopPropagation()
+              router.push(tagHref(tag))
+            }}
             className={classNames(
-              TAG_CHIP_CLASS,
+              TAG_CHIP_BASE,
+              TAG_COLOR_PALETTE[tagColorIndex(tag.name)],
               hidden ? 'absolute invisible' : 'shrink-0'
             )}
           >
             {tag.name}
-          </span>
+          </button>
         )
       })}
       {hiddenCount > 0 ? (
         <span
           data-testid="shop-card-tags-more"
-          className={classNames(TAG_CHIP_CLASS, 'shrink-0')}
+          className="min-w-0 max-w-full shrink-0 truncate rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium leading-5 text-neutral-500 dark:bg-white/10 dark:text-neutral-400"
         >
           +{hiddenCount}
         </span>
@@ -191,7 +232,8 @@ function CardCover({
  * shop 主题文章卡片 v5(P18-C4-4 批2,独角数卡 ProductCard 版式 + tags 单行)。
  * - 封面(4/3,group-hover 缩放);
  * - 信息区各行固定高度同构:分类行(h-4)/标题(line-clamp-2 固定两行高)/
- *   tags 单行(h-6,无 tag 占位,C1)——商品卡与普通卡网格不参差;
+ *   tags 单行(h-6,无 tag 占位,C1;B3-④ 多色放大可点击)/
+ *   摘要位(h-8 两行,B3-③,无摘要空占位)——商品卡与普通卡网格不参差;
  * - 底栏(border-t + pt)左侧统一结构:商品卡(有 sku,B1 仅看码)=小标「价格」+
  *   ¥ 大号白色价格(缺价显示「—」)+「价格以结算页为准」极小提示(C5,下方固定
  *   h-3 行),普通卡=小标「发布于」+ 日期 + 空占位行;右侧=「立即购买」闪电小按钮 +
@@ -244,6 +286,15 @@ export function ShopPostCard({
 
             {/* C1:Notion tags 单行(无 tag 固定占位,收紧标题下间距) */}
             <CardTagLine tags={tags || []} />
+
+            {/* B3-③:摘要位(标题下留白区,固定两行高保等高)——
+                有 excerpt → line-clamp-2 两行截断省略号;无 → 空占位 */}
+            <p
+              data-testid="shop-card-excerpt"
+              className="mt-1.5 h-8 overflow-hidden text-xs leading-4 text-neutral-500 line-clamp-2 dark:text-neutral-400"
+            >
+              {post.excerpt?.trim() ? post.excerpt : '\u00A0'}
+            </p>
 
             <div className="mt-auto flex items-center justify-between gap-2 border-t border-neutral-100 pt-2 dark:border-white/10 md:pt-3">
               {showPrice ? (
