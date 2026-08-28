@@ -4,6 +4,7 @@ import {
   cartTotalQty,
   readCart,
   SHOP_CART_CHANGE_EVENT,
+  SHOP_CART_OPEN_EVENT,
 } from '@/src/lib/shop/shopCart'
 import { ShopCartDrawer } from './ShopCartDrawer'
 import { useShopSiteId } from './ShopSiteContext'
@@ -23,9 +24,12 @@ export function ShopCartButton() {
     refresh()
     window.addEventListener(SHOP_CART_CHANGE_EVENT, refresh)
     window.addEventListener('storage', refresh)
+    const openHandler = () => setOpen(true)
+    window.addEventListener(SHOP_CART_OPEN_EVENT, openHandler)
     return () => {
       window.removeEventListener(SHOP_CART_CHANGE_EVENT, refresh)
       window.removeEventListener('storage', refresh)
+      window.removeEventListener(SHOP_CART_OPEN_EVENT, openHandler)
     }
   }, [siteId])
 

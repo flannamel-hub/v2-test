@@ -16,6 +16,18 @@ export const SHOP_CART_STORAGE_KEY = 'shop_cart_v1'
 /** 购物车变更广播事件(window.dispatchEvent) */
 export const SHOP_CART_CHANGE_EVENT = 'shop-cart-change'
 
+/** P18-C4-7 修正3:全局「打开购物车抽屉」事件(卡片「查看购物车」按钮触发) */
+export const SHOP_CART_OPEN_EVENT = 'shop-cart:open'
+
+export function openShopCartDrawer(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.dispatchEvent(new CustomEvent(SHOP_CART_OPEN_EVENT))
+  } catch {
+    /* 旧浏览器安全忽略 */
+  }
+}
+
 export const DEFAULT_STORE_URL = 'https://store.pro-pl.us'
 
 /**

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { FiShoppingCart } from 'react-icons/fi'
 import {
   addToCart,
+  openShopCartDrawer,
   readCart,
 } from '@/src/lib/shop/shopCart'
 import type { ShopCartItem } from '@/src/lib/shop/shopCart'
@@ -169,6 +170,13 @@ export function ShopBuyButtons({
     addWithDuplicateConfirm(siteId, { sku: trimmedSku, qty: 1, name, price })
   }
 
+  /** P18-C4-7 修正3:已加入后按钮变为「查看购物车」,点击=打开抽屉(不再 +1) */
+  const handleViewCart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    openShopCartDrawer()
+  }
+
   const handleBuyClick = (e: React.MouseEvent) => {
     // 卡片内不使用 <a>,点击时手动新标签打开并阻止外层卡片导航
     e.preventDefault()
@@ -193,38 +201,56 @@ export function ShopBuyButtons({
           aria-label="立即购买"
           title="立即购买"
           className={classNames(
-            'flex items-center rounded-lg bg-neutral-900 font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200',
+            'flex items-center rounded-lg bg-neutral-900 font-bold text-white transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-neutral-700 hover:shadow-lg active:scale-95 dark:bg-white dark:text-black dark:hover:bg-neutral-200',
             lg ? 'h-11 px-4 text-sm' : 'h-8 px-2.5 text-xs'
           )}
           onClick={handleBuyClick}
         >
           立即购买
         </button>
-        <button
-          type="button"
-          aria-label={added ? `已加入购物车(×${cartQty})` : '加入购物车'}
-          className={classNames(
-            'relative grid place-items-center rounded-lg border transition-colors duration-200 ease-out',
-            'border-neutral-200 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white',
-            lg ? 'h-11 w-11' : 'h-8 w-8'
-          )}
-          onClick={handleAdd}
-        >
-          <FiShoppingCart className={lg ? 'h-5 w-5' : 'h-4 w-4'} aria-hidden />
-          <ShopCartSkuBadge sku={trimmedSku} />
-        </button>
+        {added ? (
+          /* P18-C4-7 修正3:已加入 → 「查看购物车」文字按钮+角标;点击打开抽屉(不再+1) */
+          <button
+            type="button"
+            aria-label={`查看购物车(×${cartQty})`}
+            title="查看购物车"
+            className={classNames(
+              'relative flex items-center rounded-lg border font-bold transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-95',
+              'border-neutral-200 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white',
+              lg ? 'h-11 px-4 text-sm' : 'h-8 px-2.5 text-xs'
+            )}
+            onClick={handleViewCart}
+          >
+            查看购物车
+            <ShopCartSkuBadge sku={trimmedSku} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="加入购物车"
+            title="加入购物车"
+            className={classNames(
+              'relative grid place-items-center rounded-lg border transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-neutral-900 hover:text-neutral-900 hover:shadow-lg active:scale-95 dark:hover:border-white dark:hover:text-white',
+              'border-neutral-200 text-neutral-600 dark:border-white/15 dark:text-neutral-300',
+              lg ? 'h-11 w-11' : 'h-8 w-8'
+            )}
+            onClick={handleAdd}
+          >
+            <FiShoppingCart className={lg ? 'h-5 w-5' : 'h-4 w-4'} aria-hidden />
+          </button>
+        )}
         {modalNode}
       </span>
     )
   }
 
   const buyClass =
-    'rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
+    'rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-neutral-700 hover:shadow-lg active:scale-95 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
 
   const cartClass = classNames(
-    'flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-bold transition-colors duration-200 ease-out',
+    'flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-bold transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:scale-95',
     added
-      ? 'border-green-600/50 text-green-700 hover:border-green-600 dark:border-green-400/50 dark:text-green-400 dark:hover:border-green-400'
+      ? 'border-neutral-300 text-neutral-700 hover:border-neutral-900 dark:border-white/25 dark:text-neutral-200 dark:hover:border-white'
       : 'border-neutral-300 text-neutral-700 hover:border-neutral-900 dark:border-white/25 dark:text-neutral-200 dark:hover:border-white'
   )
 
@@ -245,11 +271,13 @@ export function ShopBuyButtons({
           立即购买
         </button>
       )}
-      <button type="button" className={cartClass} onClick={handleAdd}>
+      <button
+        type="button"
+        className={cartClass}
+        onClick={added ? handleViewCart : handleAdd}
+      >
         <FiShoppingCart className="h-4 w-4" />
-        <span className={added ? 'text-green-600 dark:text-green-400' : undefined}>
-          {shopCartButtonLabel(cartQty)}
-        </span>
+        <span>{added ? `查看购物车 ×${cartQty}` : '加入购物车'}</span>
       </button>
       {modalNode}
     </div>
