@@ -81,10 +81,10 @@ export function ShopPostCardLarge({ post, galleryCoverSrc }: ShopPostCardLargePr
                 <span
                   data-testid="shop-card-large-price"
                   className={classNames(
-                    'shrink-0 text-2xl font-extrabold leading-none tracking-tight md:text-3xl',
+                    'shrink-0 rounded-md px-2 py-0.5 text-sm font-normal leading-none tracking-tight',
                     linkedPrice
-                      ? 'text-white dark:text-white'
-                      : 'text-neutral-400 dark:text-neutral-500'
+                      ? 'bg-white/10 text-white dark:bg-white/10 dark:text-white'
+                      : 'bg-neutral-500/10 text-neutral-400 dark:bg-white/10 dark:text-neutral-500'
                   )}
                 >
                   {priceLabel}
