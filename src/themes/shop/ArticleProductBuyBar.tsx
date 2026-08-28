@@ -9,12 +9,13 @@ import {
 
 type ArticleProductBuyBarProps = {
   post: Post
-  /** standard=shop 绿条视觉;gallery/tweet=中性圆角卡片 */
+  /** standard=shop 绿条视觉;gallery/tweet=Uiverse 描边按钮精致卡(P18C46REDESIGN) */
   variant?: 'standard' | 'gallery' | 'tweet'
 }
 
 /**
  * P18-C4-6:非 shop 主题(standard/anzifan/gallery/tweet)文章内页商品购买条。
+ * P18C46REDESIGN:gallery/tweet 分支重设计(Uiverse 描边按钮 + #3654ff 价格)。
  *
  * - 读取 Step7 商品字段(post.options.linkedProductSku/Url/Price/Name);
  *   **判定只看 sku 非空**:无 sku 整块渲染 null(普通文章零影响);
@@ -23,8 +24,11 @@ type ArticleProductBuyBarProps = {
  *   portal 挂 document.body,点遮罩/按钮/Esc 关闭;不改动 shop 组件);
  * - 无加购按钮/徽标/购物车(非 shop 主题);
  * - 商品名称缺失回退文章标题;价格缺失显示「—」;
- * - standard 沿用 shop 绿条视觉(同 ShopProductBar 容器/图标/黑色购买按钮);
- *   gallery/tweet 用中性圆角卡片(白/暗底、边框,按钮中性黑,深浅色适配);
+ * - standard 沿用 shop 绿条视觉(同 ShopProductBar 容器/图标/黑色购买按钮,
+ *   本分支零改动);gallery/tweet 重设计:白底/#1c1c1e 圆角 2xl 精致卡片 +
+ *   柔和投影,蓝色商品 chip,#3654ff 大号价格,购买按钮=透明底 + 蓝色描边 +
+ *   白字(文字/箭头阴影保证浅色可读)+ 右侧绝对定位箭头,hover 蓝底填充 +
+ *   箭头右移 5px(Uiverse by reshades,600ms ease);
  * - hydrate 安全:SSR 输出与 client 首帧一致,弹窗仅点击后出现。
  */
 export function ArticleProductBuyBar({
@@ -59,31 +63,38 @@ export function ArticleProductBuyBar({
 
   const isStandard = variant === 'standard'
 
+  // P18C46REDESIGN:gallery/tweet=精致白卡/深色 #1c1c1e(standard 绿条不变)
   const asideClass = isStandard
     ? 'my-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-2xl border border-green-600/20 bg-green-50/70 px-5 py-4 dark:border-green-400/20 dark:bg-green-400/5'
-    : 'my-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-neutral-200 bg-neutral-50/60 px-5 py-4 dark:border-white/10 dark:bg-[#1c1c1e]'
+    : 'my-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm dark:border-white/10 dark:bg-[#1c1c1e]'
 
   const iconChipClass = isStandard
     ? 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green-600/10 text-green-600 dark:text-green-400'
-    : 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-white/10 dark:text-blue-400'
+    : 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'
+
+  const nameClass = isStandard
+    ? 'min-w-0 max-w-full truncate text-base font-bold text-neutral-800 dark:text-neutral-100'
+    : 'min-w-0 max-w-full truncate text-base font-semibold text-neutral-900 dark:text-white'
 
   const priceClass = isStandard
     ? 'text-lg font-extrabold leading-none text-green-700 dark:text-green-400'
-    : 'text-xl font-extrabold leading-none text-blue-600 dark:text-blue-400'
+    : 'text-xl font-extrabold leading-none text-[#3654ff] dark:text-[#8b9dff]'
 
+  // Uiverse by reshades:透明底 + #3654ff 描边 + 白字(文字阴影保证浅色可读),
+  // hover 蓝底填充 + 箭头右移;rounded-[11px];8.5em × 2.9em;600ms ease
   const buyClass = isStandard
     ? 'rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
-    : 'group inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition-all duration-200 ease-out hover:from-blue-300 hover:via-blue-400 hover:to-blue-600 hover:shadow-xl hover:shadow-blue-600/40 active:translate-y-px active:scale-[0.98]'
+    : 'group relative inline-flex h-[2.9em] w-[8.5em] items-center justify-end rounded-[11px] border-2 border-[#3654ff] bg-transparent pr-[2.9em] text-sm font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)] transition-all duration-[600ms] ease-out hover:bg-[#3654ff]'
 
-  /** 箭头 SVG(Uiverse 按钮同款) */
+  /** 箭头 SVG(绝对定位按钮右侧;hover translateX(5px);drop-shadow 保证浅色可读) */
   const buyArrowSvg = (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"
-      strokeWidth={1.75}
+      strokeWidth={2}
       stroke="currentColor"
-      className="h-5 w-5 transition-transform duration-200 ease-out group-hover:translate-x-0.5"
+      className="pointer-events-none absolute right-[0.8em] h-[1.3em] w-[1.3em] drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)] transition-all duration-[600ms] ease-out group-hover:translate-x-[5px]"
       aria-hidden
     >
       <path
@@ -152,7 +163,7 @@ export function ArticleProductBuyBar({
             <span
               data-testid="article-buy-bar-name"
               title={productName}
-              className="min-w-0 max-w-full truncate text-base font-bold text-neutral-800 dark:text-neutral-100"
+              className={nameClass}
             >
               {productName || '商品'}
             </span>
