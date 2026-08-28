@@ -3,6 +3,7 @@ import { ComponentType } from 'react'
 import { DefaultHome } from './anzifan/DefaultHome'
 import { GalleryHome } from './gallery/GalleryHome'
 import { ShopHome } from './shop/ShopHome'
+import { ShopHomeV2 } from './shop/ShopHomeV2'
 import { TweetHome } from './tweet/TweetHome'
 import { ThemeHomeProps, ThemeId } from './types'
 
@@ -14,6 +15,7 @@ export const THEME_HOME: Record<ThemeId, ComponentType<ThemeHomeProps>> = {
   'tweet-light': TweetHome,
   'tweet-dark': TweetHome,
   shop: ShopHome,
+  'shop-v2': ShopHomeV2,
 }
 
 /**
@@ -38,6 +40,7 @@ export function resolveThemeId(code: string | null | undefined): ThemeId {
   }
   if (c === 'v1' || c === 'anzifan' || c === 'standard') return 'anzifan'
   if (c === 'shop' || c === 'mall') return 'shop'
+  if (c === 'shop-v2' || c === 'shopv2') return 'shop-v2'
   return 'anzifan'
 }
 

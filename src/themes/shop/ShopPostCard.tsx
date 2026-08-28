@@ -114,8 +114,17 @@ export function foldSingleLineTags(
  *   可点击(单击同窗跳 /tag/{id},preventDefault+stopPropagation 防外层卡片导航);
  * - 与独角数卡区分:独角数卡该位置是系统状态徽章(游客可购/人工交付等),
  *   我们这里是站长的 Notion tags,仅展示位置相同、语义不同,勿混。
+ * P18-C4-7:导出供 ShopPostCardLarge(shop-v2 单列大卡)复用;不传 rowClassName
+ * 时行为与原版完全一致(小卡网格不受影响)。
  */
-function CardTagLine({ tags }: { tags: { id?: string; name: string }[] }) {
+export function CardTagLine({
+  tags,
+  rowClassName,
+}: {
+  tags: { id?: string; name: string }[]
+  /** 外部布局覆写(默认 mt-1;P18-C4-7 大卡复用时传自定义 flex 布局) */
+  rowClassName?: string
+}) {
   const router = useRouter()
   const rowRef = useRef<HTMLDivElement | null>(null)
   const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -149,7 +158,11 @@ function CardTagLine({ tags }: { tags: { id?: string; name: string }[] }) {
   if (tags.length === 0) {
     // 无 tag 固定占一行高度,保证卡片等高;B4:间距压缩为 mt-1
     return (
-      <div data-testid="shop-card-tags" aria-hidden="true" className="mb-1.5 mt-1 h-6" />
+      <div
+        data-testid="shop-card-tags"
+        aria-hidden="true"
+        className={rowClassName ?? 'mb-1.5 mt-1 h-6'}
+      />
     )
   }
   const hiddenCount =
@@ -157,7 +170,7 @@ function CardTagLine({ tags }: { tags: { id?: string; name: string }[] }) {
   return (
     <div
       data-testid="shop-card-tags"
-      className="mt-1 flex h-6 items-center gap-1 overflow-hidden"
+      className={rowClassName ?? 'mt-1 flex h-6 items-center gap-1 overflow-hidden'}
     >
       {tags.map((tag, i) => {
         const hidden = visibleCount != null && i >= visibleCount

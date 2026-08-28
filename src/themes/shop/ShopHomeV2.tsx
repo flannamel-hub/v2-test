@@ -1,49 +1,25 @@
 import type { ShopBannerConfig } from '@/src/lib/blog/shopBannerDefaults'
 import { ShopBanner } from './ShopBanner'
 import { ShopPagination } from './ShopPagination'
-import { ShopPostCard } from './ShopPostCard'
+import { ShopPostCardLarge } from './ShopPostCardLarge'
+import {
+  sliceFeaturedPage,
+  sortFeaturedPosts,
+} from './ShopHome'
 import Link from 'next/link'
 import { useMemo, useRef, useState } from 'react'
 import type { ThemeHomeProps } from '@/src/themes/types'
 import type { Post } from '@/src/types/blog'
 
-/** B1:首页精选区客户端分页,每页 8 个(lg+ 网格 2 排 × 4) */
-export const SHOP_FEATURED_PAGE_SIZE = 8
+/**
+ * P18-C4-7:shop-v2 首页 = shop 首页变体(单列大卡橱窗)。
+ * Banner/标题行/最新动态/容器与 shop 首页一致,仅精选区由「网格小卡(每页 8)」
+ * 改为「单列大卡(ShopPostCardLarge,全宽与 Banner 对齐,每页 4 张)」;
+ * 商品文章稳定前置(复用 sortFeaturedPosts),分页复用 ShopPagination。
+ */
+export const SHOP_V2_PAGE_SIZE = 4
 
-/* P18C45UI A1:页码窗口迁移至 ShopPagination.getShopPageWindow(归档页签与
- * 首页精选区复用同一分页实现);此处保留 getFeaturedPageWindow 再导出以兼容
- * 既有冒烟脚本调用。 */
-export { getShopPageWindow as getFeaturedPageWindow } from './ShopPagination'
-
-/** 读取 Step7 三字段;任一填写即视为商品文章(P18-C3 约定,与 ShopPostCard 一致) */
-function hasProductField(post: Post): boolean {
-  const o = post.options
-  return Boolean(
-    o?.linkedProductSku?.trim() || o?.linkedProductUrl?.trim() || o?.linkedProductPrice?.trim()
-  )
-}
-
-/** B1:「带商品优先」稳定分区排序:商品文章在前,组内保持原顺序 */
-export function sortFeaturedPosts(posts: Post[]): Post[] {
-  const withProduct: Post[] = []
-  const rest: Post[] = []
-  for (const post of posts) {
-    ;(hasProductField(post) ? withProduct : rest).push(post)
-  }
-  return [...withProduct, ...rest]
-}
-
-/** B1:按页切片(1 起) */
-export function sliceFeaturedPage(
-  posts: Post[],
-  page: number,
-  pageSize = SHOP_FEATURED_PAGE_SIZE
-): Post[] {
-  const start = (Math.max(1, page) - 1) * pageSize
-  return posts.slice(start, start + pageSize)
-}
-
-/** 读取公告文章(widgets.announcement,仅一篇) */
+/** 读取公告文章(widgets.announcement,仅一篇;与 ShopHome 同逻辑) */
 function readAnnouncementPost(widgets: {
   [key: string]: unknown
 }): Post | null {
@@ -54,14 +30,7 @@ function readAnnouncementPost(widgets: {
   return post
 }
 
-/**
- * Shop 首页(v3 修正 2026-08-28 P18-C4-4 批1):仿独角数卡 Home.vue
- * Banner(Hero) → 精选商品 Featured Products(标题+商品化卡片网格,B1 每页 8 个客户端分页)
- * → 最新动态 Latest Updates(公告卡) → Footer(壳层)。
- * 精选区展示全部文章(C4-3B 修正):有商品字段渲染商品卡,无商品渲染普通卡;
- * 商品文章稳定前置(带商品优先),总数 >8 时底部显示分页控件(B2)。
- */
-export const ShopHome = ({
+export const ShopHomeV2 = ({
   posts,
   widgets,
   galleryFeedCovers,
@@ -73,16 +42,16 @@ export const ShopHome = ({
       : null
   const announcement = readAnnouncementPost(widgets)
 
-  // B1:「带商品优先」featured 列表 + 每页 8 个客户端分页
+  // 商品文章优先 + 每页 4 张客户端分页(复用 shop 精选区实现)
   const featured = useMemo(() => sortFeaturedPosts(posts), [posts])
-  const totalPages = Math.max(1, Math.ceil(featured.length / SHOP_FEATURED_PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(featured.length / SHOP_V2_PAGE_SIZE))
   const [currentPage, setCurrentPage] = useState(1)
   const featuredRef = useRef<HTMLElement | null>(null)
 
   const goToPage = (next: number) => {
     const clamped = Math.min(Math.max(1, next), totalPages)
     setCurrentPage(clamped)
-    // B2:切换分页后平滑滚动回商品区顶部(scroll-mt 补偿 fixed 导航)
+    // 切换分页后平滑滚动回商品区顶部(scroll-mt 补偿 fixed 导航)
     if (featuredRef.current) {
       const reduceMotion =
         typeof window !== 'undefined' &&
@@ -95,7 +64,7 @@ export const ShopHome = ({
     }
   }
 
-  const pageItems = sliceFeaturedPage(featured, currentPage)
+  const pageItems = sliceFeaturedPage(featured, currentPage, SHOP_V2_PAGE_SIZE)
 
   return (
     <>
@@ -117,7 +86,7 @@ export const ShopHome = ({
         </div>
       ) : null}
 
-      {/* 精选商品 Featured Products */}
+      {/* 精选商品 Featured Products(标题行与 shop 首页一致,无「查看全部」) */}
       <section
         ref={featuredRef}
         aria-label="精选商品"
@@ -131,10 +100,13 @@ export const ShopHome = ({
           </div>
         </div>
 
-        {/* B1:lg+ 4 列 × 2 排 = 每页 8 个;小屏自动折行 */}
-        <div className="grid grid-cols-2 items-stretch gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4">
+        {/* 单列大卡列表:全宽与 Banner 对齐,gap-6 纵向排列 */}
+        <div
+          data-testid="shop-v2-card-list"
+          className="flex flex-col gap-6"
+        >
           {pageItems.map((post) => (
-            <ShopPostCard
+            <ShopPostCardLarge
               key={post.id || post.slug}
               post={post}
               galleryCoverSrc={galleryFeedCovers?.[post.slug] ?? null}
@@ -142,8 +114,7 @@ export const ShopHome = ({
           ))}
         </div>
 
-        {/* P18C45UI A1:分页控件改用 ShopPagination(独角数卡圆角页签,与归档页
-            样式统一;totalPages ≤ 1 时组件内部不渲染) */}
+        {/* 分页:每页 4 张,复用 ShopPagination(totalPages ≤ 1 时组件内部不渲染) */}
         <ShopPagination
           ariaLabel="精选商品分页"
           currentPage={currentPage}
@@ -152,7 +123,7 @@ export const ShopHome = ({
         />
       </section>
 
-      {/* 最新动态 Latest Updates */}
+      {/* 最新动态 Latest Updates(与 shop 首页一致) */}
       {announcement ? (
         <section
           aria-label="最新动态"
@@ -162,7 +133,6 @@ export const ShopHome = ({
           <h2 className="mb-6 text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
             最新动态
           </h2>
-          {/* F1:整卡可点,点击任意位置进入公告内页 */}
           <Link
             href={`/post/${announcement.slug}`}
             data-aos="fade-up"
@@ -188,3 +158,4 @@ export const ShopHome = ({
     </>
   )
 }
+

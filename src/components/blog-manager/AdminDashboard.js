@@ -2845,6 +2845,7 @@ const ADMIN_THEMES = [
   { id: 'tweet-light', label: 'tweet·浅色', color: '#38bdf8', desc: '时间线卡片 · 固定纯白浅色' },
   { id: 'tweet-dark', label: 'tweet·暗', color: '#0f1419', desc: '时间线卡片 · 纯黑 X 暗色风格' },
   { id: 'shop', label: 'shop', color: '#22c55e', desc: '商城风格 · 文章关联商品' },
+  { id: 'shop-v2', label: 'shop v2', color: '#14b8a6', desc: '商城风格 · 首页单列大卡橱窗' },
 ];
 
 function formatThemeSwitchQuotaRemaining(remainingMs) {

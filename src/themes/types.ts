@@ -3,7 +3,7 @@ import { TweetFeedMediaMap } from '@/src/lib/tweet/loadTweetFeedMedia'
 import type { VendingConfig } from '@/src/lib/blog/vendingDefaults'
 import type { ShopBannerConfig } from '@/src/lib/blog/shopBannerDefaults'
 
-export type ThemeId = 'anzifan' | 'touchgal' | 'gallery' | 'tweet' | 'tweet-light' | 'tweet-dark' | 'shop'
+export type ThemeId = 'anzifan' | 'touchgal' | 'gallery' | 'tweet' | 'tweet-light' | 'tweet-dark' | 'shop' | 'shop-v2'
 
 /**
  * 各主题首页组件共用 props。

@@ -4,6 +4,7 @@ import { SitePopups } from './widget/SitePopups'
 import { ThemeNavShell } from '@/src/themes/themeLayout'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
 import { ShopNavbar } from '@/src/themes/shop/ShopNavbar'
+import { isShopTheme } from '@/src/themes/shop/shopTheme'
 import { ShopSiteProvider, ShopSiteTitleProvider } from '@/src/themes/shop/ShopSiteContext'
 import { SiteBrandProvider, SitePlanProvider } from '@/src/components/theme/SitePlanContext'
 import { Page, SharedNavFooterStaticProps } from '@/src/types/blog'
@@ -35,7 +36,9 @@ export default function withNavFooter(
     const siteName = (props.siteTitle?.text || '').trim()
     // P18-C2:shop 主题站点 ID(购物车 localStorage 分组 / 结算 URL site 参数)
     const shopSiteId = typeof props.shopSiteId === 'string' ? props.shopSiteId : ''
-    const showShopCart = themeId === 'shop'
+    // P18-C4-7:shop 系(shop / shop-v2)统一走 ShopNavbar + 购物车 + wide Footer
+    const shopThemeActive = isShopTheme(themeId)
+    const showShopCart = shopThemeActive
     if (themeId === 'gallery' || isTweetTheme(themeId)) {
       return (
         <SitePlanProvider plan={sitePlan}>
@@ -75,10 +78,10 @@ export default function withNavFooter(
           <ShopSiteTitleProvider siteTitle={siteName}>
           <main
             className={`flex flex-col justify-start min-h-screen${
-              themeId === 'shop' ? ' pt-14' : ''
+              shopThemeActive ? ' pt-14' : ''
             }`}
           >
-          {themeId === 'shop' ? (
+          {shopThemeActive ? (
             <ShopNavbar items={items} title={props.siteTitle} />
           ) : (
             <Navbar
@@ -99,9 +102,9 @@ export default function withNavFooter(
               color={pureFooter ? 'pure' : undefined}
               showBeian={showBeian}
               logo={props.logo}
-              socialLinks={themeId === 'shop' ? socialLinks?.links ?? null : undefined}
-              wide={themeId === 'shop'}
-              hideThemeSwitch={themeId === 'shop'}
+              socialLinks={shopThemeActive ? socialLinks?.links ?? null : undefined}
+              wide={shopThemeActive}
+              hideThemeSwitch={shopThemeActive}
               path={{
                 text: props.siteSubtitle?.text ?? '',
                 href: props.siteSubtitle?.slug ?? '',

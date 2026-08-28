@@ -16,6 +16,7 @@ import { withNavFooterStaticProps } from '@/src/lib/blog/withNavFooterStaticProp
 import { addSubTitle } from '@/src/lib/util'
 import { GalleryArchive } from '@/src/themes/gallery/GalleryArchive'
 import { ShopArchive } from '@/src/themes/shop/ShopArchive'
+import { isShopTheme } from '@/src/themes/shop/shopTheme'
 import {
   Category,
   NextPageWithLayout,
@@ -199,7 +200,8 @@ const Archive: NextPage<{
     )
   }
 
-  if (activeTheme === 'shop') {
+  // P18-C4-7:shop 系(shop / shop-v2)归档一律复用 ShopArchive
+  if (isShopTheme(activeTheme)) {
     return (
       <ShopArchive
         page={page}

@@ -16,6 +16,7 @@ import withNavFooter from '../../components/withNavFooter'
 import { GalleryPost } from '@/src/themes/gallery/GalleryPost'
 import { ArticleProductBuyBar } from '@/src/themes/shop/ArticleProductBuyBar'
 import { ShopPostPage } from '@/src/themes/shop/ShopPostPage'
+import { isShopTheme } from '@/src/themes/shop/shopTheme'
 import { TweetPostPage } from '@/src/themes/tweet/TweetPostPage'
 import { TweetShell } from '@/src/themes/tweet/TweetShell'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
@@ -252,7 +253,8 @@ const PostPage: NextPage<{
           )
         }
 
-        if (activeTheme === 'shop') {
+        // P18-C4-7:shop 系(shop / shop-v2)内页一律复用 ShopPostPage
+        if (isShopTheme(activeTheme)) {
           return (
             <ShopPostPage
               post={post}
