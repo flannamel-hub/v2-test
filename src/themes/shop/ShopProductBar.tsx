@@ -54,7 +54,7 @@ export function ShopProductBar({ post }: { post: Post }) {
                 data-testid="shop-bar-price"
                 className="text-lg font-extrabold leading-none text-white dark:text-white"
               >
-                {linkedPrice}
+                ¥{linkedPrice.trim().replace(/^[¥￥]\s*/, '')}
               </span>
             ) : hasProduct ? (
               /* B1:有 sku 无价格(查不到/下架仅存码)→ 占位「—」,保持商品式样 */
