@@ -42,7 +42,7 @@ export function ShopCartButton() {
         {count ? (
           <span
             data-testid="shop-cart-badge"
-            className="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-neutral-900 px-1 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-white dark:text-black"
+            className="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-600 px-1 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-red-600 dark:text-white"
           >
             {count > 99 ? '99+' : count}
           </span>

@@ -1,11 +1,9 @@
-import { FiChevronRight } from 'react-icons/fi'
 import { classNames } from '@/src/lib/util'
 import { resolveListPostCover } from '@/src/lib/gallery/resolveListPostCover'
 import { Post } from '@/src/types/blog'
 import React from 'react'
 import { PostNavLink } from '@/src/components/navigation/PostNavStallGuard'
 import { PostImage } from '@/src/components/card/CardInfo'
-import { CardTagLine } from './ShopPostCard'
 import { ShopBuyButtons } from './ShopBuyButtons'
 
 type ShopPostCardLargeProps = {
@@ -48,7 +46,7 @@ export function ShopPostCardLarge({ post, galleryCoverSrc }: ShopPostCardLargePr
       <PostNavLink href={{ pathname: '/post/[slug]', query: { slug } }} navKey={slug}>
         <div
           data-testid="shop-card-large"
-          className="group/card flex w-full cursor-pointer select-none flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-card transition-all duration-300 ease-out hover:-translate-y-1 hover:border-neutral-900/40 hover:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.28)] dark:border-white/10 dark:bg-[#1c1c1e] dark:hover:border-white/40 dark:hover:shadow-[0_12px_32px_-12px_rgba(255,255,255,0.16)]"
+          className="group/card flex w-full cursor-pointer select-none flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all duration-300 ease-out hover:-translate-y-1 hover:border-neutral-900/40 hover:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.28)] dark:border-white/15 dark:bg-[#1c1c1e] dark:hover:border-white/40 dark:hover:shadow-[0_12px_32px_-12px_rgba(255,255,255,0.16)]"
         >
           {/* 封面:沿用 Banner 高度阶梯(min-h 200/240/320/420),与 Banner 同比例;与信息区同卡一体 */}
           <div className="relative w-full shrink-0 overflow-hidden bg-neutral-100 dark:bg-neutral-900">
@@ -69,57 +67,32 @@ export function ShopPostCardLarge({ post, galleryCoverSrc }: ShopPostCardLargePr
             </div>
           </div>
 
-          {/* 信息区:集成在大卡底部(无独立边框,与封面同卡) */}
+          {/* 信息区:单行(标题+价格+按钮),集成大卡底部 */}
           <div className="flex min-w-0 flex-col p-5 md:p-6">
-            {/* 行1:分类 + tags(复用 CardTagLine,占满余宽) */}
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="hidden h-6 shrink-0 items-center truncate text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 sm:flex">
-                {category?.name ? `分类 · ${category.name}` : '\u00A0'}
+            {/* 单行:标题(truncate)+ ¥价格 + 立即购买 + 购物车 */}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
+              <h2 className="min-w-0 flex-1 truncate text-lg font-bold leading-snug tracking-tight text-neutral-900 dark:text-white md:text-xl">
+                {title}
+              </h2>
+              <span
+                data-testid="shop-card-large-price"
+                className={classNames(
+                  'shrink-0 text-2xl font-extrabold leading-none tracking-tight md:text-3xl',
+                  linkedPrice
+                    ? 'text-white dark:text-white'
+                    : 'text-neutral-400 dark:text-neutral-500'
+                )}
+              >
+                {priceLabel}
               </span>
-              <CardTagLine
-                tags={tags || []}
-                rowClassName="flex h-6 min-w-0 flex-1 items-center gap-1 overflow-hidden"
-              />
-            </div>
-
-            {/* 标题(大号) */}
-            <h2 className="mt-2 line-clamp-2 text-xl font-bold leading-snug tracking-tight text-neutral-900 dark:text-white md:text-2xl">
-              {title}
-            </h2>
-
-            {/* 底行:商品名称 + 价格 | 立即购买 + 购物车(复用 ShopBuyButtons icon 形态) */}
-            <div className="mt-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-              <div className="flex min-w-0 flex-col">
-                <span
-                  data-testid="shop-card-large-product-name"
-                  className="mb-1 max-w-full truncate text-sm text-neutral-500 dark:text-neutral-400"
-                >
-                  {linkedName || '商品'}
-                </span>
-                <span
-                  data-testid="shop-card-large-price"
-                  className={classNames(
-                    'text-2xl font-extrabold leading-none tracking-tight md:text-3xl',
-                    linkedPrice
-                      ? 'text-white dark:text-white'
-                      : 'text-neutral-400 dark:text-neutral-500'
-                  )}
-                >
-                  {priceLabel}
-                </span>
-              </div>
-
               <div className="flex shrink-0 items-center gap-2">
                 <ShopBuyButtons
                   variant="icon"
+                  size="lg"
                   sku={linkedSku}
                   buyUrl={buyUrl}
                   name={linkedName || title}
                   price={linkedPrice}
-                />
-                <FiChevronRight
-                  className="h-4 w-4 text-neutral-400 transition-transform duration-200 ease-out group-hover/card:translate-x-1 dark:text-neutral-500"
-                  aria-hidden
                 />
               </div>
             </div>

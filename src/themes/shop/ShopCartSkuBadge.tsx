@@ -17,7 +17,7 @@ export function ShopCartSkuBadge({ sku }: { sku: string }) {
     <span
       data-testid="shop-cart-sku-badge"
       aria-label={`已加入 ${qty} 份`}
-      className="absolute -right-1 -top-1 z-10 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-neutral-900 px-1 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-white dark:text-black"
+      className="absolute -right-1 -top-1 z-10 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-600 px-1 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-red-600 dark:text-white"
     >
       {qty > 99 ? '99+' : qty}
     </span>

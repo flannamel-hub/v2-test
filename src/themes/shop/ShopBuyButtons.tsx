@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FiCheck, FiShoppingCart } from 'react-icons/fi'
+import { FiShoppingCart } from 'react-icons/fi'
 import {
   addToCart,
   readCart,
@@ -42,6 +42,8 @@ type ShopBuyButtonsProps = {
   /** 立即购买跳转链接(P18-C4-5 联动写入/人工挂链;为空时点击提示不可购买) */
   buyUrl?: string | null
   variant?: 'bar' | 'icon'
+  /** P18-C4-7:尺寸('sm' 默认=v1 卡片;'lg' 仅大卡使用,按钮放大) */
+  size?: 'sm' | 'lg'
 }
 
 /** P18C45FIX B1 / P18C45UI 批3:不可购买提示标题(页内居中弹窗,不再 window.alert) */
@@ -182,13 +184,17 @@ export function ShopBuyButtons({
   // 加购持久状态(C3):已加入时绿色描边 + 勾图标,份数角标常驻;
   // P18C45FIX B1:两钮均始终渲染,不可购时点击提示
   if (!isBar) {
+    const lg = size === 'lg'
     return (
-      <span className="flex items-center gap-1.5">
+      <span className="flex items-center gap-2">
         <button
           type="button"
           aria-label="立即购买"
           title="立即购买"
-          className="flex h-8 items-center rounded-lg bg-neutral-900 px-2.5 text-xs font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+          className={classNames(
+            'flex items-center rounded-lg bg-neutral-900 font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200',
+            lg ? 'h-11 px-4 text-sm' : 'h-8 px-2.5 text-xs'
+          )}
           onClick={handleBuyClick}
         >
           立即购买
@@ -197,18 +203,13 @@ export function ShopBuyButtons({
           type="button"
           aria-label={added ? `已加入购物车(×${cartQty})` : '加入购物车'}
           className={classNames(
-            'relative grid h-8 w-8 place-items-center rounded-lg border transition-colors duration-200 ease-out',
-            added
-              ? 'border-green-600/60 bg-green-50 text-green-600 dark:border-green-400/50 dark:bg-green-400/10 dark:text-green-400'
-              : 'border-neutral-200 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white'
+            'relative grid place-items-center rounded-lg border transition-colors duration-200 ease-out',
+            'border-neutral-200 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white',
+            lg ? 'h-11 w-11' : 'h-8 w-8'
           )}
           onClick={handleAdd}
         >
-          {added ? (
-            <FiCheck className="h-4 w-4" aria-hidden />
-          ) : (
-            <FiShoppingCart className="h-4 w-4" aria-hidden />
-          )}
+          <FiShoppingCart className={lg ? 'h-5 w-5' : 'h-4 w-4'} aria-hidden />
           <ShopCartSkuBadge sku={trimmedSku} />
         </button>
         {modalNode}
