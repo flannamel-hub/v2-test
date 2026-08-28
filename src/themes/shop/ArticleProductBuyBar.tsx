@@ -73,7 +73,26 @@ export function ArticleProductBuyBar({
 
   const buyClass = isStandard
     ? 'rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
-    : 'rounded-lg bg-gradient-to-b from-blue-500 to-blue-700 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-700/30 transition-all duration-200 ease-out hover:from-blue-400 hover:to-blue-600 hover:shadow-lg hover:shadow-blue-700/30 active:translate-y-px active:scale-[0.98] dark:text-white'
+    : 'group inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition-all duration-200 ease-out hover:from-blue-300 hover:via-blue-400 hover:to-blue-600 hover:shadow-xl hover:shadow-blue-600/40 active:translate-y-px active:scale-[0.98]'
+
+  /** 箭头 SVG(Uiverse 按钮同款) */
+  const buyArrowSvg = (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.75}
+      stroke="currentColor"
+      className="h-5 w-5 transition-transform duration-200 ease-out group-hover:translate-x-0.5"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
+      />
+    </svg>
+  )
 
   const openNotPurchasable = () => {
     if (typeof window === 'undefined') return
@@ -162,6 +181,7 @@ export function ArticleProductBuyBar({
             data-testid="article-buy-bar-buy"
             className={buyClass}
           >
+            {!isStandard ? buyArrowSvg : null}
             立即购买
           </a>
         ) : (
@@ -171,6 +191,7 @@ export function ArticleProductBuyBar({
             className={buyClass}
             onClick={openNotPurchasable}
           >
+            {!isStandard ? buyArrowSvg : null}
             立即购买
           </button>
         )}
