@@ -4540,8 +4540,9 @@ const [mounted, setMounted] = useState(false);
     setEditorBlocks(next);
   }, [markDirty]);
 
-  // P18-C3: 关联商品改为 Step7 人工挂链接三字段（商品链接/商品码/价格），
-  // 不再请求系统侧 /api/admin/merchant-products 商品下拉
+  // P18-C4-5: Step7 商品信息只填商品码;链接/价格在发布时由 post.js 服务端
+  // 查系统商品自动写入(查到=系统权威价覆盖,查不到=清空三字段并回执提示),
+  // 表单里的 url/price 仅作只读展示,不再手填
 
   const [blogRefreshBusy, setBlogRefreshBusy] = useState(false);
   const [blogRefreshCooldownSec, setBlogRefreshCooldownSec] = useState(0);
@@ -7074,6 +7075,10 @@ const [mounted, setMounted] = useState(false);
       const d = await res.json();
       if (bailIfCancelled()) return;
       if (!d.success) throw new Error(d.error || '保存失败');
+      // P18-C4-5: 商品码联动结果提示(查不到/下架/接口异常均不阻塞保存,这里补提示)
+      if (d.linkedProductFetchError) {
+        showAdminToast(`商品信息：${d.linkedProductFetchError}`, 4200);
+      }
       const newId = d.id || payload.currentId;
       // Phase4: post 阶段成功，回写中间产物（断点续跑时 refresh/gallery 同步失败可免重传）
       // P11-C1: 记录已建页 id（jobProgressRef + job.createdId），后续任何重试路径识别后转 update，避免重复建稿
@@ -10325,23 +10330,20 @@ const [mounted, setMounted] = useState(false);
                 </div>
              </StepAccordion>
              {form.type !== 'Widget' ? (
-             <StepAccordion step={7} title={<>商品信息 <ShopOnlyTag /></>} isOpen={expandedStep === 7} onToggle={()=>setExpandedStep(expandedStep===7?0:7)}>
-                <div>
-                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>商品链接 <ShopOnlyTag /></label>
-                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>shop 主题「立即购买」按钮的跳转地址；留空但填了商品码时，默认跳商城商品页。</p>
-                   <input className="glow-input" value={form.linked_product_url || ''} onChange={e=>setFormDirty({...form, linked_product_url:e.target.value})} placeholder="例如：https://store.pro-pl.us/p/xxxx" style={{fontSize:'13px'}} />
-                  <div style={{marginTop:'12px'}}>
-                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>商品码 <ShopOnlyTag /></label>
-                     <input className="glow-input" value={form.linked_product_sku || ''} onChange={e=>setFormDirty({...form, linked_product_sku:e.target.value})} placeholder="例如：SKU-1024" style={{fontSize:'13px'}} />
-                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>用于卡片信息展示与「加入购物车」结算；留空则不显示加购按钮。</p>
-                  </div>
-                  <div style={{marginTop:'12px'}}>
-                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>商品价格 <ShopOnlyTag /></label>
-                     <input className="glow-input" value={form.linked_product_price || ''} onChange={e=>setFormDirty({...form, linked_product_price:e.target.value})} placeholder="例如：¥9.9" style={{fontSize:'13px'}} />
-                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>仅在卡片与详情页展示，留空则不显示。</p>
-                  </div>
-                </div>
-             </StepAccordion>
+              <StepAccordion step={7} title={<>商品信息 <ShopOnlyTag /></>} isOpen={expandedStep === 7} onToggle={()=>setExpandedStep(expandedStep===7?0:7)}>
+                 <div>
+                   <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>商品码 <ShopOnlyTag /></label>
+                    <input className="glow-input" value={form.linked_product_sku || ''} onChange={e=>setFormDirty({...form, linked_product_sku:e.target.value})} placeholder="例如：SKU-1024" style={{fontSize:'13px'}} />
+                    <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>发布时自动获取商品链接与价格（以系统商品为准，无需手填）；商品码未找到时前台不显示商品区。</p>
+                   {(form.linked_product_url || form.linked_product_price) ? (
+                   <div style={{marginTop:'12px'}}>
+                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>当前记录（只读，保存时自动更新）</label>
+                     <p style={{fontSize:'12px', color:'#9a9a9a', margin:'0 0 4px', lineHeight:1.5, wordBreak:'break-all'}}>链接：{form.linked_product_url || '—'}</p>
+                     <p style={{fontSize:'12px', color:'#9a9a9a', margin:'0', lineHeight:1.5}}>价格：{form.linked_product_price || '—'}</p>
+                   </div>
+                   ) : null}
+                 </div>
+              </StepAccordion>
              ) : null}
              </>
              ) : null}

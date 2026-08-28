@@ -22,6 +22,14 @@ export type MerchantProductsResult = {
   error?: string
 }
 
+export type MerchantProductLookupResult = {
+  /** true=主站接口可达(结果具权威性);false=接口异常/未配置,结果不可作为清除依据 */
+  available: boolean
+  product: MerchantProduct | null
+  source?: string
+  error?: string
+}
+
 /** 主站返回字段白名单收敛(sku/name/price/status),其余字段一律丢弃 */
 function normalizeProducts(raw: unknown): MerchantProduct[] {
   if (!Array.isArray(raw)) return []
@@ -114,6 +122,84 @@ export async function fetchMerchantProducts(): Promise<MerchantProductsResult> {
     return {
       available: false,
       products: [],
+      source,
+      error: error instanceof Error ? error.message : '主站商品接口请求失败',
+    }
+  }
+}
+
+/** 已下架类状态关键词(命中即视为不可售;status 为空/未知按在售处理) */
+const OFF_SALE_STATUS_RE =
+  /off[-_ ]?sale|offsale|off-shelf|下架|停售|discontinued|inactive|unavailable|disabled/i
+
+/** P18-C4-5:商品当前是否可售(主站 status 词表未知,空/未识别状态保守按在售) */
+export function isMerchantProductOnSale(product: MerchantProduct): boolean {
+  const status = (product?.status || '').trim()
+  if (!status) return true
+  return !OFF_SALE_STATUS_RE.test(status)
+}
+
+/**
+ * P18-C4-5:按 sku 精确查询系统商品(Step7 商品码联动)。
+ * GET ${MERCHANT_API_BASE}${MERCHANT_PRODUCTS_PATH}?sku=xxx(8s 超时,Bearer 可选)。
+ * - 主站可达:available:true,product=按 sku(忽略大小写)匹配的商品(无匹配为 null)
+ * - 未配置 base / HTTP 非 200 / 超时 / 网络异常:available:false 降级,不抛错
+ * - token 仅在服务端使用,绝不回传浏览器
+ */
+export async function fetchMerchantProductBySku(
+  sku: string
+): Promise<MerchantProductLookupResult> {
+  const trimmed = (sku || '').trim()
+  if (!trimmed) {
+    return { available: false, product: null, error: '商品码为空,无法查询系统商品' }
+  }
+  const base = (process.env.MERCHANT_API_BASE || '').trim().replace(/\/+$/, '')
+  const path = (
+    process.env.MERCHANT_PRODUCTS_PATH || '/api/merchant/products-public'
+  ).trim()
+  const token = (process.env.MERCHANT_API_TOKEN || '').trim()
+
+  if (!base) {
+    return {
+      available: false,
+      product: null,
+      error: '未配置 MERCHANT_API_BASE,无法查询系统商品',
+    }
+  }
+
+  const source = `${base}${path.startsWith('/') ? path : `/${path}`}?sku=${encodeURIComponent(trimmed)}`
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    const upstream = await fetch(source, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer))
+
+    if (!upstream.ok) {
+      return {
+        available: false,
+        product: null,
+        source,
+        error: `主站商品接口返回 HTTP ${upstream.status}`,
+      }
+    }
+
+    const payload = (await upstream.json()) as unknown
+    const lowered = trimmed.toLowerCase()
+    const product =
+      normalizeProducts(extractProductsArray(payload)).find(
+        (p) => p.sku.trim().toLowerCase() === lowered
+      ) || null
+    return { available: true, product, source }
+  } catch (error) {
+    return {
+      available: false,
+      product: null,
       source,
       error: error instanceof Error ? error.message : '主站商品接口请求失败',
     }
