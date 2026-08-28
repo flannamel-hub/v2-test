@@ -22,7 +22,10 @@ const CARD_SHELL =
 const TAG_CHIP_CLASS =
   'min-w-0 max-w-full truncate rounded-md bg-neutral-100 px-1.5 text-[11px] font-medium leading-none text-neutral-500 dark:bg-white/10 dark:text-neutral-400'
 
-/** 读取 Step7 三字段;任一填写即视为商品文章(P18-C3 约定) */
+/**
+ * 读取 Step7 三字段;P18C45FIX B1:hasProduct 仅看 sku 非空
+ * (查不到/下架仅存码也算商品文章,价格缺失显示「—」;url/price 不再参与判定)
+ */
 function readProductFields(post: Post) {
   const linkedSku = post.options?.linkedProductSku?.trim()
   const buyUrl = post.options?.linkedProductUrl?.trim()
@@ -31,7 +34,7 @@ function readProductFields(post: Post) {
     linkedSku,
     buyUrl,
     linkedPrice,
-    hasProduct: Boolean(linkedSku || buyUrl || linkedPrice),
+    hasProduct: Boolean(linkedSku),
   }
 }
 
@@ -189,10 +192,11 @@ function CardCover({
  * - 封面(4/3,group-hover 缩放);
  * - 信息区各行固定高度同构:分类行(h-4)/标题(line-clamp-2 固定两行高)/
  *   tags 单行(h-6,无 tag 占位,C1)——商品卡与普通卡网格不参差;
- * - 底栏(border-t + pt)左侧统一结构:商品卡=小标「价格」+ ¥ 大号白色价格 +
- *   「价格以结算页为准」极小提示(C5,下方固定 h-3 行),普通卡=小标「发布于」+
- *   日期 + 空占位行;右侧=「立即购买」闪电小按钮 + 购物车图标按钮(带 sku 已购
- *   份数角标,C2/C3)+「→」箭头。
+ * - 底栏(border-t + pt)左侧统一结构:商品卡(有 sku,B1 仅看码)=小标「价格」+
+ *   ¥ 大号白色价格(缺价显示「—」)+「价格以结算页为准」极小提示(C5,下方固定
+ *   h-3 行),普通卡=小标「发布于」+ 日期 + 空占位行;右侧=「立即购买」闪电小按钮 +
+ *   购物车图标按钮(带 sku 已购份数角标,C2/C3;B1 起始终渲染,普通文章点击提示
+ *   不可购买)+「→」箭头。
  * variant="grid" 网格卡 / variant="list" 横向列表卡(左缩略图右信息,同构等高)。
  */
 export function ShopPostCard({
@@ -203,7 +207,8 @@ export function ShopPostCard({
   const { title, slug, date, category, tags } = post
   const displayCover = resolveListPostCover(post, galleryCoverSrc)
   const { linkedSku, buyUrl, linkedPrice, hasProduct } = readProductFields(post)
-  const showPrice = hasProduct && Boolean(linkedPrice)
+  // B1:有 sku 即渲染价格行(价格缺失显示「—」,保持商品式样与等高)
+  const showPrice = hasProduct
 
   const detailArrowClass =
     'hidden items-center gap-1 text-xs font-bold uppercase text-neutral-500 transition-colors duration-200 ease-out group-hover:text-neutral-900 dark:text-neutral-400 dark:group-hover:text-white md:flex'
@@ -246,12 +251,13 @@ export function ShopPostCard({
                   <span className="hidden text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 md:block">
                     价格
                   </span>
-                  {/* B2:¥ 前缀 + 白色价格(亮/暗同白)+ 加粗放大(独角数卡 theme-price-sm) */}
+                  {/* B2:¥ 前缀 + 白色价格(亮/暗同白)+ 加粗放大(独角数卡 theme-price-sm);
+                      B1:价格缺失(仅存码,查不到/下架)显示「—」占位 */}
                   <span
                     data-testid="shop-card-price"
                     className={classNames(footerValueClass, 'text-white')}
                   >
-                    {formatPriceLabel(linkedPrice!)}
+                    {linkedPrice ? formatPriceLabel(linkedPrice) : '—'}
                   </span>
                   {/* C5:极小价格提示(固定 h-3 行;普通卡同位置空占位保等高) */}
                   <span
@@ -277,15 +283,15 @@ export function ShopPostCard({
               )}
 
               <div className="flex shrink-0 items-center gap-2">
-                {hasProduct ? (
-                  <ShopBuyButtons
-                    variant="icon"
-                    sku={linkedSku}
-                    buyUrl={buyUrl}
-                    name={title}
-                    price={linkedPrice}
-                  />
-                ) : null}
+                {/* P18C45FIX B1:购买/加购按钮始终渲染(shop 卡片保持商品式样,
+                    普通文章也显示,不可购时组件内部提示「当前不可购买」) */}
+                <ShopBuyButtons
+                  variant="icon"
+                  sku={linkedSku}
+                  buyUrl={buyUrl}
+                  name={title}
+                  price={linkedPrice}
+                />
                 {hasProduct ? (
                   <span className={detailArrowClass}>
                     <FiArrowRight

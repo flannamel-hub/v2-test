@@ -3,18 +3,22 @@ import { Post } from '@/src/types/blog'
 import { ShopBuyButtons } from './ShopBuyButtons'
 
 /**
- * shop 主题文章页页内购买组件(P18-C4-2.4 强化)。
+ * shop 主题文章页页内购买组件(P18-C4-2.4 强化;P18C45FIX B1 调整)。
  * 读取 Notion Step7 三字段(linked_product_sku / linked_product_url /
  * linked_product_price,文章输出 pipeline 已映射到 post.options),
- * 渲染于封面/图库区域下方:商品码 chip + 价格 + 「立即购买 / 加入购物车」
- * (购买优先人工挂链 linked_product_url,兜底 {storeUrl}/p/{sku};
- * 加购仅在有 sku 时渲染)。三个字段全空时整块不渲染(纯标准内页)。
+ * 渲染于封面/图库区域下方:商品码 chip + 价格 + 「立即购买 / 加入购物车」。
+ * - hasProduct 仅看 sku 非空(B1):查不到商品/已下架时 sku 保留、url/price 清空,
+ *   本条仍渲染,价格缺失显示「—」+「价格以结算页为准」,购买/加购点击提示不可购买;
+ * - 购买仅跳 buyUrl(P18-C4-5 联动写入),加购需有 sku;
+ * - 三字段全空(纯普通文章)时整块不渲染(内页保持标准样式)。
  */
 export function ShopProductBar({ post }: { post: Post }) {
   const linkedSku = post.options?.linkedProductSku?.trim()
   const buyUrl = post.options?.linkedProductUrl?.trim()
   const linkedPrice = post.options?.linkedProductPrice?.trim()
   if (!linkedSku && !buyUrl && !linkedPrice) return null
+  // B1:商品区判定仅看 sku 非空(不再要求 url/price)
+  const hasProduct = Boolean(linkedSku)
 
   return (
     <aside
@@ -44,6 +48,22 @@ export function ShopProductBar({ post }: { post: Post }) {
                   {linkedPrice}
                 </span>
                 {/* C5(P18-C4-4 批2):极小价格提示,与首页卡片同步 */}
+                <span
+                  data-testid="shop-bar-price-note"
+                  className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500"
+                >
+                  价格以结算页为准
+                </span>
+              </span>
+            ) : hasProduct ? (
+              /* B1:有 sku 无价格(查不到/下架仅存码)→ 占位「—」+提示,保持商品式样 */
+              <span className="flex flex-wrap items-baseline gap-x-1.5">
+                <span
+                  data-testid="shop-bar-price-placeholder"
+                  className="text-lg font-extrabold leading-none text-neutral-400 dark:text-neutral-500"
+                >
+                  —
+                </span>
                 <span
                   data-testid="shop-bar-price-note"
                   className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500"

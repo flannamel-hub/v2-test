@@ -886,7 +886,8 @@ export default async function handler(req, res) {
       // P18-C4-5:Step7 商品码联动——编辑只填码,保存/发布时服务端查系统商品,
       // 自动写 linked_product_url({STORE}/p/{sku})与 linked_product_price(系统权威价):
       // - 查到(在售):无论是否手改过商品码一律覆盖,展示价=结算价;
-      // - 查不到/已下架:清空三字段(前台商品区不渲染),不阻塞保存,回执 linkedProductFetchError;
+      // - 查不到/已下架(P18C45FIX B1):保留商品码,仅清空 url/price(前台保持商品式样,
+      //   购买/加购点击提示「当前不可购买」),不阻塞保存,回执 linkedProductFetchError;
       // - 接口异常/超时/未配置 env:保留表单回传的原链接/价格,不阻塞保存,同样回执提示。
       // 商品链接/价格不再接受手填(后台 Step7 已改为只读展示);token 仅服务端使用。
       let linkedProductFetchError = '';
@@ -904,12 +905,13 @@ export default async function handler(req, res) {
                   resolvedPrice = String(lookup.product.price || '').trim();
                   linkedProductSaved = { sku: trimmedSkuInput, url: resolvedUrl, price: resolvedPrice, name: lookup.product.name || '' };
               } else if (lookup.available) {
-                  // 主站权威否定(未找到/已下架):三字段联动清空
-                  resolvedSku = '';
-                  linkedProductSaved = { sku: '', url: '', price: '', name: '' };
+                  // 主站权威否定(未找到/已下架):P18C45FIX B1 保留商品码,仅清 url/price
+                  // (前台根据 sku 判定展示商品区,但购买/加购提示不可购买)
+                  resolvedSku = trimmedSkuInput;
+                  linkedProductSaved = { sku: trimmedSkuInput, url: '', price: '', name: '' };
                   linkedProductFetchError = (lookup.product && !isMerchantProductOnSale(lookup.product))
-                      ? `商品 ${trimmedSkuInput} 已下架，前台将不显示商品区`
-                      : `商品码 ${trimmedSkuInput} 未找到，前台将不显示商品区`;
+                      ? `商品 ${trimmedSkuInput} 已下架，前台购买/加购将提示不可购买`
+                      : `商品码 ${trimmedSkuInput} 未找到，前台购买/加购将提示不可购买`;
                   console.warn('[linked-product]', linkedProductFetchError);
               } else {
                   // 接口异常/未配置:不阻塞,保留原记录

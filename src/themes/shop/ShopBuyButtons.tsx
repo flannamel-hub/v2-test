@@ -2,8 +2,6 @@ import React from 'react'
 import { FiCheck, FiShoppingCart, FiZap } from 'react-icons/fi'
 import {
   addToCart,
-  buildProductUrl,
-  getStoreUrl,
   readCart,
 } from '@/src/lib/shop/shopCart'
 import type { ShopCartItem } from '@/src/lib/shop/shopCart'
@@ -24,19 +22,33 @@ import { useShopCartSkuQty } from './useShopCartSkuQty'
  *   不再有 2 秒临时反馈;卡片/内页同组件,状态天然一致。
  * - 重复加购确认(C4):该 sku 已在购物车(qty>0)且再次点击时,先 window.confirm
  *   确认才累加;首次加购不弹。
- * - 立即购买:优先跳人工挂的商品链接(P18-C3 linked_product_url);
- *   未填链接时兜底 {storeUrl}/p/{sku}。
+ * - 立即购买:仅跳 buyUrl(P18-C4-5 保存联动写入 {STORE}/p/{sku} 或人工挂链);
+ *   P18C45FIX B1:无 buyUrl(含仅存 sku 未查到商品)点击弹「当前不可购买」,
+ *   不再用 sku 兜底拼 {storeUrl}/p/{sku}(url 为空即表示当前无有效购买信息)。
  */
 
 type ShopBuyButtonsProps = {
-  /** 商品码(sku);加购/结算用,无则不渲染加购按钮 */
+  /** 商品码(sku);加购/结算用,无则加购点击提示不可购买 */
   sku?: string | null
   /** 购物车内展示名(文章标题/商品名) */
   name?: string
   price?: string | null
-  /** 立即购买跳转链接(P18-C3 人工挂链;为空时回退 {storeUrl}/p/{sku}) */
+  /** 立即购买跳转链接(P18-C4-5 联动写入/人工挂链;为空时点击提示不可购买) */
   buyUrl?: string | null
   variant?: 'bar' | 'icon'
+}
+
+/** P18C45FIX B1:不可购买提示文案(前台无 toast 库,统一 window.alert) */
+export const NOT_PURCHASABLE_MESSAGE = '当前不可购买'
+
+/** 不可购买提示(独立导出便于冒烟 stub);SSR/异常环境静默跳过 */
+export function notifyNotPurchasable(): void {
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.alert === 'function'
+  ) {
+    window.alert(NOT_PURCHASABLE_MESSAGE)
+  }
 }
 
 /** C4:重复加购 confirm 文案 */
@@ -79,18 +91,22 @@ export function ShopBuyButtons({
   const siteId = useShopSiteId()
   const trimmedSku = (sku || '').trim()
   const trimmedBuyUrl = (buyUrl || '').trim()
-  const productUrl =
-    trimmedBuyUrl || (trimmedSku ? buildProductUrl(getStoreUrl(), trimmedSku) : '')
+  // P18C45FIX B1:购买只认 buyUrl,无 url 即不可购(不再用 sku 兜底拼链接)
+  const productUrl = trimmedBuyUrl
   const canBuy = Boolean(productUrl)
   const canAddCart = Boolean(trimmedSku)
   const cartQty = useShopCartSkuQty(siteId, trimmedSku)
-  if (!canBuy && !canAddCart) return null
+  // B1:按钮始终渲染(shop 卡片保持商品式样,普通文章也显示,点击提示不可购买)
   const isBar = variant === 'bar'
   const added = canAddCart && cartQty > 0
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    if (!canAddCart) {
+      notifyNotPurchasable()
+      return
+    }
     addWithDuplicateConfirm(siteId, { sku: trimmedSku, qty: 1, name, price })
   }
 
@@ -98,45 +114,46 @@ export function ShopBuyButtons({
     // 卡片内不使用 <a>,点击时手动新标签打开并阻止外层卡片导航
     e.preventDefault()
     e.stopPropagation()
+    if (!canBuy) {
+      notifyNotPurchasable()
+      return
+    }
     window.open(productUrl, '_blank', 'noopener,noreferrer')
   }
 
   // P18-C4-4 批2:卡片底栏图标形态——闪电「立即购买」(C2,黑底主按钮)+
-  // 加购图标按钮;加购持久状态(C3):已加入时绿色描边 + 勾图标,份数角标常驻
+  // 加购图标按钮;加购持久状态(C3):已加入时绿色描边 + 勾图标,份数角标常驻;
+  // P18C45FIX B1:两钮均始终渲染,不可购时点击提示
   if (!isBar) {
     return (
       <span className="flex items-center gap-1.5">
-        {canBuy ? (
-          <button
-            type="button"
-            aria-label="立即购买"
-            title="立即购买"
-            className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-900 text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-            onClick={handleBuyClick}
-          >
-            <FiZap className="h-4 w-4" aria-hidden />
-          </button>
-        ) : null}
-        {canAddCart ? (
-          <button
-            type="button"
-            aria-label={added ? `已加入购物车(×${cartQty})` : '加入购物车'}
-            className={classNames(
-              'relative grid h-8 w-8 place-items-center rounded-lg border transition-colors duration-200 ease-out',
-              added
-                ? 'border-green-600/60 bg-green-50 text-green-600 dark:border-green-400/50 dark:bg-green-400/10 dark:text-green-400'
-                : 'border-neutral-200 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white'
-            )}
-            onClick={handleAdd}
-          >
-            {added ? (
-              <FiCheck className="h-4 w-4" aria-hidden />
-            ) : (
-              <FiShoppingCart className="h-4 w-4" aria-hidden />
-            )}
-            <ShopCartSkuBadge sku={trimmedSku} />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          aria-label="立即购买"
+          title="立即购买"
+          className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-900 text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+          onClick={handleBuyClick}
+        >
+          <FiZap className="h-4 w-4" aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={added ? `已加入购物车(×${cartQty})` : '加入购物车'}
+          className={classNames(
+            'relative grid h-8 w-8 place-items-center rounded-lg border transition-colors duration-200 ease-out',
+            added
+              ? 'border-green-600/60 bg-green-50 text-green-600 dark:border-green-400/50 dark:bg-green-400/10 dark:text-green-400'
+              : 'border-neutral-200 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900 dark:border-white/15 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white'
+          )}
+          onClick={handleAdd}
+        >
+          {added ? (
+            <FiCheck className="h-4 w-4" aria-hidden />
+          ) : (
+            <FiShoppingCart className="h-4 w-4" aria-hidden />
+          )}
+          <ShopCartSkuBadge sku={trimmedSku} />
+        </button>
       </span>
     )
   }
@@ -163,15 +180,17 @@ export function ShopBuyButtons({
         >
           立即购买
         </a>
-      ) : null}
-      {canAddCart ? (
-        <button type="button" className={cartClass} onClick={handleAdd}>
-          <FiShoppingCart className="h-4 w-4" />
-          <span className={added ? 'text-green-600 dark:text-green-400' : undefined}>
-            {shopCartButtonLabel(cartQty)}
-          </span>
+      ) : (
+        <button type="button" className={buyClass} onClick={handleBuyClick}>
+          立即购买
         </button>
-      ) : null}
+      )}
+      <button type="button" className={cartClass} onClick={handleAdd}>
+        <FiShoppingCart className="h-4 w-4" />
+        <span className={added ? 'text-green-600 dark:text-green-400' : undefined}>
+          {shopCartButtonLabel(cartQty)}
+        </span>
+      </button>
     </div>
   )
 }
