@@ -149,7 +149,7 @@ function CardTagLine({ tags }: { tags: { id?: string; name: string }[] }) {
   if (tags.length === 0) {
     // 无 tag 固定占一行高度,保证卡片等高;B4:间距压缩为 mt-1
     return (
-      <div data-testid="shop-card-tags" aria-hidden="true" className="mt-1 h-6" />
+      <div data-testid="shop-card-tags" aria-hidden="true" className="mb-1.5 mt-1 h-6" />
     )
   }
   const hiddenCount =
@@ -267,7 +267,7 @@ export function ShopPostCard({ post, galleryCoverSrc }: ShopPostCardProps) {
             <div className="mb-1 h-4 truncate text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 md:mb-2">
               {category?.name ? `分类 · ${category.name}` : '\u00A0'}
             </div>
-            <h2 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-tight tracking-tight text-neutral-900 dark:text-white md:min-h-[3rem] md:text-base">
+            <h2 className="line-clamp-2 min-h-[2rem] text-sm font-bold leading-tight tracking-tight text-neutral-900 dark:text-white md:min-h-[2.25rem] md:text-base">
               {title}
             </h2>
 

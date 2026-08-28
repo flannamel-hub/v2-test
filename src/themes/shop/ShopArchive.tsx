@@ -106,9 +106,9 @@ export function ShopArchive({
           />
         </div>
 
-        {/* P18C45UI 批3:侧栏(248px 固定)+ 卡片区(flex-1)flex 布局,
-            随外层 max-w-6xl 容器整体居中;移动端纵向堆叠 */}
-        <div className="flex flex-col items-stretch gap-7 py-1.5 pb-9 lg:flex-row lg:items-start lg:justify-center">
+        {/* 布局修正(用户2026-08-28):侧栏贴容器最左;网格+页签整体在页面中线——
+            三列 grid [248px_1fr_248px],右侧空列使网格区域中心=页面中心 */}
+        <div className="grid grid-cols-1 items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr_248px]">
           <ShopCatalogSidebar
             categories={categories}
             tags={tags}
@@ -120,7 +120,7 @@ export function ShopArchive({
             onSearchQueryChange={setSearchQuery}
           />
 
-          <section className="min-w-0 flex-1" aria-label="商品列表">
+          <section className="min-w-0" aria-label="商品列表">
             {/* A2:视图切换按钮已移除(仅保留网格);工具条仅筛选中显示清除入口 */}
             {hasFilter ? (
               <div className="mb-4 flex min-h-8 items-center gap-3">

@@ -40,10 +40,7 @@ export function ShopProductBar({ post }: { post: Post }) {
           <FiShoppingBag className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <p className="text-xs font-bold text-green-700 dark:text-green-400">
-            关联商品
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span
               data-testid="shop-bar-product-name"
               title={productName}

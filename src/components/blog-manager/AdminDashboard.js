@@ -10405,12 +10405,10 @@ const [mounted, setMounted] = useState(false);
               {form.type !== 'Widget' ? (
               <div style={{marginTop:'12px'}}>
                 {form.linked_product_sku ? (
-                <div style={{marginBottom:'10px', padding:'12px 14px', borderRadius:'10px', border:'1px solid rgba(244,114,182,0.35)', background:'rgba(244,114,182,0.06)'}}>
-                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>已关联商品 <ShopOnlyTag /></label>
-                  <p style={{fontSize:'12px', color:'#e5e5e5', margin:'0 0 4px', lineHeight:1.5, wordBreak:'break-all'}}>商品码：{form.linked_product_sku}</p>
-                  <p style={{fontSize:'12px', color:'#9a9a9a', margin:'0 0 4px', lineHeight:1.5, wordBreak:'break-all'}}>链接：{form.linked_product_url || '—'}（只读，保存时自动更新）</p>
-                  <p style={{fontSize:'12px', color:'#9a9a9a', margin:'0 0 8px', lineHeight:1.5}}>价格：{form.linked_product_price || '—'}（只读，保存时自动更新）</p>
-                  <button type="button" onClick={()=>{ setFormDirty({...form, linked_product_sku: ''}); showAdminToast('已清除商品关联，保存后生效', 2600); }} style={{height:'28px', padding:'0 12px', borderRadius:'8px', cursor:'pointer', border:'1px solid #555', background:'transparent', color:'#aaa', fontSize:'12px'}}>清除关联</button>
+                <div style={{marginBottom:'10px', padding:'12px 14px', borderRadius:'10px', border:'1px solid rgba(59,130,246,0.35)', background:'rgba(59,130,246,0.06)'}}>
+                  <label style={{display:'block', fontSize:'11px', color:'#93c5fd', marginBottom:'6px'}}>已关联商品</label>
+                  <p style={{fontSize:'12px', color:'#e5e5e5', margin:'0 0 8px', lineHeight:1.5, wordBreak:'break-all'}}>商品码：{form.linked_product_sku}</p>
+                  <button type="button" onClick={()=>{ setFormDirty({...form, linked_product_sku: ''}); showAdminToast('已清除商品关联，保存后生效', 2600); }} style={{height:'32px', padding:'0 14px', borderRadius:'8px', cursor:'pointer', border:'1px solid rgba(239,68,68,0.6)', background:'rgba(239,68,68,0.12)', color:'#f87171', fontSize:'12px', fontWeight:'bold'}}>清除关联</button>
                 </div>
                 ) : null}
                 <button type="button" onClick={openProductLookupModal}
