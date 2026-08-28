@@ -73,7 +73,7 @@ export function ArticleProductBuyBar({
 
   const buyClass = isStandard
     ? 'rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
-    : 'rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-800 active:bg-neutral-900 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
+    : 'rounded-lg bg-blue-500 px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-blue-400 active:bg-blue-600 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400'
 
   const openNotPurchasable = () => {
     if (typeof window === 'undefined') return
