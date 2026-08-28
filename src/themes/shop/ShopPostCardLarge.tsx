@@ -69,22 +69,27 @@ export function ShopPostCardLarge({ post, galleryCoverSrc }: ShopPostCardLargePr
 
           {/* 信息区:单行(标题+价格+按钮),集成大卡底部 */}
           <div className="flex min-w-0 flex-col p-5 md:p-6">
-            {/* 单行:标题(truncate)+ ¥价格 + 立即购买 + 购物车 */}
-            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
-              <h2 className="min-w-0 flex-1 truncate text-lg font-bold leading-snug tracking-tight text-neutral-900 dark:text-white md:text-xl">
-                {title}
-              </h2>
-              <span
-                data-testid="shop-card-large-price"
-                className={classNames(
-                  'shrink-0 text-2xl font-extrabold leading-none tracking-tight md:text-3xl',
-                  linkedPrice
-                    ? 'text-white dark:text-white'
-                    : 'text-neutral-400 dark:text-neutral-500'
-                )}
-              >
-                {priceLabel}
-              </span>
+            {/* 单行:左(标题 · 价格)右(立即购买+购物车)——价格在标题旁,按钮组靠右 */}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <h2 className="min-w-0 truncate text-lg font-bold leading-snug tracking-tight text-neutral-900 dark:text-white md:text-xl">
+                  {title}
+                </h2>
+                <span className="shrink-0 text-neutral-400 dark:text-neutral-500" aria-hidden>
+                  ·
+                </span>
+                <span
+                  data-testid="shop-card-large-price"
+                  className={classNames(
+                    'shrink-0 text-2xl font-extrabold leading-none tracking-tight md:text-3xl',
+                    linkedPrice
+                      ? 'text-white dark:text-white'
+                      : 'text-neutral-400 dark:text-neutral-500'
+                  )}
+                >
+                  {priceLabel}
+                </span>
+              </div>
               <div className="flex shrink-0 items-center gap-2">
                 <ShopBuyButtons
                   variant="icon"
