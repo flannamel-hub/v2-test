@@ -91,7 +91,7 @@ export function ShopArchive({
   return (
     <>
       {/* P18C45UI 批3:容器由 7xl 收窄为 max-w-6xl 居中;内容区整体居中 */}
-      <div className="mx-auto w-full max-w-6xl px-4 pb-6 md:px-6">
+      <div className="mx-auto w-full max-w-[1180px] px-4 pb-6 md:px-6">
         {/* B3-①:居中大标题 + 副标题 + 分隔线(移除左对齐面包屑,按居中式规划) */}
         <div className="pb-2 pt-6 text-center md:pt-8">
           <h1 className="break-words text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white md:text-4xl">
@@ -106,9 +106,9 @@ export function ShopArchive({
           />
         </div>
 
-        {/* 布局修正(用户2026-08-28):侧栏贴容器最左;网格+页签整体在页面中线——
-            三列 grid [248px_1fr_248px],右侧空列使网格区域中心=页面中心 */}
-        <div className="grid grid-cols-1 items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr_248px]">
+        {/* 布局(用户2026-08-28终版):按独角数卡 Products.vue——容器 max-w-[1180px] 整体居中,
+            侧栏 248px + 网格 1fr(auto-fit→3 列),网格不再被右侧空列压缩 */}
+        <div className="grid grid-cols-1 items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr]">
           <ShopCatalogSidebar
             categories={categories}
             tags={tags}
