@@ -77,7 +77,7 @@ export function ShopBanner({
           loading="eager"
           onLoad={() => markLoaded(src)}
           className={classNames(
-            'absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out',
+            'absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ease-in-out',
             i === index ? 'opacity-100' : 'pointer-events-none opacity-0'
           )}
         />
