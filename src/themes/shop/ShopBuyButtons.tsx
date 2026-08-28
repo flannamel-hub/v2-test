@@ -1,5 +1,6 @@
-import React from 'react'
-import { FiCheck, FiShoppingCart, FiZap } from 'react-icons/fi'
+import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { FiCheck, FiShoppingCart } from 'react-icons/fi'
 import {
   addToCart,
   readCart,
@@ -14,8 +15,8 @@ import { useShopCartSkuQty } from './useShopCartSkuQty'
  * shop 主题购买动作按钮组(卡片/内页共用;P18-C2 建立,P18-C4-4 批2 C2~C4 强化)。
  *
  * - variant="bar"(文章页商品条,无外层 Link 包裹):「立即购买 / 加入购物车」按钮组。
- * - variant="icon"(卡片底栏,嵌在 PostNavLink 的 <a> 内):「立即购买」文字按钮
- *   (B3-⑤:⚡ 闪电 + 文字,黑底小号圆角,新窗口打开商品链接)+ 加购图标按钮
+ * - variant="icon"(卡片底栏,嵌在 PostNavLink 的 <a> 内):「立即购买」纯文字按钮
+ *   (P18C45UI B8:去图标,黑底小号圆角,新窗口打开商品链接)+ 加购图标按钮
  *   (右上角挂单 SKU 已购份数角标);均 stopPropagation 防触发外层卡片导航。
  * - 加购按钮持久状态(C3):读购物车真实数量(useShopCartSkuQty,localStorage
  *   持久 + 事件实时刷新),已加入时图标钮绿色描边+勾、bar 显示「已加入 ×N」,
@@ -23,14 +24,18 @@ import { useShopCartSkuQty } from './useShopCartSkuQty'
  * - 重复加购确认(C4):该 sku 已在购物车(qty>0)且再次点击时,先 window.confirm
  *   确认才累加;首次加购不弹。
  * - 立即购买:仅跳 buyUrl(P18-C4-5 保存联动写入 {STORE}/p/{sku} 或人工挂链);
- *   P18C45FIX B1:无 buyUrl(含仅存 sku 未查到商品)点击弹「当前不可购买」,
+ *   P18C45FIX B1:无 buyUrl(含仅存 sku 未查到商品)点击提示「当前不可购买」,
  *   不再用 sku 兜底拼 {storeUrl}/p/{sku}(url 为空即表示当前无有效购买信息)。
+ * - P18C45UI B2:不可购买提示由 window.alert 改为**页内轻提示 toast**——
+ *   createPortal 挂 document.body(卡片外壳 hover:-translate-y-1 是 transform,
+ *   直接原位渲染 fixed 会被压进卡片,参照购物车抽屉 C1 教训),底部居中小条,
+ *   2 秒自动消失,深浅色双适配;前台不引入 toast 库。
  */
 
 type ShopBuyButtonsProps = {
   /** 商品码(sku);加购/结算用,无则加购点击提示不可购买 */
   sku?: string | null
-  /** 购物车内展示名(文章标题/商品名) */
+  /** 购物车内展示名(商品名/文章标题) */
   name?: string
   price?: string | null
   /** 立即购买跳转链接(P18-C4-5 联动写入/人工挂链;为空时点击提示不可购买) */
@@ -38,18 +43,11 @@ type ShopBuyButtonsProps = {
   variant?: 'bar' | 'icon'
 }
 
-/** P18C45FIX B1:不可购买提示文案(前台无 toast 库,统一 window.alert) */
+/** P18C45FIX B1 / P18C45UI B2:不可购买提示文案(页内 toast,不再 window.alert) */
 export const NOT_PURCHASABLE_MESSAGE = '当前不可购买'
 
-/** 不可购买提示(独立导出便于冒烟 stub);SSR/异常环境静默跳过 */
-export function notifyNotPurchasable(): void {
-  if (
-    typeof window !== 'undefined' &&
-    typeof window.alert === 'function'
-  ) {
-    window.alert(NOT_PURCHASABLE_MESSAGE)
-  }
-}
+/** P18C45UI B2:不可购买 toast 显示时长(ms) */
+export const NOT_PURCHASABLE_TOAST_MS = 2000
 
 /** C4:重复加购 confirm 文案 */
 export function duplicateAddConfirmMessage(currentQty: number): string {
@@ -100,6 +98,39 @@ export function ShopBuyButtons({
   const isBar = variant === 'bar'
   const added = canAddCart && cartQty > 0
 
+  // P18C45UI B2:页内不可购买 toast(portal 到 body,2s 自动消失)
+  const [toastVisible, setToastVisible] = useState(false)
+  const [portalReady, setPortalReady] = useState(false)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    setPortalReady(true)
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current)
+    }
+  }, [])
+  const notifyNotPurchasable = () => {
+    if (typeof window === 'undefined') return
+    setToastVisible(true)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(
+      () => setToastVisible(false),
+      NOT_PURCHASABLE_TOAST_MS
+    )
+  }
+  const toastNode =
+    portalReady && toastVisible
+      ? createPortal(
+          <div
+            role="status"
+            data-testid="shop-not-purchasable-toast"
+            className="pointer-events-none fixed bottom-10 left-1/2 z-[70] -translate-x-1/2 whitespace-nowrap rounded-lg bg-neutral-900/90 px-4 py-2 text-xs font-semibold text-white shadow-lg dark:bg-white/90 dark:text-black"
+          >
+            {NOT_PURCHASABLE_MESSAGE}
+          </div>,
+          document.body
+        )
+      : null
+
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -121,8 +152,8 @@ export function ShopBuyButtons({
     window.open(productUrl, '_blank', 'noopener,noreferrer')
   }
 
-  // P18-C4-4 批2 + P18C45FIX 批3(B3-⑤):卡片底栏形态——「立即购买」文字按钮
-  // (⚡ 闪电 + 文字,黑底小号圆角)+ 加购图标按钮(份数角标);
+  // P18-C4-4 批2 + P18C45FIX 批3 + P18C45UI 批1(B8):卡片底栏形态——
+  // 「立即购买」纯文字按钮(去图标,黑底小号圆角)+ 加购图标按钮(份数角标);
   // 加购持久状态(C3):已加入时绿色描边 + 勾图标,份数角标常驻;
   // P18C45FIX B1:两钮均始终渲染,不可购时点击提示
   if (!isBar) {
@@ -132,10 +163,9 @@ export function ShopBuyButtons({
           type="button"
           aria-label="立即购买"
           title="立即购买"
-          className="flex h-8 items-center gap-1 rounded-lg bg-neutral-900 px-2.5 text-xs font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+          className="flex h-8 items-center rounded-lg bg-neutral-900 px-2.5 text-xs font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
           onClick={handleBuyClick}
         >
-          <FiZap className="h-3.5 w-3.5" aria-hidden />
           立即购买
         </button>
         <button
@@ -156,6 +186,7 @@ export function ShopBuyButtons({
           )}
           <ShopCartSkuBadge sku={trimmedSku} />
         </button>
+        {toastNode}
       </span>
     )
   }
@@ -193,6 +224,7 @@ export function ShopBuyButtons({
           {shopCartButtonLabel(cartQty)}
         </span>
       </button>
+      {toastNode}
     </div>
   )
 }

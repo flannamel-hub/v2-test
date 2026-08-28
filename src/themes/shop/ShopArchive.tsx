@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react'
-import { FiGrid, FiList, FiPackage } from 'react-icons/fi'
-import { PaginationSection } from '@/src/components/section/PaginationSection'
+import { FiPackage } from 'react-icons/fi'
 import { getCategoriesInfo } from '@/src/lib/blog/format/category'
 import { getTagsInfo } from '@/src/lib/blog/format/tag'
 import { Page, Post } from '@/src/types/blog'
 import { ShopCatalogSidebar } from './ShopCatalogSidebar'
+import { ShopPagination } from './ShopPagination'
 import { ShopPostCard } from './ShopPostCard'
 
 type ShopArchiveProps = {
@@ -28,10 +28,13 @@ const CLEAR_BUTTON =
  * `grid items-start gap-7 py-1.5 pb-9 lg:grid-cols-[248px_1fr]` 双栏——
  * 左 248px sticky 侧栏(B3-② 独角数卡卡片式:搜索 + 分类按钮蓝色高亮 + 标签栏增强
  * + 移动端横向 chips);
- * 右侧文章卡流式网格 `auto-fill minmax(228px,1fr)`(替代固定列),工具条不显示篇数;
- * 未筛选时保留现有 /archive/[page] 服务端分页(PaginationSection);
+ * 右侧文章卡流式网格 `auto-fit minmax(228px,1fr)`(P18C45UI A3:空轨道折叠,
+ * 行内不留尾部空档,网格各行列对齐区域中线);
+ * 未筛选时保留现有 /archive/[page] 服务端分页(P18C45UI A1:弃用 standard
+ * PaginationSection,改 ShopPagination 独角数卡式圆角页签,当前页蓝色高亮);
  * 分类/标签/搜索组合筛选时对全量文章过滤并隐藏分页。
  * P18-C4-4B 起原 ShopCatalogSection 独立组件合并进本文件。
+ * P18C45UI A2:移除网格/列表视图切换按钮,仅保留网格视图。
  */
 export function ShopArchive({
   items,
@@ -47,7 +50,6 @@ export function ShopArchive({
   )
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [layout, setLayout] = useState<'grid' | 'list'>('grid')
 
   const categories = useMemo(() => getCategoriesInfo(allPosts), [allPosts])
   const tags = useMemo(() => getTagsInfo(allPosts), [allPosts])
@@ -116,41 +118,14 @@ export function ShopArchive({
           />
 
           <section className="min-w-0" aria-label="商品列表">
-            <div className="mb-4 flex min-h-8 items-center justify-between gap-3">
-              {/* A2:工具条不显示「共 X 篇」等篇数,仅保留筛选清除入口 */}
-              <div className="flex min-w-0 items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
-                {hasFilter ? (
-                  <button type="button" onClick={clearFilters} className={CLEAR_BUTTON}>
-                    清除筛选
-                  </button>
-                ) : null}
+            {/* A2:视图切换按钮已移除(仅保留网格);工具条仅筛选中显示清除入口 */}
+            {hasFilter ? (
+              <div className="mb-4 flex min-h-8 items-center gap-3">
+                <button type="button" onClick={clearFilters} className={CLEAR_BUTTON}>
+                  清除筛选
+                </button>
               </div>
-              {visiblePosts.length > 0 ? (
-                <div className="flex shrink-0 items-center gap-1 rounded-xl border border-neutral-200 p-1 dark:border-white/10">
-                  {(
-                    [
-                      { id: 'grid', icon: FiGrid, label: '网格视图' },
-                      { id: 'list', icon: FiList, label: '列表视图' },
-                    ] as const
-                  ).map(({ id, icon: Icon, label }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      aria-label={label}
-                      onClick={() => setLayout(id)}
-                      className={
-                        'grid h-7 w-7 place-items-center rounded-lg transition-colors duration-200 ease-out ' +
-                        (layout === id
-                          ? 'bg-neutral-900 text-white dark:bg-white dark:text-black'
-                          : 'text-neutral-400 hover:text-neutral-900 dark:hover:text-white')
-                      }
-                    >
-                      <Icon className="h-4 w-4" aria-hidden />
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            ) : null}
 
             {visiblePosts.length === 0 ? (
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-neutral-300 py-16 text-center dark:border-neutral-700">
@@ -167,23 +142,14 @@ export function ShopArchive({
                   </button>
                 ) : null}
               </div>
-            ) : layout === 'grid' ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(228px,1fr))] items-stretch gap-4">
-                {visiblePosts.map((post) => (
-                  <ShopPostCard
-                    key={post.id}
-                    post={post}
-                    galleryCoverSrc={galleryFeedCovers?.[post.slug] ?? null}
-                  />
-                ))}
-              </div>
             ) : (
-              <div className="flex flex-col gap-4">
+              /* A3:auto-fit 空轨道折叠——不足整行的尾行卡片均分整行宽度,
+                  不再左侧偏排留右侧空档,网格各行对齐区域中线 */
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(228px,1fr))] items-stretch gap-4">
                 {visiblePosts.map((post) => (
                   <ShopPostCard
                     key={post.id}
                     post={post}
-                    variant="list"
                     galleryCoverSrc={galleryFeedCovers?.[post.slug] ?? null}
                   />
                 ))}
@@ -191,11 +157,11 @@ export function ShopArchive({
             )}
 
             {!hasFilter && pageCount !== 0 ? (
-              <PaginationSection
+              <ShopPagination
+                ariaLabel="商品分页"
                 currentPage={currentPage}
-                currentQuery={{}}
                 totalPages={pageCount}
-                basePath="archive"
+                hrefForPage={(p) => (p <= 1 ? '/archive' : `/archive/${p}`)}
               />
             ) : null}
           </section>
