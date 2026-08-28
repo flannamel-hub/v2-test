@@ -88,6 +88,7 @@ export function ShopBuyButtons({
   price,
   buyUrl,
   variant = 'icon',
+  size = 'sm',
 }: ShopBuyButtonsProps) {
   const siteId = useShopSiteId()
   const trimmedSku = (sku || '').trim()
