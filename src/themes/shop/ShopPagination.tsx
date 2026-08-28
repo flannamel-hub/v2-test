@@ -26,6 +26,31 @@ export function getShopPageWindow(
   return pages
 }
 
+/**
+ * P18-C4-7 修正7:「省略号式」分页项(样式不变)——首尾页常驻 + 窗口(±2 最多 5 个)
+ * + 省略号。返回值类型:数字=页签,'ellipsis'=省略号节点。
+ * 例如 total=100,current=6 → [1,'ellipsis',4,5,6,7,8,'ellipsis',100]
+ */
+export function getShopPageItems(
+  currentPage: number,
+  totalPages: number
+): (number | 'ellipsis')[] {
+  const windowPages = getShopPageWindow(currentPage, totalPages)
+  const winFirst = windowPages[0]
+  const winLast = windowPages[windowPages.length - 1]
+  const items: (number | 'ellipsis')[] = []
+  if (winFirst > 1) {
+    items.push(1)
+    if (winFirst > 2) items.push('ellipsis')
+  }
+  items.push(...windowPages)
+  if (winLast < totalPages) {
+    if (winLast < totalPages - 1) items.push('ellipsis')
+    items.push(totalPages)
+  }
+  return items
+}
+
 /** A1:分页圆角按钮基样式(独角数卡 products 分页胶囊) */
 export const SHOP_PAGE_BUTTON_BASE =
   'grid h-10 min-w-[40px] place-items-center rounded-full border px-3 transition-colors duration-200 ease-out'
@@ -96,25 +121,33 @@ export function ShopPagination({
         </button>
       )}
 
-      {getShopPageWindow(currentPage, totalPages).map((p) =>
-        hrefForPage ? (
-          <Link
-            key={p}
-            href={hrefForPage(p)}
-            aria-current={p === currentPage ? 'page' : undefined}
-            className={pageClass(p === currentPage)}
+      {getShopPageItems(currentPage, totalPages).map((item) =>
+        item === 'ellipsis' ? (
+          <span
+            key={`e-${item}`}
+            className="grid h-10 min-w-[32px] place-items-center px-1 text-sm text-neutral-400 dark:text-neutral-500"
+            aria-hidden
           >
-            {p}
+            …
+          </span>
+        ) : hrefForPage ? (
+          <Link
+            key={item}
+            href={hrefForPage(item)}
+            aria-current={item === currentPage ? 'page' : undefined}
+            className={pageClass(item === currentPage)}
+          >
+            {item}
           </Link>
         ) : (
           <button
-            key={p}
+            key={item}
             type="button"
-            aria-current={p === currentPage ? 'page' : undefined}
-            className={pageClass(p === currentPage)}
-            onClick={() => onPageChange?.(p)}
+            aria-current={item === currentPage ? 'page' : undefined}
+            className={pageClass(item === currentPage)}
+            onClick={() => onPageChange?.(item)}
           >
-            {p}
+            {item}
           </button>
         )
       )}
