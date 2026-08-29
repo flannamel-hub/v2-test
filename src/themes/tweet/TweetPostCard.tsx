@@ -14,10 +14,10 @@ import {
 /**
  * P18TWEETCARD:卡片头部重制(参照早期版本)
  * 行1 = 标题(大字,左) + 日期(右 muted 小字,baseline 对齐);
- * 行2 = Tags(暖色板 chips,标题下方,最多 TAG_ROW_MAX 个 + "+N" 折叠);
+ * 行2 = Tags(暖色板 chips,标题下方,全部显示不折叠);
  * 无站名/无头像/无徽章。
  */
-const TAG_ROW_MAX = 2
+// 全部显示,不折叠(用户 2026-08-29)
 
 type TweetPostCardProps = {
   post: Post
@@ -36,8 +36,6 @@ export function TweetPostCard({
   const lazyBodyCover = isDeferredTweetBodyImage(post.slug, feedMedia)
   const showMedia = media.mode !== 'none' || lazyBodyCover
   const postHref = `/post/${post.slug}`
-  const visibleTags = tags.slice(0, TAG_ROW_MAX)
-  const overflowCount = tags.length - visibleTags.length
 
   return (
     <article className="tweet-post-card">
@@ -58,7 +56,7 @@ export function TweetPostCard({
 
             {tags.length > 0 ? (
               <div className="tweet-post-card__tags-row">
-                {visibleTags.map((tag) => (
+                {tags.map((tag) => (
                   <span
                     key={tag.id}
                     className="tweet-post-card__tag"
@@ -67,11 +65,6 @@ export function TweetPostCard({
                     {tag.name}
                   </span>
                 ))}
-                {overflowCount > 0 ? (
-                  <span className="tweet-post-card__tags-more">
-                    +{overflowCount}
-                  </span>
-                ) : null}
               </div>
             ) : null}
 
