@@ -224,7 +224,9 @@ export function buildCheckoutUrl(
   const itemsParam = items
     .map((item) => {
       const price = parseItemPrice(item.price)
-      return `${item.sku.trim()}:${Math.max(1, Math.round(item.qty) || 1)}${price != null ? `:${price}` : ''}`
+      const name = (item.name || '').trim().slice(0, 24).replace(/[,:;&]/g, ' ')
+      const namePart = name ? `:${encodeURIComponent(name)}` : ''
+      return `${item.sku.trim()}:${Math.max(1, Math.round(item.qty) || 1)}${price != null ? `:${price}` : ''}${namePart}`
     })
     .join(',')
   const title = (siteTitle || '').trim()
