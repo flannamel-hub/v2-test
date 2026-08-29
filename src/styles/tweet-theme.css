@@ -1128,116 +1128,52 @@ html.tweet-theme.dark .tweet-post-card:hover .tweet-post-card__shell {
 }
 
 .tweet-post-card__body {
-  padding: 0 0.875rem 0.75rem;
+  padding: 0.875rem 0.875rem 0.75rem;
 }
 
-.tweet-post-card__author {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.875rem 0.875rem 0.5rem;
-}
+/* P18TWEETCARD:卡片无站名/头像/徽章(author 系列样式随 TweetPostCardAuthor 组件一并移除) */
 
-.tweet-post-card__author-avatar-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  flex-shrink: 0;
-  border-radius: 9999px;
-  overflow: hidden;
-  background-color: var(--tweet-gray5);
-}
-
-.tweet-post-card__author-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background-color: transparent;
-}
-
-.tweet-post-card__author-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--tweet-gray5);
-  color: var(--tweet-gray9);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.tweet-post-card__author-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem;
-  min-width: 0;
-  flex: 1;
-}
-
-.tweet-post-card__author-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 600;
-  color: var(--tweet-gray12);
-}
-
-/* P18TWEETFIX2-3:标题行 = 标题(左) + Tags(贴标题后) + 日期(行尾右,仅一行) */
-.tweet-post-card__title-tags {
-  display: inline-flex;
-  align-items: center;
-  align-self: center;
-  flex-shrink: 0;
-  gap: 0.25rem;
-  max-width: 50%;
-  padding-left: 0.5rem;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.tweet-post-card__title-tag {
-  padding: 0.125rem 0.5rem;
-  font-size: 0.6875rem;
-  line-height: 1rem;
-  white-space: nowrap;
-}
-
-.tweet-post-card__title-tag-more {
-  flex-shrink: 0;
-  font-size: 0.6875rem;
-  line-height: 1rem;
-  font-weight: 500;
-  color: var(--tweet-muted);
-  white-space: nowrap;
-}
-
-/* P18TWEETFIX2-3:标题行 = 标题(左) + Tags(贴标题后) + 日期(行尾右,仅一行) */
+/* P18TWEETCARD:标题行 = 标题(大字,左,可换行) + 日期(行尾右,baseline 对齐) */
 .tweet-post-card__title-row {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
 }
 
 .tweet-post-card__title {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  font-weight: 500;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
   color: var(--tweet-gray12);
+  overflow-wrap: break-word;
 }
 
-/* P18TWEETFIX2-3:日期移到标题行行尾 */
 .tweet-post-card__date {
   flex-shrink: 0;
   margin-left: auto;
   font-size: 0.75rem;
   line-height: 1.25rem;
+  color: var(--tweet-muted);
+  white-space: nowrap;
+}
+
+/* P18TWEETCARD:Tags 独占行2(标题下方,允许换行折叠 +N;暖色板变量不变) */
+.tweet-post-card__tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.625rem;
+}
+
+.tweet-post-card__tags-more {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  font-weight: 500;
   color: var(--tweet-muted);
   white-space: nowrap;
 }
@@ -1351,7 +1287,7 @@ html.tweet-theme:not(.dark) .tweet-avatar__img {
 }
 
 /* P18TWEET-4 卡片 tag 暖色系色板:浅色主题奶油底+深色墨字,深色主题淡色底+低饱和白字 */
-/* P18TWEETFIX2:卡片 tags 现位于行2 标题右侧(.tweet-post-card__title-tags) */
+/* P18TWEETCARD:卡片 tags 位于行2 标题下方(.tweet-post-card__tags-row) */
 .tweet-post-card__tag {
   display: inline-flex;
   align-items: center;
