@@ -242,10 +242,12 @@ html.tweet-theme ul {
   grid-column: span 3 / span 3;
 }
 
-/* P18TWEET-7 滚动协同:sticky 移到中间层,inner 按页面滚动进度 JS 位移 */
+/* P18TWEETFIX 滚动修正:右栏纯 CSS sticky 固定 + 栏内可见滚动(移除 JS translateY 位移) */
 .tweet-feed__right-sticky {
   position: sticky;
   top: var(--tweet-sticky-top);
+  display: flex;
+  flex-direction: column;
   max-height: calc(100vh - var(--tweet-sticky-top));
   max-height: calc(100dvh - var(--tweet-sticky-top));
 }
@@ -254,7 +256,27 @@ html.tweet-theme ul {
   display: flex;
   flex-direction: column;
   gap: 0;
-  will-change: transform;
+  overflow-y: auto;
+  overscroll-behavior: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tweet-gray7) transparent;
+}
+
+.tweet-feed__right-inner::-webkit-scrollbar {
+  width: 0.375rem;
+}
+
+.tweet-feed__right-inner::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tweet-feed__right-inner::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: var(--tweet-gray7);
+}
+
+.tweet-feed__right-inner::-webkit-scrollbar-thumb:hover {
+  background-color: var(--tweet-gray8);
 }
 
 @media (min-width: 1024px) {
@@ -1168,101 +1190,67 @@ html.tweet-theme.dark .tweet-post-card:hover .tweet-post-card__shell {
 }
 
 .tweet-post-card__author-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 600;
   color: var(--tweet-gray12);
 }
 
-.tweet-post-card__author-badge {
+/* P18TWEETFIX 卡片头重构:Tags 移入行1右侧(原站长/分类徽章位置),单行截断 +N */
+.tweet-post-card__header-tags {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+  gap: 0.25rem;
+  max-width: 70%;
+  margin-left: auto;
+  padding-left: 0.5rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tweet-post-card__header-tag {
   padding: 0.125rem 0.5rem;
-  border-radius: 9999px;
-  font-size: 0.625rem;
-  line-height: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: #c4b5fd;
-  background: linear-gradient(
-    135deg,
-    rgba(122, 105, 249, 0.22),
-    rgba(242, 99, 120, 0.14)
-  );
-  border: 1px solid rgba(122, 105, 249, 0.38);
-}
-
-html.tweet-theme.dark .tweet-post-card__author-badge {
-  color: #ddd6fe;
-  border-color: rgba(167, 139, 250, 0.45);
-}
-
-/* P18TWEET-3 分类胶囊:tweetCategoryColor 色板 + 加大内距/全圆角/加粗/细描边/内光 */
-.tweet-post-card__category {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.1875rem 0.625rem;
-  border-radius: 9999px;
   font-size: 0.6875rem;
-  line-height: 1.125rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--tweet-gray12);
-  background-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.8);
-  border: 1px solid rgb(var(--tweet-cat-rgb, 226 232 240) / 0.95);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease,
-    border-color 0.15s ease;
+  line-height: 1rem;
+  white-space: nowrap;
 }
 
-.tweet-post-card__category:hover {
-  color: var(--tweet-gray12);
-  background-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.95);
-  border-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 1);
+.tweet-post-card__header-tag-more {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 500;
+  color: var(--tweet-muted);
+  white-space: nowrap;
 }
 
-html.tweet-theme.dark .tweet-post-card__category {
-  color: var(--tweet-gray12);
-  background-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.22);
-  border-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.45);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-html.tweet-theme.dark .tweet-post-card__category:hover {
-  background-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.32);
-  border-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.6);
+/* P18TWEETFIX:标题行 = 标题(左) + 日期(右),发布时间对齐标题行 */
+.tweet-post-card__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
 }
 
 .tweet-post-card__title {
-  margin-bottom: 0.25rem;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 1rem;
   line-height: 1.5rem;
   font-weight: 500;
   color: var(--tweet-gray12);
 }
 
-.tweet-post-card__author-actions {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
-  margin-left: auto;
-  padding-left: 0.5rem;
-}
-
 .tweet-post-card__date {
+  flex-shrink: 0;
   font-size: 0.75rem;
   line-height: 1.25rem;
   color: var(--tweet-muted);
   white-space: nowrap;
-}
-
-.tweet-post-card__author-actions .tweet-post-card__share-trigger {
-  padding: 0.125rem 0.375rem 0.125rem 0.25rem;
 }
 
 .tweet-post-card__excerpt {
@@ -1351,89 +1339,6 @@ html.tweet-theme.dark .tweet-post-card__category:hover {
   color: var(--tweet-gray12);
 }
 
-.tweet-post-card__share {
-  position: relative;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.tweet-post-card__share-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.5rem 0.25rem 0.375rem;
-  border: none;
-  border-radius: 9999px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-  font-weight: 500;
-  color: var(--tweet-muted);
-  background-color: transparent;
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.tweet-post-card__share-trigger:hover {
-  color: var(--tweet-gray12);
-  background-color: var(--tweet-gray4);
-}
-
-.tweet-post-card__share-icon {
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-}
-
-.tweet-post-card__share-pop {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.375rem);
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: min(18rem, calc(100vw - 2rem));
-  padding: 0.625rem;
-  border-radius: 0.5rem;
-  background-color: var(--tweet-card-bg);
-  border: 1px solid var(--tweet-gray6);
-  box-shadow:
-    0 10px 24px -8px rgba(0, 0, 0, 0.35),
-    0 4px 8px -4px rgba(0, 0, 0, 0.2);
-}
-
-.tweet-post-card__share-input {
-  width: 100%;
-  padding: 0.375rem 0.5rem;
-  border: 1px solid var(--tweet-gray6);
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-  color: var(--tweet-gray12);
-  background-color: var(--tweet-gray3);
-  box-sizing: border-box;
-}
-
-.tweet-post-card__share-copy {
-  align-self: flex-end;
-  padding: 0.375rem 0.75rem;
-  border: none;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-  font-weight: 500;
-  color: var(--tweet-gray1);
-  background-color: var(--tweet-gray12);
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-
-.tweet-post-card__share-copy:hover {
-  opacity: 0.88;
-}
-
 /* 站点 Logo 常见带黑/白底方形图：blend 去掉底色，露出卡片背景 */
 .tweet-avatar__img {
   display: block;
@@ -1456,14 +1361,8 @@ html.tweet-theme:not(.dark) .tweet-avatar__img {
   object-fit: cover;
 }
 
-.tweet-post-card__tags {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.25rem;
-}
-
 /* P18TWEET-4 卡片 tag 暖色系色板:浅色主题奶油底+深色墨字,深色主题淡色底+低饱和白字 */
+/* P18TWEETFIX:卡片底部 tags 行已移至卡片头行1右侧(.tweet-post-card__header-tags) */
 .tweet-post-card__tag {
   display: inline-flex;
   align-items: center;
@@ -1929,12 +1828,6 @@ html.tweet-theme.tweet-theme--light .tweet-service__card {
   background-color: #ffffff;
 }
 
-html.tweet-theme.tweet-theme--light .tweet-post-card__author-badge {
-  color: #6d28d9;
-  background: rgba(124, 58, 237, 0.1);
-  border-color: rgba(109, 40, 217, 0.28);
-}
-
 html.tweet-theme.tweet-theme--light .tweet-profile-mobile--toggle:hover {
   background-color: #eff3f4;
 }
@@ -1972,15 +1865,6 @@ html.tweet-theme.tweet-theme--light .tweet-service__link:hover {
 html.tweet-theme.tweet-theme--light .tweet-service__link:hover .tweet-service__name,
 html.tweet-theme.tweet-theme--light .tweet-service__link:hover .tweet-service__icon {
   color: #0f1419;
-}
-
-html.tweet-theme.tweet-theme--light .tweet-post-card__share-pop {
-  border-color: #eff3f4;
-}
-
-html.tweet-theme.tweet-theme--light .tweet-post-card__share-input {
-  background-color: #f7f9f9;
-  border-color: #eff3f4;
 }
 
 html.tweet-theme.tweet-theme--light .tweet-feed-header__dropdown {
@@ -2070,16 +1954,6 @@ html.tweet-theme.tweet-theme--dark .tweet-tags__item[data-active='true'] {
 
 html.tweet-theme.tweet-theme--dark .tweet-service__link:hover {
   background-color: #16181c;
-}
-
-html.tweet-theme.tweet-theme--dark .tweet-post-card__share-pop {
-  border-color: #2f3336;
-  background-color: #000000;
-}
-
-html.tweet-theme.tweet-theme--dark .tweet-post-card__share-input {
-  background-color: #202327;
-  border-color: #2f3336;
 }
 
 html.tweet-theme.tweet-theme--dark .tweet-feed-header__dropdown {

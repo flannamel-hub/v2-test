@@ -10,7 +10,6 @@ import {
   isDeferredTweetBodyImage,
   resolveTweetCardMedia,
 } from './tweetFeedMedia'
-import { tweetTagCssVars } from './tweetTagColor'
 
 type TweetPostCardProps = {
   post: Post
@@ -23,8 +22,6 @@ export function TweetPostCard({
   profile,
   feedMedia,
 }: TweetPostCardProps) {
-  const categoryName = post.category?.name?.trim()
-  const categoryId = post.category?.id
   const tags = post.tags?.filter((t) => t.name) ?? []
   const dateLabel = formatTweetDate(post.date?.created)
   const excerpt = post.excerpt?.trim()
@@ -36,17 +33,17 @@ export function TweetPostCard({
   return (
     <article className="tweet-post-card">
       <div className="tweet-post-card__shell">
-        <TweetPostCardAuthor
-          profile={profile}
-          categoryName={categoryName}
-          categoryId={categoryId}
-          dateLabel={dateLabel}
-          dateTime={post.date?.created}
-          slug={post.slug}
-        />
+        <TweetPostCardAuthor profile={profile} tags={tags} />
         <PostNavLink href={postHref} navKey={post.slug} className="tweet-post-card__article">
           <div className="tweet-post-card__body">
-            <h2 className="tweet-post-card__title">{post.title}</h2>
+            <div className="tweet-post-card__title-row">
+              <h2 className="tweet-post-card__title">{post.title}</h2>
+              {dateLabel ? (
+                <time className="tweet-post-card__date" dateTime={post.date?.created}>
+                  {dateLabel}
+                </time>
+              ) : null}
+            </div>
 
             {excerpt ? (
               <p className="tweet-post-card__excerpt">{excerpt}</p>
@@ -59,20 +56,6 @@ export function TweetPostCard({
                 ) : (
                   <TweetPostCardCoverLazy slug={post.slug} />
                 )}
-              </div>
-            ) : null}
-
-            {tags.length > 0 ? (
-              <div className="tweet-post-card__tags">
-                {tags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="tweet-post-card__tag"
-                    style={tweetTagCssVars(tag.name)}
-                  >
-                    {tag.name}
-                  </span>
-                ))}
               </div>
             ) : null}
           </div>

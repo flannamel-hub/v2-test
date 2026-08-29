@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react'
 import { ProPlusCreateButton } from '@/src/components/nav/ProPlusCreateButton'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import { isTweetThemeVariantLocked } from '@/src/themes/tweet/tweetTheme'
-import { TweetAsideScrollSync } from './TweetAsideScrollSync'
 
 type TweetHeaderProps = {
   siteName: string
@@ -76,12 +75,9 @@ export function TweetFeedGrid({
           </aside>
           <div className="tweet-feed__mid">{children}</div>
           <aside className="tweet-feed__right">
-            <TweetAsideScrollSync
-              stickyClassName="tweet-feed__right-sticky"
-              innerClassName="tweet-feed__right-inner"
-            >
-              {rightAside}
-            </TweetAsideScrollSync>
+            <div className="tweet-feed__right-sticky">
+              <div className="tweet-feed__right-inner">{rightAside}</div>
+            </div>
           </aside>
         </div>
       </main>
