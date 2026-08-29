@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ProPlusCreateButton } from '@/src/components/nav/ProPlusCreateButton'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import { isTweetThemeVariantLocked } from '@/src/themes/tweet/tweetTheme'
+import { useTweetSidebarScrollChain } from '@/src/themes/tweet/useTweetSidebarScrollChain'
 
 type TweetHeaderProps = {
   siteName: string
@@ -65,6 +66,10 @@ export function TweetFeedGrid({
   rightAside?: React.ReactNode
   children: React.ReactNode
 }) {
+  // P18TWEETSCROLL:右栏滚动接力(文档到底后滚轮转右栏;上滚先回顶再恢复文档)
+  const rightInnerRef = useRef<HTMLDivElement | null>(null)
+  useTweetSidebarScrollChain(rightInnerRef)
+
   return (
     <>
       <TweetHeader siteName={siteName} />
@@ -76,7 +81,9 @@ export function TweetFeedGrid({
           <div className="tweet-feed__mid">{children}</div>
           <aside className="tweet-feed__right">
             <div className="tweet-feed__right-sticky">
-              <div className="tweet-feed__right-inner">{rightAside}</div>
+              <div className="tweet-feed__right-inner" ref={rightInnerRef}>
+                {rightAside}
+              </div>
             </div>
           </aside>
         </div>
