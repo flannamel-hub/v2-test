@@ -3,7 +3,6 @@ import { ProfileWidgetType } from '@/src/lib/blog/format/widget/profile'
 import { TweetFeedMediaMap } from '@/src/lib/tweet/loadTweetFeedMedia'
 import { Post } from '@/src/types/blog'
 import { formatTweetDate } from './tweetSearch'
-import { TweetPostCardAuthor } from './TweetPostCardAuthor'
 import { TweetPostCardCoverLazy } from './TweetPostCardCoverLazy'
 import { TweetPostCardMedia } from './TweetPostCardMedia'
 import { tweetTagCssVars } from './tweetTagColor'
@@ -39,11 +38,6 @@ export function TweetPostCard({
   return (
     <article className="tweet-post-card">
       <div className="tweet-post-card__shell">
-        <TweetPostCardAuthor
-          profile={profile}
-          dateIso={post.date?.created}
-          dateLabel={dateLabel}
-        />
         <PostNavLink href={postHref} navKey={post.slug} className="tweet-post-card__article">
           <div className="tweet-post-card__body">
             <div className="tweet-post-card__title-row">
@@ -65,6 +59,14 @@ export function TweetPostCard({
                     </span>
                   ) : null}
                 </div>
+              ) : null}
+              {dateLabel ? (
+                <time
+                  className="tweet-post-card__date tweet-post-card__author-date"
+                  dateTime={post.date?.created}
+                >
+                  {dateLabel}
+                </time>
               ) : null}
             </div>
 
