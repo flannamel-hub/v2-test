@@ -84,7 +84,7 @@ export function ArticleProductBuyBar({
   // hover 蓝底填充 + 箭头右移;rounded-[11px];8.5em × 2.9em;600ms ease
   const buyClass = isStandard
     ? 'rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
-    : 'group relative inline-flex h-[2.9em] w-[8.5em] items-center justify-center gap-2 rounded-[11px] border-2 border-[#3654ff] bg-transparent text-sm font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)] transition-all duration-[600ms] ease-out hover:bg-[#3654ff]'
+    : 'group relative inline-flex h-[2.9em] w-[8.5em] items-center justify-center gap-2 rounded-[11px] border-2 border-[#3654ff] bg-transparent text-base font-bold leading-none text-white [text-shadow:0_0_2px_rgba(0,0,0,0.5)] transition-all duration-[600ms] ease-out hover:bg-[#3654ff]'
 
   const openNotPurchasable = () => {
     if (typeof window === 'undefined') return
