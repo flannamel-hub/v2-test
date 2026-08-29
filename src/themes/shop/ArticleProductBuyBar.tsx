@@ -84,9 +84,9 @@ export function ArticleProductBuyBar({
   // hover 蓝底填充 + 箭头右移;rounded-[11px];8.5em × 2.9em;600ms ease
   const buyClass = isStandard
     ? 'rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 ease-out hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
-    : 'group relative inline-flex h-[2.9em] w-[8.5em] items-center justify-end rounded-[11px] border-2 border-[#3654ff] bg-transparent pr-[2.9em] text-sm font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)] transition-all duration-[600ms] ease-out hover:bg-[#3654ff]'
+    : 'group relative inline-flex h-[2.9em] w-[8.5em] items-center justify-center gap-2 rounded-[11px] border-2 border-[#3654ff] bg-transparent text-sm font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)] transition-all duration-[600ms] ease-out hover:bg-[#3654ff]'
 
-  /** 箭头 SVG(绝对定位按钮右侧;hover translateX(5px);drop-shadow 保证浅色可读) */
+  /** 箭头 SVG(随文字内联;hover translateX(5px);drop-shadow 保证浅色可读) */
   const buyArrowSvg = (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -94,7 +94,7 @@ export function ArticleProductBuyBar({
       viewBox="0 0 24 24"
       strokeWidth={2}
       stroke="currentColor"
-      className="pointer-events-none absolute right-[0.8em] h-[1.3em] w-[1.3em] drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)] transition-all duration-[600ms] ease-out group-hover:translate-x-[5px]"
+      className="h-[1.1em] w-[1.1em] shrink-0 transition-transform duration-[600ms] ease-out group-hover:translate-x-[5px]"
       aria-hidden
     >
       <path
