@@ -1,8 +1,10 @@
 import CONFIG from '@/blog.config'
 import Link from 'next/link'
+import type { CSSProperties } from 'react'
 import { ProfileWidgetType } from '@/src/lib/blog/format/widget/profile'
 import { TweetAvatar } from './TweetAvatar'
 import { TweetPostCardShare } from './TweetPostCardShare'
+import { tweetCategoryRgbTriple } from './tweetCategoryColor'
 
 const { CATEGORY } = CONFIG.DEFAULT_SPECIAL_PAGES
 
@@ -38,9 +40,17 @@ export function TweetPostCardAuthor({
       />
       <div className="tweet-post-card__author-meta">
         <span className="tweet-post-card__author-name">{name}</span>
-        <span className="tweet-post-card__author-badge">作者</span>
+        <span className="tweet-post-card__author-badge">站长</span>
         {categoryName && categoryHref ? (
-          <Link href={categoryHref} className="tweet-post-card__category">
+          <Link
+            href={categoryHref}
+            className="tweet-post-card__category"
+            style={
+              {
+                '--tweet-cat-rgb': tweetCategoryRgbTriple(categoryName),
+              } as CSSProperties
+            }
+          >
             {categoryName}
           </Link>
         ) : null}

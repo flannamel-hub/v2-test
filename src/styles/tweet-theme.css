@@ -142,10 +142,7 @@ html.tweet-theme ul {
   cursor: pointer;
 }
 
-.tweet-header__nav-about {
-  font-size: 1.0625rem;
-  font-weight: 500;
-}
+/* P18TWEET-5:顶部「关于」项已移除,入口移至右侧功能菜单「关于本站」 */
 
 .tweet-header__theme-btn {
   display: flex;
@@ -243,25 +240,21 @@ html.tweet-theme ul {
 .tweet-feed__right {
   display: none;
   grid-column: span 3 / span 3;
-  align-self: start;
+}
+
+/* P18TWEET-7 滚动协同:sticky 移到中间层,inner 按页面滚动进度 JS 位移 */
+.tweet-feed__right-sticky {
   position: sticky;
   top: var(--tweet-sticky-top);
+  max-height: calc(100vh - var(--tweet-sticky-top));
+  max-height: calc(100dvh - var(--tweet-sticky-top));
 }
 
 .tweet-feed__right-inner {
   display: flex;
   flex-direction: column;
   gap: 0;
-  max-height: calc(100vh - var(--tweet-sticky-top));
-  max-height: calc(100dvh - var(--tweet-sticky-top));
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-}
-
-.tweet-feed__right-inner::-webkit-scrollbar {
-  display: none;
+  will-change: transform;
 }
 
 @media (min-width: 1024px) {
@@ -1116,15 +1109,7 @@ html.tweet-theme.dark .tweet-post-card:hover .tweet-post-card__shell {
     0 6px 12px -4px rgba(0, 0, 0, 0.35);
 }
 
-html.tweet-theme.dark:not(.tweet-theme--dark) .tweet-post-card__tag {
-  color: var(--tweet-tag-text);
-  background-color: #2f3336;
-}
-
-html.tweet-theme.dark:not(.tweet-theme--dark) .tweet-post-card__tag:hover {
-  color: var(--tweet-tag-active);
-  background-color: #3e4144;
-}
+/* P18TWEET-4:深色基础主题 tag 统一走色板淡底+低饱和白字(旧灰底规则已并入上方) */
 
 .tweet-post-card__article {
   display: block;
@@ -1212,24 +1197,43 @@ html.tweet-theme.dark .tweet-post-card__author-badge {
   border-color: rgba(167, 139, 250, 0.45);
 }
 
+/* P18TWEET-3 分类胶囊:tweetCategoryColor 色板 + 加大内距/全圆角/加粗/细描边/内光 */
 .tweet-post-card__category {
   display: inline-flex;
   align-items: center;
-  padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
+  justify-content: center;
+  padding: 0.1875rem 0.625rem;
+  border-radius: 9999px;
   font-size: 0.6875rem;
-  line-height: 1rem;
-  font-weight: 500;
-  color: var(--tweet-muted);
-  background-color: var(--tweet-gray4);
+  line-height: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--tweet-gray12);
+  background-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.8);
+  border: 1px solid rgb(var(--tweet-cat-rgb, 226 232 240) / 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transition:
     color 0.15s ease,
-    background-color 0.15s ease;
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .tweet-post-card__category:hover {
   color: var(--tweet-gray12);
-  background-color: var(--tweet-gray5);
+  background-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.95);
+  border-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 1);
+}
+
+html.tweet-theme.dark .tweet-post-card__category {
+  color: var(--tweet-gray12);
+  background-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.22);
+  border-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html.tweet-theme.dark .tweet-post-card__category:hover {
+  background-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.32);
+  border-color: rgb(var(--tweet-cat-rgb, 226 232 240) / 0.6);
 }
 
 .tweet-post-card__title {
@@ -1459,21 +1463,40 @@ html.tweet-theme:not(.dark) .tweet-avatar__img {
   margin-top: 0.25rem;
 }
 
+/* P18TWEET-4 卡片 tag 暖色系色板:浅色主题奶油底+深色墨字,深色主题淡色底+低饱和白字 */
 .tweet-post-card__tag {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 50px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
   font-size: 0.75rem;
   line-height: 1rem;
-  font-weight: 400;
-  color: var(--tweet-tag-text);
-  background-color: var(--tweet-gray5);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  font-weight: 500;
+  color: var(--tweet-tag-ink, var(--tweet-tag-text));
+  background-color: rgb(var(--tweet-tag-rgb, 226 232 240) / 0.16);
+  border: 1px solid rgb(var(--tweet-tag-rgb, 226 232 240) / 0.35);
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .tweet-post-card__tag:hover {
-  color: var(--tweet-tag-active);
-  background-color: var(--tweet-gray6);
+  color: var(--tweet-tag-ink, var(--tweet-tag-active));
+  background-color: rgb(var(--tweet-tag-rgb, 226 232 240) / 0.26);
+  border-color: rgb(var(--tweet-tag-rgb, 226 232 240) / 0.55);
+}
+
+html.tweet-theme.dark .tweet-post-card__tag {
+  color: rgba(255, 255, 255, 0.82);
+  background-color: rgb(var(--tweet-tag-rgb, 226 232 240) / 0.14);
+  border-color: rgb(var(--tweet-tag-rgb, 226 232 240) / 0.3);
+}
+
+html.tweet-theme.dark .tweet-post-card__tag:hover {
+  color: rgba(255, 255, 255, 0.95);
+  background-color: rgb(var(--tweet-tag-rgb, 226 232 240) / 0.22);
+  border-color: rgb(var(--tweet-tag-rgb, 226 232 240) / 0.45);
 }
 
 .tweet-post-list__empty {
@@ -1933,15 +1956,7 @@ html.tweet-theme.tweet-theme--light .tweet-search__box:focus {
   box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.12);
 }
 
-html.tweet-theme.tweet-theme--light .tweet-post-card__tag {
-  color: #1d4ed8;
-  background-color: rgba(29, 155, 240, 0.1);
-}
-
-html.tweet-theme.tweet-theme--light .tweet-post-card__tag:hover {
-  color: #0f1419;
-  background-color: rgba(29, 155, 240, 0.18);
-}
+/* P18TWEET-4:tweet-light 蓝底蓝字规则移除,统一走暖色系色板 */
 
 html.tweet-theme.tweet-theme--light .tweet-tags__item:hover,
 html.tweet-theme.tweet-theme--light .tweet-tags__item[data-active='true'] {
@@ -2046,15 +2061,7 @@ html.tweet-theme.tweet-theme--dark .tweet-search__box {
   background-color: #202327;
 }
 
-html.tweet-theme.tweet-theme--dark .tweet-post-card__tag {
-  color: var(--tweet-tag-text);
-  background-color: #202327;
-}
-
-html.tweet-theme.tweet-theme--dark .tweet-post-card__tag:hover {
-  color: var(--tweet-tag-active);
-  background-color: #2f3336;
-}
+/* P18TWEET-4:tweet-dark 变体 tag 统一走色板淡底+低饱和白字(html.tweet-theme.dark 已覆盖) */
 
 html.tweet-theme.tweet-theme--dark .tweet-tags__item:hover,
 html.tweet-theme.tweet-theme--dark .tweet-tags__item[data-active='true'] {

@@ -28,3 +28,10 @@ export function tweetCategoryColor(name: string): string {
     return COLOR_SET['0']
   }
 }
+
+/** 供 CSS `rgb(var(--tweet-cat-rgb) / a)` 使用的 "R G B" 三元组(分类胶囊配色) */
+export function tweetCategoryRgbTriple(name: string): string {
+  const parts = tweetCategoryColor(name).match(/\d+/g)
+  if (parts && parts.length >= 3) return `${parts[0]} ${parts[1]} ${parts[2]}`
+  return '226 232 240'
+}

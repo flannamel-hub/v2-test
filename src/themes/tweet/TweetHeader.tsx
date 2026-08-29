@@ -3,12 +3,10 @@
 import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
-import CONFIG from '@/blog.config'
 import { ProPlusCreateButton } from '@/src/components/nav/ProPlusCreateButton'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import { isTweetThemeVariantLocked } from '@/src/themes/tweet/tweetTheme'
-
-const { ABOUT } = CONFIG.DEFAULT_SPECIAL_PAGES
+import { TweetAsideScrollSync } from './TweetAsideScrollSync'
 
 type TweetHeaderProps = {
   siteName: string
@@ -31,9 +29,6 @@ export function TweetHeader({ siteName }: TweetHeaderProps) {
           {siteName}
         </Link>
         <nav className="tweet-header__nav">
-          <Link href={`/${ABOUT}`} className="tweet-header__nav-about">
-            关于
-          </Link>
           {!themeToggleLocked ? (
             <button
               type="button"
@@ -81,7 +76,12 @@ export function TweetFeedGrid({
           </aside>
           <div className="tweet-feed__mid">{children}</div>
           <aside className="tweet-feed__right">
-            <div className="tweet-feed__right-inner">{rightAside}</div>
+            <TweetAsideScrollSync
+              stickyClassName="tweet-feed__right-sticky"
+              innerClassName="tweet-feed__right-inner"
+            >
+              {rightAside}
+            </TweetAsideScrollSync>
           </aside>
         </div>
       </main>

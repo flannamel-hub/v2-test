@@ -10,6 +10,7 @@ import {
   isDeferredTweetBodyImage,
   resolveTweetCardMedia,
 } from './tweetFeedMedia'
+import { tweetTagCssVars } from './tweetTagColor'
 
 type TweetPostCardProps = {
   post: Post
@@ -64,7 +65,11 @@ export function TweetPostCard({
             {tags.length > 0 ? (
               <div className="tweet-post-card__tags">
                 {tags.map((tag) => (
-                  <span key={tag.id} className="tweet-post-card__tag">
+                  <span
+                    key={tag.id}
+                    className="tweet-post-card__tag"
+                    style={tweetTagCssVars(tag.name)}
+                  >
                     {tag.name}
                   </span>
                 ))}
