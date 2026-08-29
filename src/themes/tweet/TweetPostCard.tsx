@@ -6,10 +6,14 @@ import { formatTweetDate } from './tweetSearch'
 import { TweetPostCardAuthor } from './TweetPostCardAuthor'
 import { TweetPostCardCoverLazy } from './TweetPostCardCoverLazy'
 import { TweetPostCardMedia } from './TweetPostCardMedia'
+import { tweetTagCssVars } from './tweetTagColor'
 import {
   isDeferredTweetBodyImage,
   resolveTweetCardMedia,
 } from './tweetFeedMedia'
+
+/** 行2 Tags 单行最多展示数，超出折叠为 +N（P18TWEETFIX） */
+const TITLE_TAG_MAX = 2
 
 type TweetPostCardProps = {
   post: Post
@@ -29,19 +33,38 @@ export function TweetPostCard({
   const lazyBodyCover = isDeferredTweetBodyImage(post.slug, feedMedia)
   const showMedia = media.mode !== 'none' || lazyBodyCover
   const postHref = `/post/${post.slug}`
+  const visibleTags = tags.slice(0, TITLE_TAG_MAX)
+  const overflowCount = tags.length - visibleTags.length
 
   return (
     <article className="tweet-post-card">
       <div className="tweet-post-card__shell">
-        <TweetPostCardAuthor profile={profile} tags={tags} />
+        <TweetPostCardAuthor
+          profile={profile}
+          dateIso={post.date?.created}
+          dateLabel={dateLabel}
+        />
         <PostNavLink href={postHref} navKey={post.slug} className="tweet-post-card__article">
           <div className="tweet-post-card__body">
             <div className="tweet-post-card__title-row">
               <h2 className="tweet-post-card__title">{post.title}</h2>
-              {dateLabel ? (
-                <time className="tweet-post-card__date" dateTime={post.date?.created}>
-                  {dateLabel}
-                </time>
+              {visibleTags.length > 0 ? (
+                <div className="tweet-post-card__title-tags">
+                  {visibleTags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="tweet-post-card__tag tweet-post-card__title-tag"
+                      style={tweetTagCssVars(tag.name)}
+                    >
+                      {tag.name}
+                    </span>
+                  ))}
+                  {overflowCount > 0 ? (
+                    <span className="tweet-post-card__title-tag-more">
+                      +{overflowCount}
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
             </div>
 
