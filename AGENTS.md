@@ -639,6 +639,11 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 5. **一致性**：同类型控件（按钮/输入框/弹窗/徽标）在全部页面与主题下样式统一；同一弹窗风格全站一致。
 6. **状态反馈**：loading/error/空状态有明确但克制的提示，不静默失败。
 
+## 19.6 前台导航守卫约定（2026-08-30，导航兜底统一）
+
+- 前台文章入口（卡片/标题/推荐位）一律使用 `PostNavLink`（`PostNavStallGuard` 单例守护，3 秒卡住弹窗+「重新打开」=整页跳转）；**新主题/新组件禁止自建导航守卫**（曾因 gallery 自建守卫导致二次点击兜底失效死循环）。
+- 全站所有前台主题（含未来新主题）统一启用 `PostNavStallGuard`（`_app.tsx` 仅排除 `/admin`）；卡片单卡转圈动画消费单例 hook `usePostNavLoading(key)`，不再由各主题自行维护导航 loading state。
+
 ## 20. 验证建议
 
 - 普通前台：`npm run lint` 或本地 `npm run dev` 打开对应路由。

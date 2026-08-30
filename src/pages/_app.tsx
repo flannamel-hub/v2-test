@@ -103,8 +103,7 @@ function BlogAppShell({ Component, pageProps, router }: AppPropsWithLayout) {
   const tweetDarkDefault =
     activeTheme === 'tweet' || isTweetDarkTheme(activeTheme)
 
-  const stallGuardEnabled =
-    !isAdminRoute && activeTheme !== 'gallery'
+  const stallGuardEnabled = !isAdminRoute
 
   return (
     <>

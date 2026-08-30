@@ -1,12 +1,15 @@
 'use client'
 
-import Link from 'next/link'
+import {
+  PostNavLink,
+  usePostNavLoading,
+} from '@/src/components/navigation/PostNavStallGuard'
 import {
   GalleryRecommendPost,
   withoutGalleryAnnouncement,
 } from '@/src/lib/gallery/galleryRecommendations'
 import { galleryCardTitleClass, galleryRecommendGridClass } from './galleryFonts'
-import { GalleryCardLoading, useGalleryNavLoading } from './galleryNavLoading'
+import { GalleryCardLoading } from './galleryNavLoading'
 
 function formatPostDate(iso: string) {
   if (!iso) return ''
@@ -23,11 +26,16 @@ type GalleryPostRecommendationsProps = {
   posts: GalleryRecommendPost[]
 }
 
+/** map 内逐项消费单例导航 loading 态（hooks 不能在循环里调用） */
+function ItemLoading({ slug }: { slug: string }) {
+  const { isLoading } = usePostNavLoading(slug)
+  return <GalleryCardLoading loading={isLoading} />
+}
+
 export function GalleryPostRecommendations({
   posts,
 }: GalleryPostRecommendationsProps) {
   const items = withoutGalleryAnnouncement(posts, posts.length)
-  const { isLoading, isStalled, isReloading, startNav } = useGalleryNavLoading()
   if (!items.length) return null
 
   return (
@@ -37,10 +45,10 @@ export function GalleryPostRecommendations({
       </h2>
       <div className={galleryRecommendGridClass}>
         {items.map((item) => (
-          <Link
+          <PostNavLink
             key={item.slug}
-            href={`/post/${item.slug}`}
-            onClick={startNav(item.slug, `/post/${item.slug}`)}
+            href={{ pathname: '/post/[slug]', query: { slug: item.slug } }}
+            navKey={item.slug}
             className="group block"
           >
             <div className="relative aspect-[5/2] overflow-hidden rounded-lg bg-neutral-100">
@@ -56,7 +64,7 @@ export function GalleryPostRecommendations({
                   P
                 </div>
               )}
-              {isLoading(item.slug) ? <GalleryCardLoading stalled={isStalled(item.slug)} reloading={isReloading(item.slug)} /> : null}
+              <ItemLoading slug={item.slug} />
             </div>
             <p
               className={`mt-2.5 line-clamp-2 group-hover:text-neutral-600 ${galleryCardTitleClass}`}
@@ -68,7 +76,7 @@ export function GalleryPostRecommendations({
                 {formatPostDate(item.date)}
               </p>
             ) : null}
-          </Link>
+          </PostNavLink>
         ))}
       </div>
     </section>

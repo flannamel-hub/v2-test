@@ -22,12 +22,27 @@ type PendingNav = { key: string; href: string }
 
 type PostNavStallContextValue = {
   startNav: (key: string, href: string) => (e: MouseEvent) => void
+  pendingKey: string | null
+  stalledKey: string | null
 }
 
 const PostNavStallContext = createContext<PostNavStallContextValue | null>(null)
 
 export function usePostNavStallOptional() {
   return useContext(PostNavStallContext)
+}
+
+/** 单例导航 loading 态：key 匹配当前 pending/stalled 才返回 true（供卡片转圈动画消费） */
+export function usePostNavLoading(key: string): {
+  isLoading: boolean
+  isStalled: boolean
+} {
+  const ctx = useContext(PostNavStallContext)
+  if (!ctx) return { isLoading: false, isStalled: false }
+  return {
+    isLoading: ctx.pendingKey === key,
+    isStalled: ctx.stalledKey === key,
+  }
 }
 
 function clearTimerRef(timerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>) {
@@ -111,6 +126,8 @@ export function PostNavStallProvider({
 }) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
+  const [pendingKey, setPendingKey] = useState<string | null>(null)
+  const [stalledKey, setStalledKey] = useState<string | null>(null)
   const pendingRef = useRef<PendingNav | null>(null)
   const reloadingRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -119,6 +136,8 @@ export function PostNavStallProvider({
     if (reloadingRef.current) return
     clearTimerRef(timerRef)
     pendingRef.current = null
+    setPendingKey(null)
+    setStalledKey(null)
     setShowModal(false)
   }, [])
 
@@ -138,6 +157,7 @@ export function PostNavStallProvider({
     reloadingRef.current = true
     clearTimerRef(timerRef)
     setShowModal(false)
+    setStalledKey(null)
     window.location.href = href
   }, [])
 
@@ -162,10 +182,13 @@ export function PostNavStallProvider({
       }
 
       pendingRef.current = { key, href }
+      setPendingKey(key)
       setShowModal(false)
+      setStalledKey(null)
       clearTimerRef(timerRef)
       timerRef.current = setTimeout(() => {
         if (pendingRef.current?.key === key) {
+          setStalledKey(key)
           setShowModal(true)
         }
       }, STALL_MS)
@@ -178,12 +201,18 @@ export function PostNavStallProvider({
     if (href) forceReload(href)
   }, [forceReload])
 
+  const contextValue = {
+    startNav,
+    pendingKey,
+    stalledKey,
+  }
+
   if (!enabled) {
     return <>{children}</>
   }
 
   return (
-    <PostNavStallContext.Provider value={{ startNav }}>
+    <PostNavStallContext.Provider value={contextValue}>
       {children}
       <PostNavStallModal
         open={showModal}

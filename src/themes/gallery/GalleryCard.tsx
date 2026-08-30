@@ -4,12 +4,16 @@ import { Post, Tag } from '@/src/types/blog'
 import { resolveGalleryListCoverSrc } from '@/src/lib/gallery/postCover'
 import { galleryPostDownloadHref } from '@/src/lib/gallery/galleryDownloadPaths'
 import {
+  PostNavLink,
+  usePostNavLoading,
+} from '@/src/components/navigation/PostNavStallGuard'
+import {
   galleryCardCategoryClass,
   galleryCardTagClass,
   galleryCardTitleClass,
 } from './galleryFonts'
 import { GalleryCardCoverLazy } from './GalleryCardCoverLazy'
-import { GalleryCardLoading, useGalleryNavLoading } from './galleryNavLoading'
+import { GalleryCardLoading } from './galleryNavLoading'
 
 const { TAG, CATEGORY } = CONFIG.DEFAULT_SPECIAL_PAGES
 
@@ -41,19 +45,17 @@ export const GalleryCard = ({
   galleryCoverSrc?: string
 }) => {
   const cover = resolveGalleryListCoverSrc(post, galleryCoverSrc)
-  const postHref = `/post/${post.slug}`
   const downloadHref = galleryPostDownloadHref(post.slug)
   const tags = post.tags?.filter((t) => t.name) ?? []
   const categoryName = post.category?.name?.trim()
   const downloadCount = post.options?.downloadCount?.trim()
-  const { isLoading, isStalled, isReloading, startNav } = useGalleryNavLoading()
-  const loading = isLoading(post.slug)
+  const { isLoading } = usePostNavLoading(post.slug)
 
   return (
     <article className="group flex w-full flex-col">
-        <Link
-          href={postHref}
-          onClick={startNav(post.slug, postHref)}
+        <PostNavLink
+          href={{ pathname: '/post/[slug]', query: { slug: post.slug } }}
+          navKey={post.slug}
           className="block overflow-hidden rounded-md"
         >
           <div className="relative aspect-[10/13.35] bg-neutral-100">
@@ -66,7 +68,7 @@ export const GalleryCard = ({
             ) : (
               <GalleryCardCoverLazy slug={post.slug} title={post.title} />
             )}
-            {loading ? <GalleryCardLoading stalled={isStalled(post.slug)} reloading={isReloading(post.slug)} /> : null}
+            <GalleryCardLoading loading={isLoading} />
             {downloadCount ? (
               <span
                 className="absolute bottom-2 right-2 text-[11px] font-medium leading-tight text-white"
@@ -76,17 +78,17 @@ export const GalleryCard = ({
               </span>
             ) : null}
           </div>
-        </Link>
+        </PostNavLink>
 
         <div className="mt-2 flex flex-col">
           <div className="flex items-center justify-between gap-2">
-            <Link
-              href={postHref}
-              onClick={startNav(post.slug, postHref)}
+            <PostNavLink
+              href={{ pathname: '/post/[slug]', query: { slug: post.slug } }}
+              navKey={post.slug}
               className={`min-w-0 flex-1 truncate leading-tight hover:text-neutral-600 ${galleryCardTitleClass}`}
             >
               {post.title}
-            </Link>
+            </PostNavLink>
             <Link
               href={downloadHref}
               title="下载"

@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import {
+  PostNavLink,
+  usePostNavLoading,
+} from '@/src/components/navigation/PostNavStallGuard'
 import {
   GalleryRecommendPost,
   withoutGalleryAnnouncement,
 } from '@/src/lib/gallery/galleryRecommendations'
-import { GalleryCardLoading, useGalleryNavLoading } from './galleryNavLoading'
+import { GalleryCardLoading } from './galleryNavLoading'
 
 /** Epic 侧边栏：左侧横版缩略图 + 右侧标题/日期（标题顶对齐封面） */
 const THUMB_CLASS = 'w-[108px] shrink-0 overflow-hidden rounded-[4px] bg-neutral-100'
@@ -25,6 +28,12 @@ type GalleryPopularSidebarProps = {
   className?: string
 }
 
+/** map 内逐项消费单例导航 loading 态（hooks 不能在循环里调用） */
+function ItemLoading({ slug }: { slug: string }) {
+  const { isLoading } = usePostNavLoading(slug)
+  return <GalleryCardLoading loading={isLoading} />
+}
+
 /** Gallery Epic 风格：内页右侧「热门推荐」（支持 Supabase 热度刷新） */
 export function GalleryPopularSidebar({
   posts: initialPosts,
@@ -34,7 +43,6 @@ export function GalleryPopularSidebar({
   const [posts, setPosts] = useState(() =>
     withoutGalleryAnnouncement(initialPosts)
   )
-  const { isLoading, isStalled, isReloading, startNav } = useGalleryNavLoading()
 
   useEffect(() => {
     setPosts(withoutGalleryAnnouncement(initialPosts))
@@ -70,9 +78,9 @@ export function GalleryPopularSidebar({
       <ul className="flex flex-col gap-6">
         {posts.map((item) => (
           <li key={item.slug}>
-            <Link
-              href={`/post/${item.slug}`}
-              onClick={startNav(item.slug, `/post/${item.slug}`)}
+            <PostNavLink
+              href={{ pathname: '/post/[slug]', query: { slug: item.slug } }}
+              navKey={item.slug}
               className="group flex items-start gap-3.5"
             >
               <div className={THUMB_CLASS}>
@@ -89,7 +97,7 @@ export function GalleryPopularSidebar({
                       P
                     </div>
                   )}
-                  {isLoading(item.slug) ? <GalleryCardLoading stalled={isStalled(item.slug)} reloading={isReloading(item.slug)} /> : null}
+                  <ItemLoading slug={item.slug} />
                 </div>
               </div>
               <div className="min-w-0 flex-1">
@@ -102,7 +110,7 @@ export function GalleryPopularSidebar({
                   </p>
                 ) : null}
               </div>
-            </Link>
+            </PostNavLink>
           </li>
         ))}
       </ul>
