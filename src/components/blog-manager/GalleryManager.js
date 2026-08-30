@@ -360,7 +360,7 @@ export function GalleryManager({
             >
               {fileDragOver
                 ? '松开鼠标，添加到此图库'
-                : '拖拽或点击添加图片（Gallery图库）'}
+                : '拖拽或点击添加图片'}
             </div>
             <div style={{ fontSize: '12px', color: fileDragOver ? '#c5e87a' : '#777' }}>
               {fileDragOver ? '支持多张图片同时放入' : '支持多张同时导入'}

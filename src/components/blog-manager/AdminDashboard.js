@@ -559,7 +559,7 @@ const GlobalStyle = () => (
 const SearchInput = ({ value, onChange }) => (
   <div className="group">
     <svg className="search-icon" aria-hidden="true" viewBox="0 0 24 24"><g><path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"></path></g></svg>
-    <input placeholder="Search" type="search" className="input" value={value} onChange={onChange} />
+    <input placeholder="搜索" type="search" className="input" value={value} onChange={onChange} />
   </div>
 );
 
@@ -8624,10 +8624,11 @@ const [mounted, setMounted] = useState(false);
              <div style={{display:'flex', flexDirection:'column', justifyContent:'center'}}>
                  <div style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '1px', display:'flex', alignItems:'center', gap:'10px' }}>
                     {siteTitle}
+                    {/* P18FREEPRO: 标识色(专业版金VIP/免费版浅绿,用户2026-08-30) */}
                     {sitePlan === 'pro' ? (
-                      <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(173,255,47,0.10)', color:'#9acd32', border:'1px solid rgba(173,255,47,0.4)', fontWeight:'normal', whiteSpace:'nowrap'}}>专业版</span>
+                      <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(251,191,36,0.12)', color:'#fbbf24', border:'1px solid rgba(251,191,36,0.5)', fontWeight:'normal', whiteSpace:'nowrap'}}>VIP · 专业版</span>
                     ) : sitePlan === 'free' ? (
-                      <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(255,255,255,0.08)', color:'#9a9a9a', border:'1px solid rgba(255,255,255,0.18)', fontWeight:'normal', whiteSpace:'nowrap'}}>免费版</span>
+                      <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(173,255,47,0.10)', color:'#9acd32', border:'1px solid rgba(173,255,47,0.4)', fontWeight:'normal', whiteSpace:'nowrap'}}>免费版</span>
                     ) : null}
                     <span onClick={updateSiteTitle} style={{cursor:'pointer', opacity:0.5}} title="修改网站标题"><Icons.Settings /></span>
                  </div>
@@ -8903,7 +8904,7 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>🌐</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>社媒组件</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>微博、推特、Pixiv、Telegram、Instagram</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>可添加微博、推特、Pixiv、Telegram、Instagram等社媒主页链接</div>
                   </div>
                   <div style={{ color: '#38bdf8', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
@@ -8913,7 +8914,7 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>🖼️</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>Banner</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页顶部横幅 · 单图静态 / 多图轮播</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页顶部横幅多图轮播（仅shop主题生效）</div>
                   </div>
                   <div style={{ color: '#f472b6', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
@@ -8943,7 +8944,7 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>🔒</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>内容保护</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>限制读者右键复制 / 保存本站图片</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>限制读者右键复制 / 保存本站图片和内容</div>
                   </div>
                   <div style={{ color: '#60a5fa', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
@@ -8953,7 +8954,7 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>📢</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>内页广告位</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>全主题文章内页底部横幅</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>内页底部广告横幅</div>
                   </div>
                   <div style={{ color: adsLocked ? '#fbbf24' : '#f59e0b', fontSize: '13px', fontWeight: 'bold' }}>{adsLocked ? '专业版' : '进入 →'}</div>
                 </div>
@@ -8963,7 +8964,7 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>🪟</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>弹窗广告</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页进入弹出 · 每会话一次</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>进入首页弹出</div>
                   </div>
                   <div style={{ color: adsLocked ? '#fbbf24' : '#a78bfa', fontSize: '13px', fontWeight: 'bold' }}>{adsLocked ? '专业版' : '进入 →'}</div>
                 </div>
@@ -8973,7 +8974,7 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>🖱️</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>遮罩广告</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页首次点击伴生跳转 · 每天一次</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首次点击跳转</div>
                   </div>
                   <div style={{ color: adsLocked ? '#fbbf24' : '#fb7185', fontSize: '13px', fontWeight: 'bold' }}>{adsLocked ? '专业版' : '进入 →'}</div>
                 </div>
@@ -8983,7 +8984,7 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ fontSize: '28px' }}>📣</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>公告弹窗</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>全站通知弹窗（无跳转按钮）</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>首页通知弹窗</div>
                   </div>
                   <div style={{ color: '#38bdf8', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
@@ -9345,13 +9346,15 @@ const [mounted, setMounted] = useState(false);
                     <div>
                       <div style={{fontSize:'15px', fontWeight:'bold', color:'#fff', marginBottom:'4px'}}>地址管理</div>
                       <div style={{fontSize:'12px', color:'#999'}}>
-                        {vendingAddressUnlocked ? '已解锁：可编辑地址与按钮名称' : '已锁定：创作者只能开启或关闭贩售机'}
+                        {vendingAddressUnlocked ? '已解锁：可编辑地址' : '已锁定'}
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
                         if (vendingLocked) { alert('贩售机组件为专业版权益，升级后可用'); return; }
+                        // P18FREEPRO: 专业版免维护密码直接解锁贩售机地址编辑(用户2026-08-30)
+                        if (sitePlan === 'pro') { setVendingAddressUnlockError(''); setVendingAddressUnlocked(true); showAdminToast('贩售机地址编辑已解锁(专业版)'); return; }
                         setVendingAddressUnlockError('');
                         setVendingAddressUnlockClosing(false);
                         setVendingAddressUnlockOpen(true);
@@ -9378,7 +9381,7 @@ const [mounted, setMounted] = useState(false);
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>贩售机地址 <span style={{color:'#ff4d4f'}}>*</span></label>
                     <input className="glow-input" value={vendingUrl} onChange={e=>setVendingUrl(e.target.value)} placeholder="https://store.proplus.onl/buy" disabled={vendingLocked || !vendingAddressUnlocked || vendingSaving} />
-                    <div style={{fontSize:'11px', color:'#888', marginTop:'8px', lineHeight:1.6}}>地址默认由平台维护。后续商家系统可统一管理这里的维护密码与贩售机地址。</div>
+                    <div style={{fontSize:'11px', color:'#888', marginTop:'8px', lineHeight:1.6}}>地址默认由平台维护。</div>
                   </div>
                   {vendingEditing ? (
                     <button
@@ -9819,7 +9822,7 @@ const [mounted, setMounted] = useState(false);
                     <input className="glow-input" value={clickAd.url} disabled={adsLocked} onChange={e=>setClickAd({...clickAd, url: e.target.value})} placeholder="https://example.com" />
                   </div>
                   <div style={{fontSize:'12px', color:'#888', lineHeight:1.7, padding:'14px 16px', background:'#2f2f33', borderRadius:'10px'}}>
-                    访客在首页第一次有效点击时，原操作照常进行，同时新标签打开上方链接。同一浏览器每天最多触发一次；点击贩售机、公告/弹窗广告时不会触发。
+                    访客在第一次点击任意位置时会触发广告跳转。
                   </div>
                 </div>
                 <button
@@ -9985,7 +9988,7 @@ const [mounted, setMounted] = useState(false);
                 {(galleryAd.enabled || galleryAdEditing) && (
                 <>
                 <div style={{fontSize:'12px', color:'#aaa', marginBottom:'20px', lineHeight:1.8}}>
-                  开启后横幅显示在全主题文章内页底部（Gallery / Tweet / Standard 系列）；Gallery 下载页右栏顶部也会显示。链接必填；关闭后前台不显示。背景图优先使用下方上传的 Banner，未上传则自动抓取链接预览图。
+                  开启后横幅显示在全主题文章内页底部，链接必填，背景图优先使用下方上传的 Banner图，未上传则自动抓取链接预览图。
                 </div>
                 <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
                   <div>
@@ -10341,7 +10344,7 @@ const [mounted, setMounted] = useState(false);
                    <div style={{ width:'100%', maxWidth:'420px', background:'#1f1f24', border:'1px solid #3a3a42', borderRadius:'14px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', padding:'22px' }}>
                      <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'4px' }}>添加商品信息</div>
                      {/* P18C45UI 批3:弹窗强调色统一蓝色(原粉红已改) */}
-                     <div style={{ fontSize:'12px', color:'#93c5fd', marginBottom:'16px', lineHeight:1.6 }}>输入商品码当场查询系统商品，确认后写入表单。</div>
+                     <div style={{ fontSize:'12px', color:'#93c5fd', marginBottom:'16px', lineHeight:1.6 }}>输入商品码并点击底部【关联商品】。</div>
                      <label style={{ display:'block', fontSize:'12px', color:'#bbb', marginBottom:'6px' }}>商品码（编号）</label>
                      <div style={{ marginBottom:'14px' }}>
                        <input
@@ -10373,7 +10376,7 @@ const [mounted, setMounted] = useState(false);
                          </div>
                        )
                      ) : (
-                       <div style={{ padding:'4px 2px', fontSize:'11px', color:'#777', lineHeight:1.6 }}>查询后显示商品名称／价格／状态；保存时仍会以系统商品为准再校验一次。</div>
+                       <div style={{ padding:'4px 2px', fontSize:'11px', color:'#777', lineHeight:1.6 }}>请确保您的商品已添加库存内容。</div>
                      )}
                      <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'16px' }}>
                        <button type="button" onClick={() => setProductLookup((p) => ({ ...p, open: false }))} style={{ height:'36px', padding:'0 16px', borderRadius:'8px', cursor:'pointer', border:'1px solid #444', background:'transparent', color:'#ccc', fontSize:'13px' }}>关闭</button>
