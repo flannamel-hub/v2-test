@@ -287,7 +287,6 @@ export async function runThemeRevalidation(onProgress, expectedTheme) {
       label: '正在更新首页与列表页…',
       done: 0,
       total: 7,
-      hint: '与手动刷新相同流程',
     });
   }
 

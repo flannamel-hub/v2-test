@@ -4530,7 +4530,7 @@ const [mounted, setMounted] = useState(false);
   const [galleryAdEditing, setGalleryAdEditing] = useState(false);
   const galleryAdSnapshotRef = useRef(null);
   // BLOG 分层 P4-FIX:站点会员计划(读取失败按免费版安全缺省);广告位为专业版权益
-  const [sitePlan, setSitePlan] = useState('free');
+  const [sitePlan, setSitePlan] = useState(null); // null=尚未确认(loading),确认后为 'free' | 'pro'
   const adsLocked = sitePlan !== 'pro';
   // BLOG 分层 P8:贩售机组件为专业版权益(免费版灰态+点击弹提示;渲染仍按平台默认)
   const vendingLocked = sitePlan !== 'pro';
@@ -8545,7 +8545,6 @@ const [mounted, setMounted] = useState(false);
   if (!mounted) return null;
 
   const adminLocked = isThemeLoading;
-  const notionDraftPosts = posts.filter((p) => p.type === 'Post' && p.status === 'Draft');
 
   return (
     <div style={{ minHeight: '100vh', background: '#303030', padding: '40px 20px' }}>
@@ -8623,9 +8622,15 @@ const [mounted, setMounted] = useState(false);
            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
              {(view === 'list' || view === 'recycle') && <SearchInput value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />}
              <div style={{display:'flex', flexDirection:'column', justifyContent:'center'}}>
-                <div style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '1px', display:'flex', alignItems:'center', gap:'10px' }}>
-                   {siteTitle} <span onClick={updateSiteTitle} style={{cursor:'pointer', opacity:0.5}} title="修改网站标题"><Icons.Settings /></span>
-                </div>
+                 <div style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '1px', display:'flex', alignItems:'center', gap:'10px' }}>
+                    {siteTitle}
+                    {sitePlan === 'pro' ? (
+                      <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(173,255,47,0.10)', color:'#9acd32', border:'1px solid rgba(173,255,47,0.4)', fontWeight:'normal', whiteSpace:'nowrap'}}>专业版</span>
+                    ) : sitePlan === 'free' ? (
+                      <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(255,255,255,0.08)', color:'#9a9a9a', border:'1px solid rgba(255,255,255,0.18)', fontWeight:'normal', whiteSpace:'nowrap'}}>免费版</span>
+                    ) : null}
+                    <span onClick={updateSiteTitle} style={{cursor:'pointer', opacity:0.5}} title="修改网站标题"><Icons.Settings /></span>
+                 </div>
              </div>
            </div>
            
@@ -8634,7 +8639,7 @@ const [mounted, setMounted] = useState(false);
                 <button
                   type="button"
                   onClick={() => (view === 'edit' ? guardLeaveEditor(openDraftsView) : openDraftsView())}
-                  title="本地草稿与云端草稿"
+                  title="草稿"
                   className="admin-top-action-btn"
                 >
                   草稿箱
@@ -10085,21 +10090,20 @@ const [mounted, setMounted] = useState(false);
             </div>
           </div>
         ) : view === 'drafts' ? (
-          /* 🗂 Phase4: 统一草稿箱——本地快照 + Notion 草稿 */
+          /* 🗂 Phase4: 统一草稿箱——本地快照 */
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'24px', gap:'12px', flexWrap:'wrap'}}>
               <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🗂 草稿箱</div>
-              <div style={{fontSize:'12px', color:'#888'}}>本地草稿 {draftSnapshots.length} 份 · 云端草稿 {notionDraftPosts.length} 篇</div>
+              <div style={{fontSize:'12px', color:'#888'}}>本地草稿 {draftSnapshots.length} 份</div>
             </div>
 
-            {draftSnapshots.length === 0 && notionDraftPosts.length === 0 ? (
+            {draftSnapshots.length === 0 ? (
               <div style={{textAlign:'center', color:'#666', padding:'40px', border:'2px dashed #444', borderRadius:'12px'}}>暂无草稿</div>
             ) : (
               <>
-                {/* 本地草稿区（localStorage 快照） */}
-                <div style={{fontSize:'13px', color:'greenyellow', marginBottom:'14px', fontWeight:'bold'}}>💾 本地草稿</div>
+                <div style={{fontSize:'13px', color:'greenyellow', marginBottom:'14px', fontWeight:'bold'}}>草稿</div>
                 {draftSnapshots.length === 0 ? (
-                  <div style={{textAlign:'center', color:'#666', padding:'26px', border:'2px dashed #444', borderRadius:'12px', marginBottom:'28px'}}>暂无本地草稿</div>
+                  <div style={{textAlign:'center', color:'#666', padding:'26px', border:'2px dashed #444', borderRadius:'12px', marginBottom:'28px'}}>暂无草稿</div>
                 ) : (
                   <div style={{display:'flex', flexDirection:'column', gap:'12px', marginBottom:'28px'}}>
                     {draftSnapshots.map((s) => (
@@ -10121,24 +10125,6 @@ const [mounted, setMounted] = useState(false);
                           <button onClick={() => restoreDraftFromBox(s.id)} style={{background:'greenyellow', color:'#000', border:'none', padding:'7px 16px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>恢复编辑</button>
                           <button onClick={() => deleteDraftSnapshot(s.id)} style={{background:'#555', color:'#eee', border:'none', padding:'7px 16px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>删除</button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Notion 草稿区（status=Draft 的文章） */}
-                <div style={{fontSize:'13px', color:'#7ec8ff', marginBottom:'14px', fontWeight:'bold'}}>📝 云端草稿</div>
-                {notionDraftPosts.length === 0 ? (
-                  <div style={{textAlign:'center', color:'#666', padding:'26px', border:'2px dashed #444', borderRadius:'12px'}}>暂无云端草稿</div>
-                ) : (
-                  <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
-                    {notionDraftPosts.map((p) => (
-                      <div key={p.id} style={{display:'flex', gap:'14px', alignItems:'center', background:'#333', padding:'14px 16px', borderRadius:'10px', flexWrap:'wrap'}}>
-                        <div style={{flex:1, minWidth:'220px'}}>
-                          <div style={{fontWeight:'bold', color:'#fff', fontSize:'14px', wordBreak:'break-all'}}>{p.title || '无标题'}</div>
-                          <div style={{fontSize:'11.5px', color:'#888', marginTop:'4px'}}>{p.date || ''}{p.slug ? ` · ${p.slug}` : ''}{p.category ? ` · ${p.category}` : ''}</div>
-                        </div>
-                        <button onClick={() => handleEdit(p)} style={{background:'#7ec8ff', color:'#000', border:'none', padding:'7px 16px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>继续编辑</button>
                       </div>
                     ))}
                   </div>
