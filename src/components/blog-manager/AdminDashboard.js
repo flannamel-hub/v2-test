@@ -112,8 +112,6 @@ function resolveSaveRevalidateScope(type, slug) {
   return 'post';
 }
 
-/** 全量更新冷却（与 fullRedeploy.ts 一致） */
-const FULL_REDEPLOY_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 /** 发布队列：各阶段「无进度心跳」超过此时长才视为卡住（非总时长） */
 const PUBLISH_QUEUE_IDLE_STALL_MS = {
   gallery: 180_000,
@@ -126,6 +124,12 @@ const PUBLISH_QUEUE_IDLE_STALL_MS = {
 function resolvePublishIdleStallMs(job) {
   const ms = PUBLISH_QUEUE_IDLE_STALL_MS[job?.phase];
   return typeof ms === 'number' ? ms : PUBLISH_QUEUE_IDLE_STALL_MS.default;
+}
+
+/** 前台刷新冷却提示：<60s 显示秒，≥60s 显示分钟 */
+function formatRefreshCooldownHint(sec) {
+  const s = Math.max(0, Math.ceil(Number(sec) || 0));
+  return s >= 60 ? `${Math.round(s / 60)} 分钟` : `${s} 秒`;
 }
 
 function hasGalleryImageItem(items) {
@@ -1626,7 +1630,7 @@ const PublishConfirmModal = ({ open, closing, isUpdate, onConfirm, onCancel, pub
 };
 
 /** 未保存修改离开拦截：三选一弹窗（继续离开 / 留在编辑器 / 保存到草稿） */
-const LeaveConfirmModal = ({ open, onLeave, onStay, onSaveDraft }) => {
+const LeaveConfirmModal = ({ open, onLeave, onStay, onSaveDraft, canSaveDraft = true }) => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -1667,14 +1671,16 @@ const LeaveConfirmModal = ({ open, onLeave, onStay, onSaveDraft }) => {
           <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onStay}>
             留在编辑器
           </button>
-          <button
-            type="button"
-            className="cover-modal-btn cover-modal-btn-primary"
-            onClick={onSaveDraft}
-            style={{ flexBasis: '100%' }}
-          >
-            💾 保存到草稿并离开
-          </button>
+          {canSaveDraft ? (
+            <button
+              type="button"
+              className="cover-modal-btn cover-modal-btn-primary"
+              onClick={onSaveDraft}
+              style={{ flexBasis: '100%' }}
+            >
+              💾 保存到草稿并离开
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -2282,10 +2288,6 @@ const AdminHeaderActionsMenu = ({
   blogRefreshBusy,
   blogRefreshCooldownSec,
   onShellRefresh,
-  fullRedeployBusy,
-  fullRedeployCooldownSec,
-  fullRedeployConfigured,
-  onFullRedeploy,
   crawlerIngestBusy,
   crawlerIngestProgress,
   crawlerIngestConfigured,
@@ -2294,11 +2296,6 @@ const AdminHeaderActionsMenu = ({
 }) => {
   const shellRefreshDisabled =
     isThemeLoading || blogRefreshBusy || blogRefreshCooldownSec > 0;
-  const fullRedeployDisabled =
-    isThemeLoading ||
-    fullRedeployBusy ||
-    fullRedeployCooldownSec > 0 ||
-    !fullRedeployConfigured;
   const crawlerIngestDisabled = isThemeLoading || !crawlerIngestConfigured;
   const crawlerSessionDone =
     crawlerIngestProgress
@@ -2320,7 +2317,7 @@ const AdminHeaderActionsMenu = ({
         disabled={isThemeLoading}
         aria-expanded={open}
         aria-haspopup="menu"
-        title="更多操作：刷新前台、全量更新、爬虫入库等"
+        title="更多操作：刷新前台、爬虫入库等"
       >
         {blogRefreshBusy ? (
           <span style={blogRefreshSpinStyle} aria-hidden />
@@ -2344,32 +2341,8 @@ const AdminHeaderActionsMenu = ({
             刷新前台
             {blogRefreshCooldownSec > 0 ? (
               <span className="header-actions-menu-item__hint">
-                冷却中（{blogRefreshCooldownSec}s）
+                冷却中（{formatRefreshCooldownHint(blogRefreshCooldownSec)}）
               </span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="header-actions-menu-item"
-            disabled={fullRedeployDisabled}
-            onClick={() => runAndClose(onFullRedeploy)}
-            title={
-              !fullRedeployConfigured
-                ? '全量更新服务尚未配置，请联系管理'
-                : fullRedeployCooldownSec > 0
-                  ? '12h 内已执行全量更新，请稍后再试'
-                  : '网站内容全量更新（24小时内仅可执行一次，慎点！）'
-            }
-          >
-            {fullRedeployBusy ? '全量更新中…' : '全量更新'}
-            {fullRedeployCooldownSec > 0 ? (
-              <span className="header-actions-menu-item__hint">
-                12h 内已执行，请等待后再试
-              </span>
-            ) : null}
-            {!fullRedeployConfigured && fullRedeployCooldownSec <= 0 ? (
-              <span className="header-actions-menu-item__hint">全量更新服务未配置</span>
             ) : null}
           </button>
           <button
@@ -2407,108 +2380,6 @@ const AdminHeaderActionsMenu = ({
           </button>
         </div>
       ) : null}
-    </div>
-  );
-};
-
-/** 全量更新确认弹窗 */
-const FullRedeployConfirmModal = ({
-  open,
-  closing,
-  busy,
-  passwordError,
-  onConfirm,
-  onCancel,
-}) => {
-  const [visible, setVisible] = useState(false);
-  const [password, setPassword] = useState('');
-
-  useEffect(() => {
-    if (open && !closing) {
-      setVisible(false);
-      setPassword('');
-      const id = requestAnimationFrame(() => {
-        requestAnimationFrame(() => setVisible(true));
-      });
-      return () => cancelAnimationFrame(id);
-    }
-    if (!open || closing) setVisible(false);
-  }, [open, closing]);
-
-  if (!open && !closing) return null;
-
-  const submit = () => {
-    if (busy) return;
-    onConfirm(password.trim());
-  };
-
-  return (
-    <div
-      className={`cover-modal-backdrop ${visible && !closing ? 'is-visible' : ''} ${closing ? 'is-closing' : ''}`}
-      onClick={onCancel}
-      role="presentation"
-    >
-      <div
-        className="cover-modal-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="full-redeploy-modal-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="cover-modal-icon" aria-hidden>🔄</div>
-        <h3 id="full-redeploy-modal-title" className="cover-modal-title">确认全量更新</h3>
-        <p className="cover-modal-desc">
-          是否确定执行全量更新，12h 内仅支持执行 1 次。请输入维护密码后继续。
-        </p>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          disabled={busy}
-          placeholder="请输入全量更新密码"
-          autoComplete="off"
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            marginTop: '12px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            border: `1px solid ${passwordError ? '#ff7875' : 'rgba(255,255,255,0.18)'}`,
-            background: '#151515',
-            color: '#f5f5f5',
-            outline: 'none',
-          }}
-        />
-        {passwordError ? (
-          <p style={{ margin: '8px 0 0', color: '#ff7875', fontSize: '12px' }}>
-            {passwordError}
-          </p>
-        ) : null}
-        <div className="cover-modal-actions">
-          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onCancel} disabled={busy}>
-            取消
-          </button>
-          <button
-            type="button"
-            className="cover-modal-btn"
-            onClick={submit}
-            disabled={busy}
-            style={{
-              background: busy ? '#5a4a6e' : '#9a6dd7',
-              color: '#fff',
-              boxShadow: busy ? 'none' : '0 4px 14px rgba(154,109,215,0.35)',
-            }}
-          >
-            {busy ? '执行中…' : '执行'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 };
@@ -4621,10 +4492,6 @@ const [mounted, setMounted] = useState(false);
   const [blogRefreshBusy, setBlogRefreshBusy] = useState(false);
   const [blogRefreshCooldownSec, setBlogRefreshCooldownSec] = useState(0);
   const blogRefreshCooldownUntilRef = useRef(0);
-  const [fullRedeployBusy, setFullRedeployBusy] = useState(false);
-  const [fullRedeployCooldownSec, setFullRedeployCooldownSec] = useState(0);
-  const fullRedeployCooldownUntilRef = useRef(0);
-  const [fullRedeployConfigured, setFullRedeployConfigured] = useState(true);
   const [crawlerIngestBusy, setCrawlerIngestBusy] = useState(false);
   const [crawlerIngestConfigured, setCrawlerIngestConfigured] = useState(false);
   const [crawlerIngestSummary, setCrawlerIngestSummary] = useState(null);
@@ -4772,10 +4639,6 @@ const [mounted, setMounted] = useState(false);
   const [taxonomyConfirmClosing, setTaxonomyConfirmClosing] = useState(false);
   const [taxonomyConfirmName, setTaxonomyConfirmName] = useState('');
   const taxonomyConfirmTimerRef = useRef(null);
-  const [fullRedeployConfirmOpen, setFullRedeployConfirmOpen] = useState(false);
-  const [fullRedeployConfirmClosing, setFullRedeployConfirmClosing] = useState(false);
-  const [fullRedeployPasswordError, setFullRedeployPasswordError] = useState('');
-  const fullRedeployConfirmTimerRef = useRef(null);
   const [crawlerIngestPassword, setCrawlerIngestPassword] = useState('');
   const [crawlerIngestUnlockOpen, setCrawlerIngestUnlockOpen] = useState(false);
   const [crawlerIngestUnlockClosing, setCrawlerIngestUnlockClosing] = useState(false);
@@ -4978,16 +4841,6 @@ const [mounted, setMounted] = useState(false);
     setTimeout(() => permanentlyDeleteCategory(name), 260);
   };
 
-  const closeFullRedeployConfirmModal = () => {
-    if (fullRedeployConfirmTimerRef.current) clearTimeout(fullRedeployConfirmTimerRef.current);
-    setFullRedeployPasswordError('');
-    setFullRedeployConfirmClosing(true);
-    fullRedeployConfirmTimerRef.current = setTimeout(() => {
-      setFullRedeployConfirmOpen(false);
-      setFullRedeployConfirmClosing(false);
-    }, 240);
-  };
-
   const closeCrawlerIngestUnlockModal = () => {
     if (crawlerIngestUnlockTimerRef.current) clearTimeout(crawlerIngestUnlockTimerRef.current);
     setCrawlerIngestUnlockError('');
@@ -5008,16 +4861,17 @@ const [mounted, setMounted] = useState(false);
     }, 240);
   };
 
+  const formIsPostArticle =
+    form?.type !== 'Widget' &&
+    form?.type !== 'Page' &&
+    !isSimpleCustomPage(form?.slug) &&
+    (form?.type === 'Post' || !form?.type);
+
   const proceedPublishAfterConfirm = () => {
     closePublishConfirmModal();
     setTimeout(() => {
-      const isPostArticle =
-        form?.type !== 'Widget' &&
-        form?.type !== 'Page' &&
-        !isSimpleCustomPage(form?.slug) &&
-        (form?.type === 'Post' || !form?.type);
       if (
-        isPostArticle &&
+        formIsPostArticle &&
         !hasEditorImageBlock(editorBlocksRef.current || []) &&
         !hasGalleryImageItem(galleryItems)
       ) {
@@ -5561,10 +5415,6 @@ const [mounted, setMounted] = useState(false);
     const tick = () => {
       const left = Math.ceil((blogRefreshCooldownUntilRef.current - Date.now()) / 1000);
       setBlogRefreshCooldownSec(left > 0 ? left : 0);
-      const fullLeft = Math.ceil(
-        (fullRedeployCooldownUntilRef.current - Date.now()) / 1000
-      );
-      setFullRedeployCooldownSec(fullLeft > 0 ? fullLeft : 0);
     };
     tick();
     const id = setInterval(tick, 500);
@@ -5583,22 +5433,6 @@ const [mounted, setMounted] = useState(false);
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [headerActionsMenuOpen]);
-  const fetchFullRedeployStatus = async () => {
-    try {
-      const res = await fetch('/api/admin/full-redeploy');
-      const data = await res.json();
-      if (!res.ok || !data.success) return;
-      setFullRedeployConfigured(Boolean(data.configured));
-      if (data.retryAfterSec > 0) {
-        fullRedeployCooldownUntilRef.current =
-          Date.now() + data.retryAfterSec * 1000;
-        setFullRedeployCooldownSec(data.retryAfterSec);
-      }
-    } catch (e) {
-      console.warn('读取全量更新状态失败', e);
-    }
-  };
-
   const buildCrawlerIngestHeaders = (extra = {}, passwordOverride = crawlerIngestPassword) => ({
     ...extra,
     ...(passwordOverride
@@ -5728,7 +5562,6 @@ const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     if (!mounted) return;
-    fetchFullRedeployStatus();
     fetchCrawlerIngestStatus();
     loadSitePlan();
   }, [mounted]);
@@ -7609,7 +7442,7 @@ const [mounted, setMounted] = useState(false);
     const now = Date.now();
     if (now < blogRefreshCooldownUntilRef.current) {
       const sec = Math.ceil((blogRefreshCooldownUntilRef.current - now) / 1000);
-      showAdminToast(`刷新过于频繁，请 ${sec} 秒后再试`);
+      showAdminToast(`刷新过于频繁，请 ${formatRefreshCooldownHint(sec)}后再试`);
       return;
     }
     setBlogRefreshBusy(true);
@@ -7620,7 +7453,7 @@ const [mounted, setMounted] = useState(false);
           const retrySec = rev.data?.retryAfterSec || 60;
           blogRefreshCooldownUntilRef.current = Date.now() + retrySec * 1000;
           setBlogRefreshCooldownSec(retrySec);
-          showAdminToast(rev.data?.error || `刷新过于频繁，请 ${retrySec} 秒后再试`);
+          showAdminToast(rev.data?.error || `刷新过于频繁，请 ${formatRefreshCooldownHint(retrySec)}后再试`);
           return;
         }
         blogRefreshCooldownUntilRef.current = Date.now() + BLOG_SHELL_REFRESH_COOLDOWN_MS;
@@ -7953,65 +7786,6 @@ const [mounted, setMounted] = useState(false);
     } catch (e) {
       showAdminToast(e?.message || '删除失败');
     }
-  };
-
-  const executeFullRedeploy = async (password) => {
-    setFullRedeployBusy(true);
-    setFullRedeployPasswordError('');
-    try {
-      const res = await fetch('/api/admin/full-redeploy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json();
-      if (res.status === 403) {
-        setFullRedeployPasswordError(data.error || '全量更新密码错误');
-        return;
-      }
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || '触发失败');
-      }
-      if (data.retryAfterSec > 0) {
-        fullRedeployCooldownUntilRef.current =
-          Date.now() + data.retryAfterSec * 1000;
-        setFullRedeployCooldownSec(data.retryAfterSec);
-      } else {
-        fullRedeployCooldownUntilRef.current =
-          Date.now() + FULL_REDEPLOY_COOLDOWN_MS;
-        setFullRedeployCooldownSec(Math.ceil(FULL_REDEPLOY_COOLDOWN_MS / 1000));
-      }
-      closeFullRedeployConfirmModal();
-      showAdminToast(
-        data.message ||
-          '全量更新已触发，请等待3分钟后刷新BLOG，如存在问题请联系管理'
-      );
-    } catch (e) {
-      showAdminToast(e?.message || '全量更新失败');
-    } finally {
-      setFullRedeployBusy(false);
-    }
-  };
-
-  const proceedFullRedeployAfterConfirm = (password) => {
-    if (fullRedeployBusy) return;
-    if (!password) {
-      setFullRedeployPasswordError('请输入全量更新密码');
-      return;
-    }
-    executeFullRedeploy(password);
-  };
-
-  const openFullRedeployConfirm = () => {
-    if (isThemeLoading || fullRedeployBusy || fullRedeployCooldownSec > 0) return;
-    if (!fullRedeployConfigured) {
-      showAdminToast('全量更新未配置，请联系管理');
-      return;
-    }
-    if (fullRedeployConfirmTimerRef.current) clearTimeout(fullRedeployConfirmTimerRef.current);
-    setFullRedeployPasswordError('');
-    setFullRedeployConfirmClosing(false);
-    setFullRedeployConfirmOpen(true);
   };
 
   const deleteTagOption = (e, tagToDelete) => {
@@ -8795,7 +8569,7 @@ const [mounted, setMounted] = useState(false);
         isUpdate={!!currentId}
         publishAs={publishAs}
         onPublishAsChange={setPublishAs}
-        showModeOptions={form.type !== 'Widget'}
+        showModeOptions={formIsPostArticle}
         onConfirm={proceedPublishAfterConfirm}
         onCancel={closePublishConfirmModal}
       />
@@ -8804,6 +8578,7 @@ const [mounted, setMounted] = useState(false);
         onLeave={leaveConfirmLeaveAnyway}
         onStay={closeLeaveConfirm}
         onSaveDraft={leaveConfirmSaveDraft}
+        canSaveDraft={formIsPostArticle}
       />
       <TaxonomyConfirmModal
         open={taxonomyConfirmOpen}
@@ -8817,14 +8592,6 @@ const [mounted, setMounted] = useState(false);
         closing={themeDoneModalClosing}
         extraNote={themeDoneModalNote}
         onClose={closeThemeDoneModal}
-      />
-      <FullRedeployConfirmModal
-        open={fullRedeployConfirmOpen}
-        closing={fullRedeployConfirmClosing}
-        busy={fullRedeployBusy}
-        passwordError={fullRedeployPasswordError}
-        onConfirm={proceedFullRedeployAfterConfirm}
-        onCancel={closeFullRedeployConfirmModal}
       />
       <CrawlerIngestUnlockModal
         open={crawlerIngestUnlockOpen}
@@ -8881,12 +8648,8 @@ const [mounted, setMounted] = useState(false);
                  isThemeLoading={isThemeLoading}
                  blogRefreshBusy={blogRefreshBusy}
                  blogRefreshCooldownSec={blogRefreshCooldownSec}
-                 onShellRefresh={handleManualDeploy}
-                 fullRedeployBusy={fullRedeployBusy}
-                 fullRedeployCooldownSec={fullRedeployCooldownSec}
-                 fullRedeployConfigured={fullRedeployConfigured}
-                 onFullRedeploy={openFullRedeployConfirm}
-                 crawlerIngestBusy={crawlerIngestBusy}
+                  onShellRefresh={handleManualDeploy}
+                  crawlerIngestBusy={crawlerIngestBusy}
                  crawlerIngestProgress={crawlerIngestProgress}
                  crawlerIngestConfigured={crawlerIngestConfigured}
                  crawlerIngestSummary={crawlerIngestSummary}
@@ -10407,7 +10170,6 @@ const [mounted, setMounted] = useState(false);
                 <div><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><textarea className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="组件简介..." style={{minHeight:'90px'}} /></div>
               </div>
             </div>
-            <button type="button" onClick={handleSaveDraftClick} style={{width:'100%', padding:'13px', background:'#303030', color:'greenyellow', border:'1px solid rgba(173,255,47,0.45)', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', marginTop:'40px', cursor:'pointer', transition:'0.3s'}}>💾 存草稿（仅保存到本机，不上传）</button>
             <button onClick={attemptSave} title={isFormValid ? '' : (getMissingFieldMsg() || '')} style={{width:'100%', padding:'20px', background:isFormValid?'#fff':'#222', color:isFormValid?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor:'pointer', transition:'0.3s'}}>保存修改</button>
           </div>
         ) : (
@@ -10668,7 +10430,9 @@ const [mounted, setMounted] = useState(false);
               <div className="fab-btn" onClick={() => scrollEditView('bottom')}><Icons.ArrowDown /></div>
             </div>
 
-            <button type="button" onClick={handleSaveDraftClick} disabled={loading} style={{width:'100%', padding:'13px', background:'#303030', color:'greenyellow', border:'1px solid rgba(173,255,47,0.45)', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', marginTop:'56px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>💾 存草稿（仅保存到本机，不上传）</button>
+            {formIsPostArticle ? (
+              <button type="button" onClick={handleSaveDraftClick} disabled={loading} style={{width:'100%', padding:'13px', background:'#303030', color:'greenyellow', border:'1px solid rgba(173,255,47,0.45)', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', marginTop:'56px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>💾 存草稿（仅保存到本机，不上传）</button>
+            ) : null}
             <button onClick={attemptSave} disabled={loading} title={isFormValid ? '' : (getMissingFieldMsg() || '')} style={{width:'100%', padding:'20px', background:isFormValid && !loading?'#fff':'#222', color:isFormValid && !loading?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>
               {currentId ? '保存修改' : '确认发布'}
             </button>

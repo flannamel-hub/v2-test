@@ -186,7 +186,7 @@ export function GalleryStorageBar({ stats, loading, error }) {
           图库容量
         </span>
         <span style={{ fontSize: '12px', color: '#999' }}>
-          {stats.imageCount} 张 · {pctLabel} 已用
+          {pctLabel} 已用
         </span>
       </div>
       <div

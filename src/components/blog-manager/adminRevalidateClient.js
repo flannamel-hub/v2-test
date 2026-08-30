@@ -3,7 +3,7 @@ let queuedRevalidateDrainTimers = [];
 const REVALIDATE_BATCH_SIZE = 12;
 const LIST_MUTATION_REFRESH_STEPS = 2;
 
-export const BLOG_SHELL_REFRESH_COOLDOWN_MS = 60_000;
+export const BLOG_SHELL_REFRESH_COOLDOWN_MS = 30 * 60 * 1000;
 
 function clearQueuedRevalidateDrainTimers() {
   queuedRevalidateDrainTimers.forEach((timer) => clearTimeout(timer));

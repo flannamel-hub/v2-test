@@ -26,14 +26,72 @@ import {
   resetStaleRevalidateJobs,
 } from '@/src/lib/blog/revalidateQueue'
 import { isPostIndexedBySlug } from '@/src/lib/notion/getBlogData'
+import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
+import { getSupabaseAdmin } from '@/src/lib/supabase/admin'
 
 export const config = {
   maxDuration: 300,
 }
 
-/** 手动「刷新BLOG」最小间隔（服务端兜底，防多标签/脚本连点） */
-const MANUAL_SHELL_REVALIDATE_MIN_MS = 45_000
+/** 手动「刷新BLOG」最小间隔（服务端持久化兜底，防多标签/脚本连点） */
+const MANUAL_SHELL_REVALIDATE_MIN_MS = 30 * 60 * 1000
 let lastManualShellRevalidateAt = 0
+
+const MANUAL_REFRESH_TABLE = 'blog_site_settings'
+const MANUAL_REFRESH_COLUMN = 'last_manual_refresh_at'
+/** 进程内兜底（无 Supabase / 无 site_id 时尽力限制，与 fullRedeploy.ts 同风格） */
+const memoryLastManualRefresh = new Map()
+
+function formatManualRefreshRetryHint(retryAfterSec) {
+  const s = Math.max(0, Math.ceil(Number(retryAfterSec) || 0))
+  return s >= 60 ? `${Math.round(s / 60)} 分钟` : `${s} 秒`
+}
+
+async function readLastManualRefreshMs(siteId) {
+  const supabase = getSupabaseAdmin()
+  if (supabase) {
+    const { data, error } = await supabase
+      .from(MANUAL_REFRESH_TABLE)
+      .select(MANUAL_REFRESH_COLUMN)
+      .eq('site_id', siteId)
+      .maybeSingle()
+    if (!error && data?.[MANUAL_REFRESH_COLUMN]) {
+      const ms = new Date(data[MANUAL_REFRESH_COLUMN]).getTime()
+      if (!Number.isNaN(ms)) return ms
+    }
+  }
+  const mem = memoryLastManualRefresh.get(siteId)
+  return typeof mem === 'number' ? mem : null
+}
+
+async function writeLastManualRefreshMs(siteId, atMs) {
+  memoryLastManualRefresh.set(siteId, atMs)
+
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return
+
+  const at = new Date(atMs).toISOString()
+  const { error: updateError } = await supabase
+    .from(MANUAL_REFRESH_TABLE)
+    .update({ [MANUAL_REFRESH_COLUMN]: at, updated_at: at })
+    .eq('site_id', siteId)
+
+  if (!updateError) return
+
+  const { error: upsertError } = await supabase.from(MANUAL_REFRESH_TABLE).upsert(
+    {
+      site_id: siteId,
+      theme_code: 'gallery',
+      [MANUAL_REFRESH_COLUMN]: at,
+      updated_at: at,
+    },
+    { onConflict: 'site_id' }
+  )
+
+  if (upsertError) {
+    throw new Error(upsertError.message)
+  }
+}
 
 function isMissingRevalidateQueueTable(error) {
   const code = String(error?.code || '')
@@ -192,18 +250,43 @@ export default async function handler(req, res) {
 
     if (scope === 'shell' && manualShell) {
       const now = Date.now()
-      const elapsed = now - lastManualShellRevalidateAt
-      if (lastManualShellRevalidateAt > 0 && elapsed < MANUAL_SHELL_REVALIDATE_MIN_MS) {
+      const siteId = getBlogSiteIdOrNull()
+      let lastAt = lastManualShellRevalidateAt
+      if (siteId) {
+        try {
+          const persisted = await readLastManualRefreshMs(siteId)
+          if (typeof persisted === 'number' && persisted > lastAt) {
+            lastAt = persisted
+          }
+        } catch (cooldownReadError) {
+          console.warn(
+            '[admin/revalidate] read manual refresh cooldown failed',
+            cooldownReadError
+          )
+        }
+      }
+      const elapsed = now - lastAt
+      if (lastAt > 0 && elapsed < MANUAL_SHELL_REVALIDATE_MIN_MS) {
         const retryAfterSec = Math.ceil(
           (MANUAL_SHELL_REVALIDATE_MIN_MS - elapsed) / 1000
         )
         return res.status(429).json({
           success: false,
-          error: `刷新过于频繁，请 ${retryAfterSec} 秒后再试`,
+          error: `刷新过于频繁，请 ${formatManualRefreshRetryHint(retryAfterSec)}后再试`,
           retryAfterSec,
         })
       }
       lastManualShellRevalidateAt = now
+      if (siteId) {
+        try {
+          await writeLastManualRefreshMs(siteId, now)
+        } catch (cooldownWriteError) {
+          console.warn(
+            '[admin/revalidate] persist manual refresh cooldown failed',
+            cooldownWriteError
+          )
+        }
+      }
     }
 
     if (scope === 'list') {
