@@ -281,6 +281,12 @@
 - 修改后台时做外科手术式局部修改；revalidate 客户端逻辑优先改 `adminRevalidateClient.js`，避免继续扩大 `AdminDashboard.js`。
 - `/admin` 不加载 Chatwoot；且 `_app.tsx` 中 `CHATWOOT_ENABLED` 当前硬编码为 `false`（整站关闭）。
 
+### 版本标识与权限细节（P18ADMIN-DETAILS，用户 2026-08-30）
+
+- 站点标题旁徽章：**专业版 = 金黄「VIP · 专业版」**（bg `rgba(251,191,36,0.12)` / `#fbbf24` / border `rgba(251,191,36,0.5)`）；**免费版 = 浅绿**（原专业版配色 `rgba(173,255,47,0.10)` / `#9acd32`）。`sitePlan` 来自站点设置（读取失败按免费版缺省）。
+- 贩售机「编辑地址」：**专业版直接解锁**（跳过维护密码弹窗）；免费版仍需维护密码（`VendingAddressUnlockModal`）。地址由平台统一维护（系统侧后续可管）。
+- 后台列表/回收站搜索框 placeholder 为「搜索」（2026-08-30 中文修正，勿改回英文）。
+
 ### 列表 Tab 与广告位分类
 
 - 后台列表 Tab 顺序：`已发布` / `已收藏` / `组件` / `广告位` / `自定义页面`（内部代号含 `Ads`）。
@@ -596,7 +602,7 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 | `BLOG_PUBLIC_URL` | 预热用公网地址 |
 | `NEXT_PUBLIC_SITE_URL` | SEO canonical / OG / sitemap |
 | `CRAWLER_INGEST_DEFAULT_STATUS` | 爬虫新建默认 status |
-| `MERCHANT_API_BASE` | 主站网关地址（shop「关联商品」下拉代理；未配置则降级手填 SKU） |
+| `MERCHANT_API_BASE` | 主站网关地址（shop「关联商品」查询；**未配置时回退主站默认地址** `https://creator.proplus.onl`，2026-08-30 兜底，仅 TOKEN 缺失才会失败） |
 | `MERCHANT_PRODUCTS_PATH` | 主站商品列表端点路径（默认 `/api/merchant/products-public`） |
 | `MERCHANT_API_TOKEN` | 主站服务端凭据（可选，Bearer 透传） |
 | `ENABLE_REMOTE_IMAGE_PROBE` | 封面 blur 远程探测（默认关） |
