@@ -4660,6 +4660,8 @@ const [mounted, setMounted] = useState(false);
   const [galleryAdLoading, setGalleryAdLoading] = useState(false);
   const [galleryAdSaving, setGalleryAdSaving] = useState(false);
   const [galleryAdCoverUploading, setGalleryAdCoverUploading] = useState(false);
+  const [galleryAdEditing, setGalleryAdEditing] = useState(false);
+  const galleryAdSnapshotRef = useRef(null);
   // BLOG 分层 P4-FIX:站点会员计划(读取失败按免费版安全缺省);广告位为专业版权益
   const [sitePlan, setSitePlan] = useState('free');
   const adsLocked = sitePlan !== 'pro';
@@ -4680,6 +4682,8 @@ const [mounted, setMounted] = useState(false);
   const [vendingSaving, setVendingSaving] = useState(false);
   const [vendingAddressUnlocked, setVendingAddressUnlocked] = useState(false);
   const [vendingAddressPassword, setVendingAddressPassword] = useState('');
+  const [vendingEditing, setVendingEditing] = useState(false);
+  const vendingSnapshotRef = useRef(null);
   const [announcementPopup, setAnnouncementPopup] = useState({
     id: null,
     enabled: false,
@@ -4691,6 +4695,8 @@ const [mounted, setMounted] = useState(false);
   });
   const [announcementPopupLoading, setAnnouncementPopupLoading] = useState(false);
   const [announcementPopupSaving, setAnnouncementPopupSaving] = useState(false);
+  const [announcementPopupEditing, setAnnouncementPopupEditing] = useState(false);
+  const announcementPopupSnapshotRef = useRef(null);
   const [popupAd, setPopupAd] = useState({
     id: null,
     enabled: false,
@@ -4702,6 +4708,8 @@ const [mounted, setMounted] = useState(false);
   });
   const [popupAdLoading, setPopupAdLoading] = useState(false);
   const [popupAdSaving, setPopupAdSaving] = useState(false);
+  const [popupAdEditing, setPopupAdEditing] = useState(false);
+  const popupAdSnapshotRef = useRef(null);
   const [clickAd, setClickAd] = useState({
     id: null,
     enabled: false,
@@ -4710,6 +4718,8 @@ const [mounted, setMounted] = useState(false);
   });
   const [clickAdLoading, setClickAdLoading] = useState(false);
   const [clickAdSaving, setClickAdSaving] = useState(false);
+  const [clickAdEditing, setClickAdEditing] = useState(false);
+  const clickAdSnapshotRef = useRef(null);
   // P18-C4-1: shop 主题首页 Banner(Notion Widget slug=banner;仅 shop 生效)
   const [shopBanner, setShopBanner] = useState({
     id: null,
@@ -4719,6 +4729,8 @@ const [mounted, setMounted] = useState(false);
   });
   const [shopBannerLoading, setShopBannerLoading] = useState(false);
   const [shopBannerSaving, setShopBannerSaving] = useState(false);
+  const [shopBannerEditing, setShopBannerEditing] = useState(false);
+  const shopBannerSnapshotRef = useRef(null);
   // P18C43-D3: Banner 缩略图上传进度/失败提示 + 拖拽排序状态
   const [shopBannerUpload, setShopBannerUpload] = useState(null); // { done, total }
   const [shopBannerUploadError, setShopBannerUploadError] = useState('');
@@ -5759,6 +5771,13 @@ const [mounted, setMounted] = useState(false);
     }
   }, [activeTab]);
 
+  useEffect(() => { if (galleryAd.enabled) setGalleryAdEditing(false); }, [galleryAd.enabled]);
+  useEffect(() => { if (vendingEnabled) setVendingEditing(false); }, [vendingEnabled]);
+  useEffect(() => { if (shopBanner.enabled) setShopBannerEditing(false); }, [shopBanner.enabled]);
+  useEffect(() => { if (announcementPopup.enabled) setAnnouncementPopupEditing(false); }, [announcementPopup.enabled]);
+  useEffect(() => { if (popupAd.enabled) setPopupAdEditing(false); }, [popupAd.enabled]);
+  useEffect(() => { if (clickAd.enabled) setClickAdEditing(false); }, [clickAd.enabled]);
+
   // 双模状态机解析
   const parseContentToBlocks = (md) => {
     if(!md) return [];
@@ -6065,6 +6084,67 @@ const [mounted, setMounted] = useState(false);
     }
   };
 
+  const startVendingEditing = () => {
+    vendingSnapshotRef.current = { enabled: vendingEnabled, title: vendingTitle, url: vendingUrl };
+    setVendingEditing(true);
+  };
+  const discardVendingEditing = () => {
+    const snap = vendingSnapshotRef.current;
+    if (snap) {
+      setVendingEnabled(snap.enabled);
+      setVendingTitle(snap.title);
+      setVendingUrl(snap.url);
+    }
+    setVendingEditing(false);
+  };
+  const startShopBannerEditing = () => {
+    shopBannerSnapshotRef.current = { ...shopBanner };
+    setShopBannerEditing(true);
+  };
+  const discardShopBannerEditing = () => {
+    const snap = shopBannerSnapshotRef.current;
+    if (snap) setShopBanner(snap);
+    setShopBannerUpload(null);
+    setShopBannerUploadError('');
+    setShopBannerEditing(false);
+  };
+  const startAnnouncementPopupEditing = () => {
+    announcementPopupSnapshotRef.current = { ...announcementPopup };
+    setAnnouncementPopupEditing(true);
+  };
+  const discardAnnouncementPopupEditing = () => {
+    const snap = announcementPopupSnapshotRef.current;
+    if (snap) setAnnouncementPopup(snap);
+    setAnnouncementPopupEditing(false);
+  };
+  const startPopupAdEditing = () => {
+    popupAdSnapshotRef.current = { ...popupAd };
+    setPopupAdEditing(true);
+  };
+  const discardPopupAdEditing = () => {
+    const snap = popupAdSnapshotRef.current;
+    if (snap) setPopupAd(snap);
+    setPopupAdEditing(false);
+  };
+  const startClickAdEditing = () => {
+    clickAdSnapshotRef.current = { ...clickAd };
+    setClickAdEditing(true);
+  };
+  const discardClickAdEditing = () => {
+    const snap = clickAdSnapshotRef.current;
+    if (snap) setClickAd(snap);
+    setClickAdEditing(false);
+  };
+  const startGalleryAdEditing = () => {
+    galleryAdSnapshotRef.current = { ...galleryAd };
+    setGalleryAdEditing(true);
+  };
+  const discardGalleryAdEditing = () => {
+    const snap = galleryAdSnapshotRef.current;
+    if (snap) setGalleryAd(snap);
+    setGalleryAdEditing(false);
+  };
+
   // === 📢 Gallery 广告位 ===
   const loadGalleryAd = async () => {
     setGalleryAdLoading(true);
@@ -6084,7 +6164,7 @@ const [mounted, setMounted] = useState(false);
     } catch (e) { alert('加载广告位失败：' + e.message); }
     finally { setGalleryAdLoading(false); }
   };
-  const openGalleryAd = () => { setView('gallery-ad'); loadGalleryAd(); };
+  const openGalleryAd = () => { discardGalleryAdEditing(); setView('gallery-ad'); loadGalleryAd(); };
 
   // === 🛒 贩售机全站开关 ===
   const loadVending = async () => {
@@ -6105,6 +6185,7 @@ const [mounted, setMounted] = useState(false);
     setVendingAddressUnlocked(false);
     setVendingAddressPassword('');
     setVendingAddressUnlockError('');
+    discardVendingEditing();
     setView('vending');
     loadVending();
   };
@@ -6236,6 +6317,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const openAnnouncementPopup = () => {
+    discardAnnouncementPopupEditing();
     setView('announcement-popup');
     loadAnnouncementPopup();
   };
@@ -6266,6 +6348,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const openPopupAd = () => {
+    discardPopupAdEditing();
     setView('popup-ad');
     loadPopupAd();
   };
@@ -6293,6 +6376,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const openClickAd = () => {
+    discardClickAdEditing();
     setView('click-ad');
     loadClickAd();
   };
@@ -6321,6 +6405,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   const openShopBanner = () => {
+    discardShopBannerEditing();
     setView('shop-banner');
     loadShopBanner();
   };
@@ -6533,6 +6618,10 @@ const [mounted, setMounted] = useState(false);
       alert('图片地址请填写 http(s) 开头的直链');
       return;
     }
+    if (next.enabled && !next.content && !next.image) {
+      alert('开启前请先填写内容或上传图片');
+      return;
+    }
     setPopupAdSaving(true);
     try {
       const r = await fetch('/api/admin/popup-ad', {
@@ -6605,6 +6694,10 @@ const [mounted, setMounted] = useState(false);
     };
     if (next.image && !/^https?:\/\//i.test(next.image)) {
       alert('图片地址请填写 http(s) 开头的直链');
+      return;
+    }
+    if (next.enabled && !next.content) {
+      alert('开启前请先填写通知内容');
       return;
     }
     setAnnouncementPopupSaving(true);
@@ -9450,12 +9543,18 @@ const [mounted, setMounted] = useState(false);
                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px', opacity: vendingLocked ? 0.55 : 1}}>
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>贩售机功能</div>
-                    <div style={{fontSize:'12px', color:'#999'}}>{vendingEnabled ? '当前：已开启' : '当前：已关闭'}{vendingLocked ? '（免费版由平台统一维护）' : ''}</div>
+                    <div style={{fontSize:'12px', color:'#999'}}>{vendingEnabled ? '当前：已开启' : vendingEditing ? '当前：已关闭 · 修改未保存' : '当前：已关闭'}{vendingLocked ? '（免费版由平台统一维护）' : ''}</div>
                   </div>
                   <button
                     type="button"
                     disabled={vendingSaving}
-                    onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ enabled: !vendingEnabled })}
+                    onClick={() => {
+                      if (vendingLocked) { alert('贩售机组件为专业版权益，升级后可用'); return; }
+                      if (vendingEnabled) { saveVending({ enabled: false }); return; }
+                      if (vendingEditing) { discardVendingEditing(); return; }
+                      startVendingEditing();
+                    }}
+                    title={vendingEditing ? '放弃修改并收起' : undefined}
                     style={{
                       minWidth: '88px',
                       padding: '12px 20px',
@@ -9464,15 +9563,15 @@ const [mounted, setMounted] = useState(false);
                       fontWeight: 'bold',
                       fontSize: '14px',
                       cursor: vendingSaving ? 'wait' : 'pointer',
-                      background: vendingLocked ? '#444' : vendingEnabled ? '#22c55e' : '#555',
+                      background: vendingLocked ? '#444' : vendingEnabled ? '#22c55e' : vendingEditing ? '#d97706' : '#555',
                       color: '#fff',
                       opacity: vendingSaving ? 0.6 : vendingLocked ? 0.7 : 1,
                     }}
                   >
-                    {vendingSaving ? '保存中…' : vendingLocked ? '专业版' : (vendingEnabled ? '已开启' : '已关闭')}
+                    {vendingSaving ? '保存中…' : vendingLocked ? '专业版' : (vendingEnabled ? '已开启' : vendingEditing ? '未保存' : '已关闭')}
                   </button>
                 </div>
-                {SHOW_VENDING_ADDRESS_ADMIN && (
+                {SHOW_VENDING_ADDRESS_ADMIN && (vendingEnabled || vendingEditing) && (
                 <div style={{display:'flex', flexDirection:'column', gap:'16px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', opacity: vendingLocked ? 0.55 : 1}}>
                   <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'14px'}}>
                     <div>
@@ -9513,15 +9612,36 @@ const [mounted, setMounted] = useState(false);
                     <input className="glow-input" value={vendingUrl} onChange={e=>setVendingUrl(e.target.value)} placeholder="https://store.proplus.onl/buy" disabled={vendingLocked || !vendingAddressUnlocked || vendingSaving} />
                     <div style={{fontSize:'11px', color:'#888', marginTop:'8px', lineHeight:1.6}}>地址默认由平台维护。后续商家系统可统一管理这里的维护密码与贩售机地址。</div>
                   </div>
+                  {vendingEditing ? (
+                    <button
+                      type="button"
+                      onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ includeAddress: vendingAddressUnlocked, enabled: true })}
+                      disabled={vendingSaving}
+                      style={{padding:'16px', background: vendingSaving ? '#333' : '#fff', color: vendingSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : 'pointer'}}
+                    >
+                      {vendingSaving ? '保存中…' : '保存并开启'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ includeAddress: true })}
+                      disabled={vendingSaving || !vendingAddressUnlocked}
+                      style={{padding:'16px', background: (vendingSaving || !vendingAddressUnlocked) ? '#333' : '#fff', color: (vendingSaving || !vendingAddressUnlocked) ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : (vendingAddressUnlocked ? 'pointer' : 'not-allowed')}}
+                    >
+                      {vendingSaving ? '保存中…' : '保存地址设置'}
+                    </button>
+                  )}
+                </div>
+                )}
+                {vendingEditing && !SHOW_VENDING_ADDRESS_ADMIN && (
                   <button
                     type="button"
-                    onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ includeAddress: true })}
-                    disabled={vendingSaving || !vendingAddressUnlocked}
-                    style={{padding:'16px', background: (vendingSaving || !vendingAddressUnlocked) ? '#333' : '#fff', color: (vendingSaving || !vendingAddressUnlocked) ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : (vendingAddressUnlocked ? 'pointer' : 'not-allowed')}}
+                    onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ includeAddress: false, enabled: true })}
+                    disabled={vendingSaving}
+                    style={{padding:'16px', background: vendingSaving ? '#333' : '#fff', color: vendingSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : 'pointer', marginTop:'18px'}}
                   >
-                    {vendingSaving ? '保存中…' : '保存地址设置'}
+                    {vendingSaving ? '保存中…' : '保存并开启'}
                   </button>
-                </div>
                 )}
               </>
             )}
@@ -9627,13 +9747,18 @@ const [mounted, setMounted] = useState(false);
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>Banner 开关</div>
                     <div style={{fontSize:'12px', color:'#999'}}>
-                      {shopBanner.enabled ? '当前：已开启' : '当前：已关闭'} · 仅在 shop 主题首页展示，其他主题不展示
+                      {shopBanner.enabled ? '当前：已开启 · 仅在 shop 主题首页展示，其他主题不展示' : shopBannerEditing ? '当前：已关闭 · 修改未保存' : '当前：已关闭'}
                     </div>
                   </div>
                   <button
                     type="button"
                     disabled={shopBannerSaving}
-                    onClick={() => saveShopBanner({ enabled: !shopBanner.enabled })}
+                    onClick={() => {
+                      if (shopBanner.enabled) { saveShopBanner({ enabled: false }); return; }
+                      if (shopBannerEditing) { discardShopBannerEditing(); return; }
+                      startShopBannerEditing();
+                    }}
+                    title={shopBannerEditing ? '放弃修改并收起' : undefined}
                     style={{
                       minWidth: '88px',
                       padding: '12px 20px',
@@ -9642,14 +9767,16 @@ const [mounted, setMounted] = useState(false);
                       fontWeight: 'bold',
                       fontSize: '14px',
                       cursor: shopBannerSaving ? 'wait' : 'pointer',
-                      background: shopBanner.enabled ? '#22c55e' : '#555',
+                      background: shopBanner.enabled ? '#22c55e' : shopBannerEditing ? '#d97706' : '#555',
                       color: '#fff',
                       opacity: shopBannerSaving ? 0.6 : 1,
                     }}
                   >
-                    {shopBannerSaving ? '保存中…' : (shopBanner.enabled ? '已开启' : '已关闭')}
+                    {shopBannerSaving ? '保存中…' : (shopBanner.enabled ? '已开启' : shopBannerEditing ? '未保存' : '已关闭')}
                   </button>
                 </div>
+                {(shopBanner.enabled || shopBannerEditing) && (
+                <>
                 <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>Banner 图片 <span style={{color:'#ff4d4f'}}>*</span> <span style={{color:'#777', fontWeight:'normal'}}>(拖入或点击上传，第 2 张起自动轮播，缩略图可拖拽排序)</span></label>
@@ -9770,12 +9897,14 @@ const [mounted, setMounted] = useState(false);
                 </div>
                 <button
                   type="button"
-                  onClick={() => saveShopBanner()}
+                  onClick={() => shopBannerEditing ? saveShopBanner({ enabled: true }) : saveShopBanner()}
                   disabled={shopBannerSaving}
                   style={{width:'100%', padding:'18px', background: shopBannerSaving ? '#333' : '#fff', color: shopBannerSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: shopBannerSaving ? 'wait' : 'pointer', marginTop:'32px'}}
                 >
                   {shopBannerSaving ? '保存中…' : '保存 Banner'}
                 </button>
+                </>
+                )}
               </div>
             )}
           </div>
@@ -9793,12 +9922,17 @@ const [mounted, setMounted] = useState(false);
                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px'}}>
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>弹窗功能</div>
-                    <div style={{fontSize:'12px', color:'#999'}}>{announcementPopup.enabled ? '当前：已开启' : '当前：已关闭'} · 仅作站务通知，不含广告跳转按钮</div>
+                    <div style={{fontSize:'12px', color:'#999'}}>{announcementPopup.enabled ? '当前：已开启 · 仅作站务通知，不含广告跳转按钮' : announcementPopupEditing ? '当前：已关闭 · 修改未保存' : '当前：已关闭'}</div>
                   </div>
                   <button
                     type="button"
                     disabled={announcementPopupSaving}
-                    onClick={() => saveAnnouncementPopup({ enabled: !announcementPopup.enabled })}
+                    onClick={() => {
+                      if (announcementPopup.enabled) { saveAnnouncementPopup({ enabled: false }); return; }
+                      if (announcementPopupEditing) { discardAnnouncementPopupEditing(); return; }
+                      startAnnouncementPopupEditing();
+                    }}
+                    title={announcementPopupEditing ? '放弃修改并收起' : undefined}
                     style={{
                       minWidth: '88px',
                       padding: '12px 20px',
@@ -9807,14 +9941,16 @@ const [mounted, setMounted] = useState(false);
                       fontWeight: 'bold',
                       fontSize: '14px',
                       cursor: announcementPopupSaving ? 'wait' : 'pointer',
-                      background: announcementPopup.enabled ? '#22c55e' : '#555',
+                      background: announcementPopup.enabled ? '#22c55e' : announcementPopupEditing ? '#d97706' : '#555',
                       color: '#fff',
                       opacity: announcementPopupSaving ? 0.6 : 1,
                     }}
                   >
-                    {announcementPopupSaving ? '保存中…' : (announcementPopup.enabled ? '已开启' : '已关闭')}
+                    {announcementPopupSaving ? '保存中…' : (announcementPopup.enabled ? '已开启' : announcementPopupEditing ? '未保存' : '已关闭')}
                   </button>
                 </div>
+                {(announcementPopup.enabled || announcementPopupEditing) && (
+                <>
                 <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'8px'}}>附图 <span style={{color:'#777', fontWeight:'normal'}}>(选填)</span></label>
@@ -9845,12 +9981,14 @@ const [mounted, setMounted] = useState(false);
                 </div>
                 <button
                   type="button"
-                  onClick={() => saveAnnouncementPopup({ includeContent: true })}
+                  onClick={() => announcementPopupEditing ? saveAnnouncementPopup({ includeContent: true, enabled: true }) : saveAnnouncementPopup({ includeContent: true })}
                   disabled={announcementPopupSaving}
                   style={{width:'100%', padding:'18px', background: announcementPopupSaving ? '#333' : '#fff', color: announcementPopupSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: announcementPopupSaving ? 'wait' : 'pointer', marginTop:'32px'}}
                 >
                   {announcementPopupSaving ? '保存中…' : '保存公告弹窗'}
                 </button>
+                </>
+                )}
               </>
             )}
           </div>
@@ -9873,13 +10011,18 @@ const [mounted, setMounted] = useState(false);
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告开关</div>
                     <div style={{fontSize:'12px', color:'#999'}}>
-                      {clickAd.enabled ? '当前：已开启' : '当前：已关闭'} · 不拦截原点击；排除贩售机与弹窗
+                      {clickAd.enabled ? '当前：已开启 · 不拦截原点击；排除贩售机与弹窗' : clickAdEditing ? '当前：已关闭 · 修改未保存' : '当前：已关闭'}
                     </div>
                   </div>
                   <button
                     type="button"
                     disabled={clickAdSaving || adsLocked}
-                    onClick={() => saveClickAd({ enabled: !clickAd.enabled })}
+                    onClick={() => {
+                      if (clickAd.enabled) { saveClickAd({ enabled: false }); return; }
+                      if (clickAdEditing) { discardClickAdEditing(); return; }
+                      startClickAdEditing();
+                    }}
+                    title={clickAdEditing ? '放弃修改并收起' : undefined}
                     style={{
                       minWidth: '88px',
                       padding: '12px 20px',
@@ -9888,14 +10031,16 @@ const [mounted, setMounted] = useState(false);
                       fontWeight: 'bold',
                       fontSize: '14px',
                       cursor: adsLocked ? 'not-allowed' : clickAdSaving ? 'wait' : 'pointer',
-                      background: adsLocked ? '#444' : clickAd.enabled ? '#22c55e' : '#555',
+                      background: adsLocked ? '#444' : clickAd.enabled ? '#22c55e' : clickAdEditing ? '#d97706' : '#555',
                       color: '#fff',
                       opacity: adsLocked ? 0.5 : clickAdSaving ? 0.6 : 1,
                     }}
                   >
-                    {clickAdSaving ? '保存中…' : (clickAd.enabled ? '已开启' : '已关闭')}
+                    {clickAdSaving ? '保存中…' : (clickAd.enabled ? '已开启' : clickAdEditing ? '未保存' : '已关闭')}
                   </button>
                 </div>
+                {(clickAd.enabled || clickAdEditing) && (
+                <>
                 <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>备注名 <span style={{color:'#777', fontWeight:'normal'}}>(可选)</span></label>
@@ -9911,12 +10056,14 @@ const [mounted, setMounted] = useState(false);
                 </div>
                 <button
                   type="button"
-                  onClick={() => saveClickAd()}
+                  onClick={() => clickAdEditing ? saveClickAd({ enabled: true }) : saveClickAd()}
                   disabled={clickAdSaving || adsLocked}
                   style={{width:'100%', padding:'18px', background: clickAdSaving || adsLocked ? '#333' : '#fff', color: clickAdSaving || adsLocked ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: adsLocked ? 'not-allowed' : clickAdSaving ? 'wait' : 'pointer', marginTop:'32px'}}
                 >
                   {clickAdSaving ? '保存中…' : '保存遮罩广告'}
                 </button>
+                </>
+                )}
               </div>
             )}
           </div>
@@ -9939,13 +10086,18 @@ const [mounted, setMounted] = useState(false);
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告开关</div>
                     <div style={{fontSize:'12px', color:'#999'}}>
-                      {popupAd.enabled ? '当前：已开启' : '当前：已关闭'} · 与公告同时开启时先公告后广告
+                      {popupAd.enabled ? '当前：已开启 · 与公告同时开启时先公告后广告' : popupAdEditing ? '当前：已关闭 · 修改未保存' : '当前：已关闭'}
                     </div>
                   </div>
                   <button
                     type="button"
                     disabled={popupAdSaving || adsLocked}
-                    onClick={() => savePopupAd({ enabled: !popupAd.enabled })}
+                    onClick={() => {
+                      if (popupAd.enabled) { savePopupAd({ enabled: false }); return; }
+                      if (popupAdEditing) { discardPopupAdEditing(); return; }
+                      startPopupAdEditing();
+                    }}
+                    title={popupAdEditing ? '放弃修改并收起' : undefined}
                     style={{
                       minWidth: '88px',
                       padding: '12px 20px',
@@ -9954,14 +10106,16 @@ const [mounted, setMounted] = useState(false);
                       fontWeight: 'bold',
                       fontSize: '14px',
                       cursor: adsLocked ? 'not-allowed' : popupAdSaving ? 'wait' : 'pointer',
-                      background: adsLocked ? '#444' : popupAd.enabled ? '#22c55e' : '#555',
+                      background: adsLocked ? '#444' : popupAd.enabled ? '#22c55e' : popupAdEditing ? '#d97706' : '#555',
                       color: '#fff',
                       opacity: adsLocked ? 0.5 : popupAdSaving ? 0.6 : 1,
                     }}
                   >
-                    {popupAdSaving ? '保存中…' : (popupAd.enabled ? '已开启' : '已关闭')}
+                    {popupAdSaving ? '保存中…' : (popupAd.enabled ? '已开启' : popupAdEditing ? '未保存' : '已关闭')}
                   </button>
                 </div>
+                {(popupAd.enabled || popupAdEditing) && (
+                <>
                 <div style={{display:'flex', gap:'24px', alignItems:'flex-start', flexWrap:'wrap'}}>
                   <div>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'8px'}}>主图 <span style={{color:'#777', fontWeight:'normal'}}>(建议)</span></label>
@@ -10002,12 +10156,14 @@ const [mounted, setMounted] = useState(false);
                 </div>
                 <button
                   type="button"
-                  onClick={() => savePopupAd()}
+                  onClick={() => popupAdEditing ? savePopupAd({ enabled: true }) : savePopupAd()}
                   disabled={popupAdSaving || adsLocked}
                   style={{width:'100%', padding:'18px', background: popupAdSaving || adsLocked ? '#333' : '#fff', color: popupAdSaving || adsLocked ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: adsLocked ? 'not-allowed' : popupAdSaving ? 'wait' : 'pointer', marginTop:'32px'}}
                 >
                   {popupAdSaving ? '保存中…' : '保存弹窗广告'}
                 </button>
+                </>
+                )}
               </div>
             )}
           </div>
@@ -10030,13 +10186,18 @@ const [mounted, setMounted] = useState(false);
                   <div>
                     <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>广告位开关</div>
                     <div style={{fontSize:'12px', color:'#999'}}>
-                      {galleryAd.enabled ? '当前：已开启' : '当前：已关闭'} · 生效于 Gallery / Tweet / Standard 全主题文章页
+                      {galleryAd.enabled ? '当前：已开启 · 生效于 Gallery / Tweet / Standard 全主题文章页' : galleryAdEditing ? '当前：已关闭 · 修改未保存' : '当前：已关闭'}
                     </div>
                   </div>
                   <button
                     type="button"
                     disabled={galleryAdSaving || adsLocked}
-                    onClick={() => saveGalleryAd({ enabled: !galleryAd.enabled })}
+                    onClick={() => {
+                      if (galleryAd.enabled) { saveGalleryAd({ enabled: false }); return; }
+                      if (galleryAdEditing) { discardGalleryAdEditing(); return; }
+                      startGalleryAdEditing();
+                    }}
+                    title={galleryAdEditing ? '放弃修改并收起' : undefined}
                     style={{
                       minWidth: '88px',
                       padding: '12px 20px',
@@ -10045,14 +10206,16 @@ const [mounted, setMounted] = useState(false);
                       fontWeight: 'bold',
                       fontSize: '14px',
                       cursor: adsLocked ? 'not-allowed' : galleryAdSaving ? 'wait' : 'pointer',
-                      background: adsLocked ? '#444' : galleryAd.enabled ? '#22c55e' : '#555',
+                      background: adsLocked ? '#444' : galleryAd.enabled ? '#22c55e' : galleryAdEditing ? '#d97706' : '#555',
                       color: '#fff',
                       opacity: adsLocked ? 0.5 : galleryAdSaving ? 0.6 : 1,
                     }}
                   >
-                    {galleryAdSaving ? '保存中…' : (galleryAd.enabled ? '已开启' : '已关闭')}
+                    {galleryAdSaving ? '保存中…' : (galleryAd.enabled ? '已开启' : galleryAdEditing ? '未保存' : '已关闭')}
                   </button>
                 </div>
+                {(galleryAd.enabled || galleryAdEditing) && (
+                <>
                 <div style={{fontSize:'12px', color:'#aaa', marginBottom:'20px', lineHeight:1.8}}>
                   开启后横幅显示在全主题文章内页底部（Gallery / Tweet / Standard 系列）；Gallery 下载页右栏顶部也会显示。链接必填；关闭后前台不显示。背景图优先使用下方上传的 Banner，未上传则自动抓取链接预览图。
                 </div>
@@ -10085,13 +10248,15 @@ const [mounted, setMounted] = useState(false);
                   </div>
                 </div>
                 <div style={{display:'flex', gap:'12px', marginTop:'32px'}}>
-                  <button onClick={() => saveGalleryAd()} disabled={galleryAdSaving || adsLocked} style={{flex:1, padding:'18px', background: galleryAdSaving || adsLocked ? '#333' : '#fff', color: galleryAdSaving || adsLocked ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: adsLocked ? 'not-allowed' : galleryAdSaving ? 'wait' : 'pointer'}}>
+                  <button onClick={() => galleryAdEditing ? saveGalleryAd({ enabled: true }) : saveGalleryAd()} disabled={galleryAdSaving || adsLocked} style={{flex:1, padding:'18px', background: galleryAdSaving || adsLocked ? '#333' : '#fff', color: galleryAdSaving || adsLocked ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: adsLocked ? 'not-allowed' : galleryAdSaving ? 'wait' : 'pointer'}}>
                     {galleryAdSaving ? '保存中...' : '保存广告位'}
                   </button>
                   {galleryAd.id ? (
                     <button onClick={clearGalleryAd} disabled={galleryAdSaving || adsLocked} style={{padding:'18px 24px', background:'transparent', color:'#ff7875', border:'1px solid #ff7875', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', cursor: adsLocked ? 'not-allowed' : 'pointer'}}>清空</button>
                   ) : null}
                 </div>
+                </>
+                )}
               </div>
             )}
           </div>
