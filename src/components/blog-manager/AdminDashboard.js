@@ -5017,7 +5017,7 @@ const [mounted, setMounted] = useState(false);
       return;
     }
     executePendingLeave();
-    showAdminToast('💾 已保存本地草稿并离开', 2600);
+    showAdminToast('💾 已保存到草稿', 2600);
   };
 
   // 编辑视图内离开（返回列表等）：dirty 时先弹三选一
