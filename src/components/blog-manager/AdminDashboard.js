@@ -10093,7 +10093,7 @@ const [mounted, setMounted] = useState(false);
           /* 🗂 Phase4: 统一草稿箱——本地快照 */
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'24px', gap:'12px', flexWrap:'wrap'}}>
-              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>🗂 草稿箱</div>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>草稿箱</div>
               <div style={{fontSize:'12px', color:'#888'}}>本地草稿 {draftSnapshots.length} 份</div>
             </div>
 
