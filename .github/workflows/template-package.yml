@@ -1,0 +1,141 @@
+# BLOG 模板打包流水线（无 git 部署基座，派工单 5）
+# 链路：push main → 白名单打包 tar.gz → 上传 R2（blog-template/<sha256前16位>.tar.gz）
+#       → 调主站登记 API（blog_template_versions）→ deploy-executor lease 取最新版本部署。
+# 方案书：pro-merchant-v3/VERCEL_NOGIT_DEPLOY_DESIGN.md §3.2 / §3.2b（安全设计）。
+#
+# ⚠️ 安全核心：白名单打包（禁止改成黑名单 exclude——否则 .env.local 真实密钥可能入包）。
+#    本流水线仅持有 R2 上传凭据 + 登记专用 secret，不含任何数据库 / Vercel / 业务密钥。
+#
+# 所需 GitHub Secrets（本单不配值）：
+#   R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY  —— R2 上传（可轮换）
+#   TEMPLATE_PIPELINE_SECRET                                     —— 登记 API Bearer（独立于主站 CRON_SECRET / DEPLOY_EXECUTOR_SECRET）
+# 可选 GitHub Variables：
+#   MAIN_SITE_URL —— 主站地址，默认 https://creator.proplus.onl
+name: Package BLOG template
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# 快速连推时只保留最新一次打包：最终登记的最新版本 = 最新 commit
+concurrency:
+  group: template-package
+  cancel-in-progress: true
+
+env:
+  R2_BUCKET_NAME: pro-merchant-blog-backups
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preflight secrets
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          TEMPLATE_PIPELINE_SECRET: ${{ secrets.TEMPLATE_PIPELINE_SECRET }}
+        run: |
+          : "${R2_ACCOUNT_ID:?GitHub Secret R2_ACCOUNT_ID 未配置}"
+          : "${R2_ACCESS_KEY_ID:?GitHub Secret R2_ACCESS_KEY_ID 未配置}"
+          : "${R2_SECRET_ACCESS_KEY:?GitHub Secret R2_SECRET_ACCESS_KEY 未配置}"
+          : "${TEMPLATE_PIPELINE_SECRET:?GitHub Secret TEMPLATE_PIPELINE_SECRET 未配置}"
+
+      # 白名单清单 = 构建必需文件（派工单 5 拍板）。
+      # 注意 ①：GNU tar 要求 --exclude 放在位置参数（文件清单）之前，否则报
+      #   "options were used after non-option arguments" 直接失败（本地 GNU tar 1.35 实测）。
+      # 注意 ②：tests/ scripts/ docs/ dev/ tmp/ 及各类 *.md 不在白名单 = 天然不入包；
+      #   next.config.ts 当前不存在会自动跳过（未来切换 TS 配置时无需改此处）。
+      # 注意 ③：排除只是保险带，白名单本身不含根目录 .env*（.env.local/.env.example）。
+      - name: Whitelist package (tar.gz)
+        run: |
+          set -euo pipefail
+          INCLUDES=(package.json package-lock.json next.config.js next.config.ts vercel.json \
+            tailwind.config.ts postcss.config.js tsconfig.json blog.config.ts \
+            index.d.ts next-env.d.ts public src)
+          ARGS=()
+          for f in "${INCLUDES[@]}"; do
+            if [ -e "$f" ]; then
+              ARGS+=("$f")
+            else
+              echo "  (跳过不存在的白名单项: $f)"
+            fi
+          done
+          tar -czf template.tar.gz \
+            --exclude='src/**/*.env*' --exclude='*.env' --exclude='.env*' \
+            --exclude='public/static/videos' \
+            --exclude='public/static/videos/**' \
+            "${ARGS[@]}"
+
+      # 安全自检：文件数（文件口径 < 500；tar 条目含目录项，目录项不计入）、
+      # 关键文件在包内、绝对禁入项（.env* / 演示视频 / node_modules）零命中。
+      # 注意：清单先读入变量再用 here-string 匹配——`tar | grep -q` 在 pipefail 下
+      # 有 SIGPIPE 竞态（grep 提前退出可能杀死 tar → 误报失败，本地复现实测）。
+      - name: Verify package
+        run: |
+          set -euo pipefail
+          NAMES=$(tar -tzf template.tar.gz)
+          FILES=$(tar -tvzf template.tar.gz | grep -vc '^d' || true)
+          ENTRIES=$(printf '%s\n' "$NAMES" | grep -c . || true)
+          echo "模板包总条目(含目录): ${ENTRIES}，文件数: ${FILES}"
+          if [ "$FILES" -ge 500 ]; then
+            echo "::error::模板包文件数 ${FILES} ≥ 500，白名单可能失控"
+            exit 1
+          fi
+          grep -qx 'package.json' <<<"$NAMES" \
+            || { echo '::error::包内缺少 package.json（executor 解包自检依赖）'; exit 1; }
+          grep -q '^src/' <<<"$NAMES" \
+            || { echo '::error::包内缺少 src/'; exit 1; }
+          if grep -E '(^|/)\.env|/videos/|node_modules' <<<"$NAMES"; then
+            echo '::error::模板包含禁入路径（.env* / videos / node_modules）'
+            exit 1
+          fi
+
+      # 内容寻址 key：blog-template/<sha256 前 16 位>.tar.gz —— 同内容同 key 幂等覆盖，
+      # 版本化可回滚（登记表按 created_at 取最新，历史版本对象长期保留）。
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          SHA256=$(sha256sum template.tar.gz | awk '{print $1}')
+          KEY="blog-template/${SHA256:0:16}.tar.gz"
+          echo "上传 s3://${R2_BUCKET_NAME}/${KEY} (sha256=${SHA256})"
+          aws s3 cp template.tar.gz "s3://${R2_BUCKET_NAME}/${KEY}" \
+            --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --content-type application/gzip
+          echo "STORAGE_PATH=${KEY}" >> "$GITHUB_ENV"
+          echo "SHA256=${SHA256}" >> "$GITHUB_ENV"
+
+      # 登记版本：主站写入 blog_template_versions（service role）。
+      # note = commit subject（jq 按字符截断，避免多字节被腰斩）；重跑同 commit 幂等
+      # （登记 API 按 sha256 去重返回 alreadyRegistered）。
+      - name: Register version
+        env:
+          TEMPLATE_PIPELINE_SECRET: ${{ secrets.TEMPLATE_PIPELINE_SECRET }}
+          MAIN_SITE_URL: ${{ vars.MAIN_SITE_URL || 'https://creator.proplus.onl' }}
+        run: |
+          set -euo pipefail
+          NOTE=$(jq -rn --arg note "$(git log -1 --pretty=%s)" '$note[0:100]')
+          echo "登记版本 ${STORAGE_PATH} → ${MAIN_SITE_URL}"
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            -X POST "${MAIN_SITE_URL}/api/admin/services/blog-template-version" \
+            -H "Authorization: Bearer ${TEMPLATE_PIPELINE_SECRET}" \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -n \
+              --arg sp "$STORAGE_PATH" \
+              --arg sha "$SHA256" \
+              --arg sc "$GITHUB_SHA" \
+              --arg note "$NOTE" \
+              '{storage_path:$sp, sha256:$sha, source_commit:$sc, note:$note}')"
+          echo "✅ 模板版本登记完成: ${STORAGE_PATH}"
