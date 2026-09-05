@@ -46,6 +46,9 @@ import {
 } from '@/src/lib/admin/coverSettings';
 import { remoteFromApiImage } from '@/src/lib/admin/galleryFlush';
 import CardCategoryQuickPicker from './CardCategoryQuickPicker';
+// 派工单 B3:后台「数据统计」面板(独立文件,AdminDashboard 只做引入与视图接线)
+import StatsPanel from './StatsPanel';
+import { FiBarChart2 } from 'react-icons/fi';
 import {
   createEditorBlock,
   getEditorBlockLockPwd,
@@ -6102,6 +6105,10 @@ const [mounted, setMounted] = useState(false);
     setView('content-protect');
     loadContentProtect();
   };
+  // 派工单 B3:数据统计面板(面板自身挂载时拉取 /api/admin/stats,此处仅切视图)
+  const openStats = () => {
+    setView('stats');
+  };
   const toggleContentProtect = async (next) => {
     if (contentProtectSaving) return; // P11-C3: 进行中早退
     setContentProtectSaving(true);
@@ -8949,6 +8956,16 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ color: '#60a5fa', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
               )}
+              {activeTab === 'Widget' && viewMode !== 'folder' && (
+                <div onClick={openStats} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #c084fc', cursor: 'pointer' }}>
+                  <div style={{ width: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FiBarChart2 size={24} color="#c084fc" /></div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>数据统计</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>今日实时与近 30 天浏览、访客来源</div>
+                  </div>
+                  <div style={{ color: '#c084fc', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                </div>
+              )}
               {activeTab === 'Ads' && viewMode !== 'folder' && (
                 <div onClick={openGalleryAd} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #f59e0b', cursor: 'pointer' }}>
                   <div style={{ fontSize: '28px' }}>📢</div>
@@ -10031,6 +10048,9 @@ const [mounted, setMounted] = useState(false);
               </div>
             )}
           </div>
+        ) : view === 'stats' ? (
+          /* 派工单 B3:数据统计面板(自包含组件,挂载时拉取,失败显示暂无数据) */
+          <StatsPanel />
         ) : view === 'friends' ? (
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>

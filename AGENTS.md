@@ -325,6 +325,7 @@
 | `GET/POST /api/admin/popup-ad` | 首页弹窗广告配置（CTA 必填链接；会话一次） |
 | `GET/POST /api/admin/click-ad` | 首页遮罩广告配置（URL 必填；每天一次；排除贩售机） |
 | `GET /api/admin/site-plan` | 站点会员计划只读（P4-FIX 广告位灰态判定；仅 BLOG 后台浏览器调用，只返回 plan） |
+| `GET /api/admin/stats` | 后台「数据统计」只读（商户投资版单 B，2026-09-05；路由内 `verifyAdminRequest`；服务端 service_role 只读调共用库 RPC `aggregate_blog_visit_daily(p_from_day,p_to_day,p_site_ids)` 近 30 天 + `blog_visit_today_live(p_day,p_site_ids)` 今日实时，`p_site_ids=[BLOG_SITE_ID]`；忽略平台合计行 site_id `00000000-…-0001` 只取本 site；失败返回 200+success:false 由面板显示「暂无数据」） |
 | `GET /api/admin/merchant-products` | 主站商户商品列表代理（P18-C1 建立；P18-C3 起后台不再调用，文件保留；路由内 `verifyAdminRequest`；前台 `ShopProductsSection` 改走公开端点 `/api/shop/products`） |
 | `GET /api/admin/merchant-product-lookup?sku=` | 主站商品码查询代理（P18C45FIX B2；路由内 `verifyAdminRequest`；8s 超时；响应字段白名单 sku/name/price/status，token 零暴露；Step7「添加商品信息」弹窗数据源） |
 | `GET/POST /api/admin/social-links` | 社媒组件配置 |
@@ -336,6 +337,13 @@
 | `DELETE/PATCH /api/admin/taxonomy` | 删除标签/分类或重命名分类 |
 | `GET/POST /api/admin/config` | 读/改 Notion 数据库标题（站点名）等相关配置 |
 
+### 访客统计链路与数据统计页（商户投资版单 B，2026-09-05，依 `MERCHANT_INVESTOR_B_BRIEF.md`）
+
+- **分类口径权威**：`docs/STATS_CLASSIFY_REFERENCE.md`（复制自主站 `pro-merchant-v3/lib/stats/metrics.ts`，单 A 定稿）；模板实现在 `src/lib/stats/classify.ts`（`classifyUA` / `classifyReferrer`），集合照抄勿改——改口径先改主站 metrics.ts，再同步参考文件与模板实现，最后同步 flush RPC 校验集。ua_class ∈ desktop/mobile/tablet/bot/other；referrer_class ∈ engine/social/direct（host trim+lowercase、去 `www.` 前缀后按一级标签前缀匹配；engine={google./bing./duckduckgo./yandex.}，social 18 项含无尾点的 x.com/t.co/qq.com/douyin）。
+- **上报链路**：`PvReporter.tsx` body 追加 `referrer`（document.referrer，trim、≤512、无效返 ''；`/admin` 排除与 dev-only 守卫不变）→ `/api/internal/pv-flush` 在原 `record_blog_usage_pv`（配额路径，逐字保留）之后**追加**调共用库 RPC `flush_blog_visit_events(p_events jsonb)`，单条 payload `{site_id, ip_hmac, ua_class, referrer_class, ts, pv_count}`；`ip_hmac = HMAC-SHA256(STATS_HMAC_SALT, clientIp)`（64 hex；clientIp 取自现有 `getClientIp`；unknown/内网地址不拦截照算）；**未配置 `STATS_HMAC_SALT` → 跳过 visit RPC 仅走原路径，不报错**；RPC 失败 `console.warn` 静默降级、始终 200；ip_hmac 不写入任何日志；旧 body（无 referrer）完全兼容。
+- **后台面板**：`src/components/blog-manager/StatsPanel.js`（独立文件，AdminDashboard「组件」Tab「数据统计」入口卡 FiBarChart2 图标 + `view==='stats'` 接线）；今日实时 PV/UV（today_live；无数据显「数据采集中」占位）、近 7 天纯 CSS 灰阶柱状（#555 柱体/#444 轨道，零依赖）、近 30 天汇总表（PV/UV/引擎/社媒/直达+占比）；沿用 admin 灰阶（#424242/#333/#555/#888）；请求失败或 `success:false` 一律显示「暂无数据」。
+- **IndexNow key 路由**：`next.config.js` `rewrites()`（数组=afterFiles 阶段，晚于文件系统路由）把 `/{key}.txt` 转发 `/api/indexnow-key?key=:key`；key 与 `INDEXNOW_KEY` 完全一致才 200 text/plain body=key，否则 404。robots.txt（`pages/robots.txt.tsx`）与 sitemap.xml（`pages/sitemap.xml.tsx`）为真实文件路由、优先于 afterFiles rewrite，不受影响（dev 实测通过）；副作用：单段 `.txt` 地址不再落入 `[page].tsx` Notion 自定义页。
+
 ### Admin API 鉴权边界（P3.0）
 
 - `src/middleware.ts` 的 matcher 虽包含 `/api/admin/:path*`，但当前实现分支只判断 `pathname.startsWith('/admin')`；因此不能仅凭路由名称或 matcher 认定全部 Admin API 已受 middleware 保护。
@@ -344,6 +352,7 @@
 - 当前代码调用盘点中，`posts`、`post`、`gallery*`、`upload`、`gallery-ad`、`popup-ad`、`click-ad`、`social-links`、`theme-cooldown`、`config`、`taxonomy`、`full-redeploy`、`crawler-ingest`、`site-plan`、`banner`、`merchant-product-lookup` 只在 BLOG 后台浏览器使用；`friends*`、`announcement-popup`、`vending`、`revalidate` 同时被平台服务端调用。
 - 平台目前会服务端调用 `/api/admin/friends*`、`/api/admin/announcement-popup`、`/api/admin/vending` 与 `/api/admin/revalidate`，这些调用尚未统一携带 BLOG Basic/Cookie。未设计并部署明确的服务到服务凭据前，禁止把 middleware 分支直接扩大到全部 `/api/admin/*`，否则会破坏现有组件同步。
 - 长期目标仍是按调用方分类：浏览器后台接口使用管理员会话，平台联动接口使用独立服务端鉴权，公开只读能力放在非 admin 路由；不得继续依赖匿名 Admin API。
+- `GET /api/admin/stats`（单 B，2026-09-05）同属浏览器后台专用路由（路由内 `verifyAdminRequest`），只读 RPC、不写任何表。
 
 ### 维护密码锁
 
@@ -399,6 +408,7 @@
 | `GET\|POST /api/revalidate` | **公开密钥 ISR**；校验 `REVALIDATE_SECRET` 或 `MY_SECRET_TOKEN`；可按 `path` 或 `scope=full`；与 `/api/admin/revalidate` 不同 |
 | `POST /api/post/unlock` | 文章全篇密码解锁，返回 token + blocks |
 | `GET /api/stats` | Google Analytics Data API（需 GA 相关环境变量），给 Stats Widget |
+| `GET /{INDEXNOW_KEY}.txt` | IndexNow key 文件（单 B，2026-09-05；`next.config.js` afterFiles rewrite `/:key.txt` → `/api/indexnow-key?key=`；key 与 `INDEXNOW_KEY` 一致才 200 text/plain body=key，否则 404；robots.txt/sitemap.xml 为真实文件路由不受影响） |
 | `GET\|POST /api/cron/crawler-ingest` | 爬虫入库 cron；需 `CRON_SECRET` |
 
 ---
@@ -605,6 +615,8 @@ API 层的 `verifyAdminRequest(req)` 目前明确用于 `/api/admin/upload` 和 
 | `MERCHANT_API_BASE` | 主站网关地址（shop「关联商品」查询；**未配置时回退主站默认地址** `https://creator.proplus.onl`，2026-08-30 兜底，仅 TOKEN 缺失才会失败） |
 | `MERCHANT_PRODUCTS_PATH` | 主站商品列表端点路径（默认 `/api/merchant/products-public`） |
 | `MERCHANT_API_TOKEN` | 主站服务端凭据（可选，Bearer 透传） |
+| `STATS_HMAC_SALT` | 访客统计 ip_hmac 的 HMAC 密钥（单 B，2026-09-05；未配置则 pv-flush 跳过 visit RPC 仅走原配额路径） |
+| `INDEXNOW_KEY` | IndexNow 验证 key（单 B，2026-09-05；`/{key}.txt` 路由据此放行） |
 | `ENABLE_REMOTE_IMAGE_PROBE` | 封面 blur 远程探测（默认关） |
 
 ---

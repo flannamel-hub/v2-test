@@ -9,6 +9,16 @@ import { useRouter } from 'next/router'
 const FLUSH_DEBOUNCE_MS = 10_000
 // 与 /api/internal/pv-flush 的 COUNT_MAX 保持一致,超出部分留待下次上报
 const FLUSH_COUNT_MAX = 1000
+// 派工单 B1:上报 referrer 供访客来源分类(engine/social/direct);
+// trim 后为空或超长视为无效,返 ''(=direct)。旧 body 无此字段时服务端兼容。
+const REFERRER_MAX_LENGTH = 512
+
+function currentReferrer(): string {
+  if (typeof document === 'undefined') return ''
+  const ref = String(document.referrer || '').trim()
+  if (!ref || ref.length > REFERRER_MAX_LENGTH) return ''
+  return ref
+}
 
 let pendingCount = 0
 let flushTimer: ReturnType<typeof setTimeout> | null = null
@@ -20,7 +30,7 @@ function flushPvCount() {
   fetch('/api/internal/pv-flush', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ count }),
+    body: JSON.stringify({ count, referrer: currentReferrer() }),
     keepalive: true,
   }).catch(() => {
     // 上报失败静默,不重试、不提示;计数加回,随下次触发合并上报
