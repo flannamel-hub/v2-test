@@ -123,6 +123,9 @@
 
 - 常用：`Published`、`Draft`、`Hidden`
 - 代码同时兼容 Notion `status` 属性类型和旧版 `select` 类型
+- **Hidden 分两类语义，判据必须带 type 条件（2026-08-31）**：
+  - `type=Post` + `status=Hidden` = **隐藏文章**：前台列表不展示，`/post/<slug>` 直链仍可访问（`filter.ts` 的 Archive scope 保留 Hidden 即为此设计）。
+  - `type=Page/Widget` + `status=Hidden` = **系统组件「关闭」开关**（`banner`/`vending`/`theme-config`/`friends`/`gallery-ad` 等），**不是隐藏文章**，严禁按隐藏文章过滤或为其显示隐藏按钮。
 
 ### 核心字段
 
@@ -287,12 +290,34 @@
 - 贩售机「编辑地址」：**专业版直接解锁**（跳过维护密码弹窗）；免费版仍需维护密码（`VendingAddressUnlockModal`）。地址由平台统一维护（系统侧后续可管）。
 - 后台列表/回收站搜索框 placeholder 为「搜索」（2026-08-30 中文修正，勿改回英文）。
 
+### 后台首页交互（2026-08-30）
+
+- **站点标题内联编辑**：点击标题文字进入编辑态（input 宽度随内容自适应、光标定位末尾）；Enter / 「保存修改」提交，**带 IME 合成守卫**（`isComposing || keyCode === 229`，防拼音候选词误提交）；「取消」/Esc 恢复原标题零请求；失焦保持编辑态；配额检查在**提交时**执行（三日冷却），进入编辑态不查；原 `window.prompt` 逻辑已删除。
+- **标题右侧齿轮 = 下拉菜单**：①「爬虫设置」（原刷新下拉的爬虫入库入口迁移至此，保留未配置禁用、待入库/处理中/失败 summary 小字与维护密码弹窗链路）；②「新手引导」（**占位**：点击 toast「新手引导即将上线」，聚焦引导遮罩待实现）。菜单复用 `headerActionsMenuRef` 与外部点击关闭，全后台仅一套监听。
+- **刷新按钮**：已去掉下拉菜单与 ▾，点击即刷新前台；`title` 悬停显示「刷新前台:更新首页、自定义页面、归档与分类/标签列表」+ 冷却剩余时间；刷新中与冷却期禁用。
+- **「开关 + 编辑表单」统一三态交互**：遮罩广告/弹窗广告/公告弹窗/贩售机/Shop Banner/内页广告位六个组件的开关只负责**展开或收起编辑界面（零请求）**，底部保存才真实提交（enabled + 内容一起提交并触发 revalidate）。三态 = 已关闭(灰) / 编辑中未保存(琥珀，点击=放弃修改并回退快照) / 已开启(绿，点击=直接关闭真实保存)。纯开关无编辑内容的组件（去除平台角标）保持即点即存。
+- **存草稿只对 Post 文章开放**：发布确认弹窗「存为草稿」选项、编辑器「存草稿」按钮、离开拦截「保存到草稿并离开」，三处均按 `formIsPostArticle`（`type=Post` 且非 `Page`/自定义页/`Widget`）渲染；非 Post 的离开拦截降级为二选一。
+- **草稿箱**：仅本地草稿（`localStorage` 快照）；原「云端草稿」区已于 2026-08-30 移除，`status=Draft` 文章仍在内容列表以「草稿」徽标展示。
+
 ### 列表 Tab 与广告位分类
 
-- 后台列表 Tab 顺序：`已发布` / `已收藏` / `组件` / `广告位` / `自定义页面`（内部代号含 `Ads`）。
+- 后台列表 Tab 顺序：`已发布` / `已收藏` / `已隐藏` / `组件` / `广告位` / `自定义页面`（内部代号含 `Ads`）。
 - **组件**：友链、社媒、贩售机、**公告弹窗**、网站信息（硬编码卡片；Notion 普通 Widget 行不列出）。
 - **广告位**：**内页广告位**（`gallery-ad`）、**弹窗广告**（`popup-ad`）、**遮罩广告**（`click-ad`）。
 - `Widget` 与 `Ads` 的 `getFilteredPosts` 均清空 Notion 行，只渲染硬编码入口。
+- **已隐藏**（内部代号 `Hidden`）：仅 `type=Post && status=Hidden`（计数徽标灰紫）；「已发布」Tab 过滤为 `status !== 'Draft' && status !== 'Hidden'`（未知状态兜底可见）。切入「已隐藏」时文件夹视图复位为默认视图并清空选择态。
+
+### 文章隐藏（2026-08-31）
+
+- 入口：后台列表**卡片行操作区**「隐藏 / 取消隐藏」按钮，仅 `type=Post` 且状态为 `Published|Hidden` 的行显示（Page/Widget/广告位行不显示）。
+- 写库：`POST /api/admin/post` **仅传 `{ id, status }`**（`Hidden` 隐藏 / `Published` 取消隐藏）。该接口为 PATCH 语义（`if (field !== undefined)`），不传 `blocksData`/`content` 时不重建正文、其余属性不动。
+- 确认：页内 `cover-modal` 确认弹窗（复用 `TaxonomyConfirmModal` 模式），非浏览器 `confirm`。
+- 收敛：成功后走 `listScope: 'site-config'`（`collectAllRevalidatePaths`，覆盖首页/归档全部分页/全部分类与标签页/文章内页）；**`shell` scope 不含 archive/category/tag 分页，勿单独使用**。
+- 前台过滤：`src/lib/blog/hiddenPosts.ts`（`isHiddenPost` / `filterVisiblePosts`，判据严格 `type=Post && status=Hidden`，容错大小写与首尾空白）。集中点在 `buildArchiveFeed.ts` 的 `loadSortedArchivePosts()`（覆盖归档分页、分类、标签、shop 全量、上下篇导航与推荐）；另有页面级调用：首页、`category/index`、`category/[category]`、`tag/index`、`tag/[tag]`、`sitemap.xml`。
+- 直链与非收录：`post/[post].tsx` 的 `getPostBySlug(ApiScope.Archive)` **不过滤** → Hidden 文章直链可访问；sitemap **不收录** Hidden（用户拍板）。
+- 统计口径：`getBlogStats` 直连 `getPostsAndPieces`，Hidden 仍计入站点内容统计（有意）。
+- 编辑器保存弹窗仍只有 发布/草稿 两态（不设编辑页隐藏开关）；在编辑器把 Hidden 文章保存为 Published/Draft 即自然离开 Hidden 态。
+- 验证：后台行操作隐藏 → 前台首页/归档/分类/标签/sitemap 均不出现该文；`/post/<slug>` 直链 200；「已隐藏」Tab 可见并「取消隐藏」。
 
 ### 公告弹窗与广告位约定
 
@@ -492,11 +517,13 @@
 - Notion ISR 读取使用请求作用域缓存与约 500ms 请求启动间隔：同一次页面再生中的归档、Widget、数据库元数据只读一次；不跨 ISR 请求缓存文章正文。
 - 运行期 Notion 限流时，不得把 `PRO BLOG` 等默认站点信息写入页面缓存。
 - 空页面 ID 不得请求 Notion blocks；构建期临时 Notion 错误重试耗尽后，可用空数据完成部署，交由后续 ISR 恢复。
+- **手动「刷新前台」冷却 30 分钟**（2026-08-30 起，服务端持久化于 `blog_site_settings.last_manual_refresh_at`；SQL 见 `supabase/migrations/019_manual_refresh_cooldown.sql`，未执行时退回进程内兜底）。**只作用于 `scope='shell' + manualShell` 手动刷新路径**，发布/保存的队列刷新不受影响。前端冷却常量 `BLOG_SHELL_REFRESH_COOLDOWN_MS`（`adminRevalidateClient.js`），提示按分钟显示。
 
 ---
 
 ## 14. 全量更新（Full Redeploy）
 
+- **前端入口已移除（2026-08-30）**：后台刷新下拉菜单的「全量更新」项与 `FullRedeployConfirmModal` 已删除，`AdminDashboard.js` 内 `fullRedeploy*` 零残留；**服务端保留**（`/api/admin/full-redeploy`、`src/lib/admin/fullRedeploy.ts`），需要时经 API 调用。下文服务端描述仍然有效。
 - 后台「全量更新」走 Vercel Deploy Hook：`VERCEL_DEPLOY_HOOK_URL` 或 `VERCEL_REDEPLOY_HOOK_URL`。
 - 冷却时间：**代码实现为 12 小时**（`fullRedeploy.ts` / AdminDashboard）；SQL 注释若写 24h 以代码为准。
 - 冷却记录：`blog_site_settings.last_full_redeploy_at`；无 Supabase 时有进程内兜底 Map。
