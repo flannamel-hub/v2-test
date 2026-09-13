@@ -17,6 +17,7 @@ import { loadGalleryFeedCovers } from '@/src/lib/gallery/galleryFeedPreviews'
 import { shouldLoadGalleryFeedCovers } from '@/src/lib/gallery/shouldLoadGalleryFeedCovers'
 import { loadTweetFeedMedia } from '@/src/lib/tweet/loadTweetFeedMedia'
 import { formatPosts, FORMAT_POST_LIST_OPTIONS } from '@/src/lib/blog/format/post'
+import { filterVisiblePosts } from '@/src/lib/blog/hiddenPosts'
 import { getAllTags } from '@/src/lib/blog/format/tag'
 import { withNavFooterStaticProps } from '@/src/lib/blog/withNavFooterStaticProps'
 import { onDemandStaticPaths } from '@/src/lib/blog/postLimits'
@@ -45,12 +46,14 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
     const subTitle = getSubTitleInfo(slug, sharedPageStaticProps.props)
     addSubTitle(sharedPageStaticProps.props, '', subTitle)
     const posts = await getPosts(ApiScope.Archive)
-    const formattedPosts = await formatPosts(posts, FORMAT_POST_LIST_OPTIONS)
+    const formattedPosts = filterVisiblePosts(
+      await formatPosts(posts, FORMAT_POST_LIST_OPTIONS)
+    )
     const tagId = context.params?.tag as string
     const postsByTag = formattedPosts.filter((post) =>
       post.tags.map((t) => t.id).includes(tagId)
     )
-    const tag = postsByTag[0].tags.find((t) => t.id === tagId)
+    const tag = postsByTag[0]?.tags.find((t) => t.id === tagId)
 
     const activeTheme = sharedPageStaticProps.props.activeTheme
     const galleryFeedCovers =

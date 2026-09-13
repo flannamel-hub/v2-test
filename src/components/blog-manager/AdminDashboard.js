@@ -197,6 +197,20 @@ const Icons = {
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   ),
+  EyeOff: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  ),
+  Eye: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
   Settings: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>,
   ArrowUp: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"></polyline></svg>,
   ArrowDown: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>,
@@ -235,6 +249,8 @@ const GlobalStyle = () => (
     .admin-list-tab-count.is-published-idle { color: #666; }
     .admin-list-tab-count.is-favourites { color: #fbbf24; }
     .admin-list-tab-count.is-favourites-idle { color: #666; }
+    .admin-list-tab-count.is-hidden { color: #b39ddb; }
+    .admin-list-tab-count.is-hidden-idle { color: #666; }
     .admin-list-head-left { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; flex: 1; min-width: 0; }
     .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
     .modal-box { background: #202024; width: 90%; maxWidth: 900px; height: 90vh; border-radius: 24px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
@@ -1483,6 +1499,60 @@ const TaxonomyConfirmModal = ({ open, closing, categoryName, onConfirm, onCancel
           </button>
           <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={onConfirm} style={{ background: '#ff7875', color: '#fff' }}>
             确认删除
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** 隐藏/取消隐藏文章确认弹窗（cover-modal 模式，替代浏览器 confirm） */
+const HiddenConfirmModal = ({ open, closing, postTitle, hiding, busy, onConfirm, onCancel }) => {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (open && !closing) {
+      setVisible(false);
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setVisible(true));
+      });
+      return () => cancelAnimationFrame(id);
+    }
+    if (!open || closing) setVisible(false);
+  }, [open, closing]);
+
+  if (!open && !closing) return null;
+
+  return (
+    <div
+      className={`cover-modal-backdrop ${visible && !closing ? 'is-visible' : ''} ${closing ? 'is-closing' : ''}`}
+      onClick={busy ? undefined : onCancel}
+      role="presentation"
+    >
+      <div
+        className="cover-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="hidden-confirm-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="cover-modal-icon" aria-hidden style={{ background: 'rgba(179,157,219,0.12)', borderColor: 'rgba(179,157,219,0.35)' }}>
+          {hiding ? '🙈' : '👁️'}
+        </div>
+        <h3 id="hidden-confirm-modal-title" className="cover-modal-title">{hiding ? '隐藏文章？' : '取消隐藏？'}</h3>
+        <p className="cover-modal-desc">
+          {hiding ? (
+            <>确认隐藏文章<strong style={{ color: '#ddd' }}>「{postTitle}」</strong>？隐藏后前台列表不再展示该文章，但可通过文章链接直接访问。</>
+          ) : (
+            <>确认取消隐藏<strong style={{ color: '#ddd' }}>「{postTitle}」</strong>？文章将重新出现在前台列表。</>
+          )}
+        </p>
+        <div className="cover-modal-actions">
+          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onCancel} disabled={busy}>
+            取消
+          </button>
+          <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={onConfirm} disabled={busy} style={{ background: '#b39ddb', color: '#000' }}>
+            {busy ? '处理中…' : hiding ? '确认隐藏' : '确认取消隐藏'}
           </button>
         </div>
       </div>
@@ -4527,6 +4597,12 @@ const [mounted, setMounted] = useState(false);
   const crawlerIngestCancelRef = useRef(false);
   const [listSelectMode, setListSelectMode] = useState(false);
   const [selectedPostIds, setSelectedPostIds] = useState([]);
+  // 隐藏/取消隐藏：行操作确认弹窗 + 请求进行中标记（P-EDITOR-HIDDEN）
+  const [hiddenToggleBusyId, setHiddenToggleBusyId] = useState(null);
+  const [hiddenConfirmOpen, setHiddenConfirmOpen] = useState(false);
+  const [hiddenConfirmClosing, setHiddenConfirmClosing] = useState(false);
+  const [hiddenConfirmPost, setHiddenConfirmPost] = useState(null);
+  const hiddenConfirmTimerRef = useRef(null);
   const [headerActionsMenuOpen, setHeaderActionsMenuOpen] = useState(false);
   const headerActionsMenuRef = useRef(null);
   const adminToastTimerRef = useRef(null);
@@ -7949,6 +8025,76 @@ const [mounted, setMounted] = useState(false);
       fetchPostsFn: fetchPosts,
     });
 
+  // === 隐藏/取消隐藏（P-EDITOR-HIDDEN）：仅 type=Post 非 announcement 行 ===
+  const closeHiddenConfirmModal = () => {
+    if (hiddenConfirmTimerRef.current) clearTimeout(hiddenConfirmTimerRef.current);
+    setHiddenConfirmClosing(true);
+    hiddenConfirmTimerRef.current = setTimeout(() => {
+      setHiddenConfirmOpen(false);
+      setHiddenConfirmClosing(false);
+      setHiddenConfirmPost(null);
+    }, 240);
+  };
+
+  const requestTogglePostHidden = (p) => {
+    if (hiddenToggleBusyId === p.id) return;
+    setHiddenConfirmPost(p);
+    setHiddenConfirmClosing(false);
+    setHiddenConfirmOpen(true);
+  };
+
+  const togglePostHidden = async (p) => {
+    if (hiddenToggleBusyId === p.id) return;
+    const hiding = p.status !== 'Hidden';
+    const nextStatus = hiding ? 'Hidden' : 'Published';
+    setHiddenToggleBusyId(p.id);
+    try {
+      // POST /api/admin/post 为 PATCH 语义：仅传 { id, status } 不清空正文与其他字段
+      const r = await fetch('/api/admin/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id, status: nextStatus }),
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d || !d.success) {
+        showAdminToast((d && d.error) || '隐藏操作失败', 2800);
+        return;
+      }
+      setPosts((prev) =>
+        prev.map((item) => (item.id === p.id ? { ...item, status: nextStatus } : item))
+      );
+      showAdminToast(hiding ? '已隐藏，前台列表不再展示' : '已取消隐藏，文章将重新出现在前台列表', 2800);
+      // 生效收敛：site-config=collectAllRevalidatePaths（含首页/归档全部分页/全部
+      // 分类标签页/自定义页；shell 不含 archive/[page]、category/{id}、tag/{id}）
+      void runBatchedRevalidation({
+        listScope: 'site-config',
+        freshTheme: true,
+        contentChange: true,
+        progressLabels: {
+          listing: '正在统计页面…',
+          running: '正在更新前台列表…',
+          doneOk: '隐藏状态已同步到前台页面',
+          donePartial: '部分页面会稍后自动更新',
+          hintPartial: '个别页面未能更新，可点右上角刷新重试',
+          hintOk: '前台列表页面已更新',
+        },
+      }).then((rev) => {
+        if (rev && rev.failed > 0) showAdminToast(`部分页面更新失败（${rev.failed}/${rev.total}）`);
+      }).catch((e) => console.warn('隐藏状态增量刷新失败', e));
+    } catch (err) {
+      showAdminToast(err.message || '隐藏操作失败', 2800);
+    } finally {
+      setHiddenToggleBusyId(null);
+    }
+  };
+
+  const confirmTogglePostHidden = () => {
+    const p = hiddenConfirmPost;
+    if (!p || hiddenToggleBusyId === p.id) return;
+    closeHiddenConfirmModal();
+    setTimeout(() => { void togglePostHidden(p); }, 260);
+  };
+
   const handleDeletePost = async (p) => {
     if (archivingPostIds.includes(p.id)) return; // P11-C3: 进行中早退
     if (!confirm('移至回收站')) return;
@@ -8246,10 +8392,33 @@ const [mounted, setMounted] = useState(false);
     </button>
   );
 
-  const renderCardDrawer = (p, { showPin = false } = {}) => {
+  const renderCardDrawer = (p, { showPin = false, showHide = false } = {}) => {
     if (listSelectMode && activeTab === 'Post') return null;
+    const hideActionable =
+      showHide &&
+      p.type === 'Post' &&
+      p.slug !== ANNOUNCEMENT_SLUG &&
+      (p.status === 'Published' || p.status === 'Hidden');
     return (
     <div className="drawer">
+      {hideActionable ? (
+        <div
+          onClick={(e) => { e.stopPropagation(); requestTogglePostHidden(p); }}
+          disabled={hiddenToggleBusyId === p.id}
+          style={{
+            background: hiddenToggleBusyId === p.id ? '#4a4a50' : (p.status === 'Hidden' ? '#b39ddb' : '#5c5c62'),
+            color: p.status === 'Hidden' && hiddenToggleBusyId !== p.id ? '#000' : '#fff',
+          }}
+          className={`dr-btn${hiddenToggleBusyId === p.id ? ' is-loading' : ''}`}
+          title={p.status === 'Hidden' ? '取消隐藏（重新出现在前台列表）' : '隐藏（前台列表不再展示，链接仍可访问）'}
+        >
+          {hiddenToggleBusyId === p.id ? (
+            <span className="dr-btn-spin" aria-hidden />
+          ) : (
+            p.status === 'Hidden' ? <Icons.Eye /> : <Icons.EyeOff />
+          )}
+        </div>
+      ) : null}
       {showPin ? (
         <div
           onClick={(e) => handleTogglePin(e, p)}
@@ -8337,10 +8506,16 @@ const [mounted, setMounted] = useState(false);
         );
         list = sortAdminPosts(list);
      }
-     else {
-        list = list.filter(p => p.type === 'Post' && p.status !== 'Draft' && p.slug !== ANNOUNCEMENT_SLUG);
-        list = sortAdminPosts(list);
-     }
+      else if (activeTab === 'Hidden') {
+         // 「已隐藏」tab：严格 status=Hidden 且 type=Post（Page/Widget 的 Hidden 是组件开关语义，绝不入内）
+         list = list.filter(p => p.type === 'Post' && p.status === 'Hidden' && p.slug !== ANNOUNCEMENT_SLUG);
+         list = sortAdminPosts(list);
+      }
+      else {
+         // Post tab：剥离 Draft 与 Hidden；未知状态（如 Unpublished）保留兜底，不从后台消失
+         list = list.filter(p => p.type === 'Post' && p.status !== 'Draft' && p.status !== 'Hidden' && p.slug !== ANNOUNCEMENT_SLUG);
+         list = sortAdminPosts(list);
+      }
 
      if (searchQuery) list = list.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()));
       if (selectedFolder) {
@@ -8389,6 +8564,13 @@ const [mounted, setMounted] = useState(false);
     (p) =>
       p.type === 'Post' &&
       p.status !== 'Draft' &&
+      p.status !== 'Hidden' &&
+      p.slug !== ANNOUNCEMENT_SLUG
+  ).length;
+  const hiddenPostCount = posts.filter(
+    (p) =>
+      p.type === 'Post' &&
+      p.status === 'Hidden' &&
       p.slug !== ANNOUNCEMENT_SLUG
   ).length;
   const favouritedPostCount = posts.filter(
@@ -8403,7 +8585,7 @@ const [mounted, setMounted] = useState(false);
   const publishDatesSet = (() => {
     const s = new Set();
     posts
-      .filter(p => p.type === 'Post' && p.status !== 'Draft' && p.slug !== ANNOUNCEMENT_SLUG)
+      .filter(p => p.type === 'Post' && p.status !== 'Draft' && p.status !== 'Hidden' && p.slug !== ANNOUNCEMENT_SLUG)
       .forEach(p => {
         const k = toDateKey(p.date);
         if (k) s.add(k);
@@ -8650,6 +8832,15 @@ const [mounted, setMounted] = useState(false);
         onConfirm={confirmTaxonomyDelete}
         onCancel={closeTaxonomyConfirmModal}
       />
+      <HiddenConfirmModal
+        open={hiddenConfirmOpen}
+        closing={hiddenConfirmClosing}
+        postTitle={hiddenConfirmPost ? (hiddenConfirmPost.title || '未命名') : ''}
+        hiding={!!hiddenConfirmPost && hiddenConfirmPost.status !== 'Hidden'}
+        busy={!!hiddenConfirmPost && hiddenToggleBusyId === hiddenConfirmPost.id}
+        onConfirm={confirmTogglePostHidden}
+        onCancel={closeHiddenConfirmModal}
+      />
       <ThemeSwitchDoneModal
         open={themeDoneModalOpen}
         closing={themeDoneModalClosing}
@@ -8788,11 +8979,22 @@ const [mounted, setMounted] = useState(false);
               <div className="admin-list-head-left">
                 {/* 1. 分类标签组 */}
                 <div className="admin-list-tabs">
-                  {['Post', 'Favourites', 'Widget', 'Ads', 'Page'].map(t => (
+                  {['Post', 'Favourites', 'Hidden', 'Widget', 'Ads', 'Page'].map(t => (
                     <button
                       key={t}
                       type="button"
-                      onClick={() => { setActiveTab(t); setSelectedFolder(null); setSelectedPublishDate(null); setDatePickerOpen(false); }}
+                      onClick={() => {
+                        setActiveTab(t);
+                        setSelectedFolder(null);
+                        setSelectedPublishDate(null);
+                        setDatePickerOpen(false);
+                        // 「已隐藏」tab：folder 视图与选择态复位，避免选择模式与新 tab 混杂
+                        if (t === 'Hidden') {
+                          if (viewMode === 'folder') { setViewMode('covered'); setNavIdx(1); }
+                          setListSelectMode(false);
+                          setSelectedPostIds([]);
+                        }
+                      }}
                       className={`admin-list-tab${activeTab === t ? ' is-active' : ''}`}
                     >
                       {t === 'Page' ? (
@@ -8813,6 +9015,15 @@ const [mounted, setMounted] = useState(false);
                             className={`admin-list-tab-count${activeTab === t ? ' is-favourites' : ' is-favourites-idle'}`}
                           >
                             {favouritedPostCount}
+                          </span>
+                        </>
+                      ) : t === 'Hidden' ? (
+                        <>
+                          已隐藏
+                          <span
+                            className={`admin-list-tab-count${activeTab === t ? ' is-hidden' : ' is-hidden-idle'}`}
+                          >
+                            {hiddenPostCount}
                           </span>
                         </>
                       ) : t === 'Ads' ? (
@@ -9144,7 +9355,7 @@ const [mounted, setMounted] = useState(false);
                 </div>
               ))}
               {viewMode !== 'folder' && filtered.map((p, index) => {
-                const st = (p.status === 'Draft') ? { borderColor: '#f97316', color: '#f97316', label: '📝 草稿' } : { borderColor: 'transparent', color: 'greenyellow', label: '🚀 已发布' };
+                const st = (p.status === 'Draft') ? { borderColor: '#f97316', color: '#f97316', label: '📝 草稿' } : (p.status === 'Hidden' ? { borderColor: 'rgba(179,157,219,0.55)', color: '#b39ddb', label: '🙈 已隐藏' } : { borderColor: 'transparent', color: 'greenyellow', label: '🚀 已发布' });
                 // 自定义页面：用横幅样式(与「友链管理」一致)，不依赖封面图，避免 cover 为图标路径(如 me.svg)时的破图
                 if (activeTab === 'Page') {
                   return (
@@ -9184,8 +9395,8 @@ const [mounted, setMounted] = useState(false);
                     {renderPostSelectMark(p.id)}
                     {viewMode === 'covered' && <><div style={{ width: '160px', flexShrink: 0, background: '#303030', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{p.cover ? <img src={p.cover} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: '28px', color: '#444' }}>{activeTab[0]}</div>}</div><div style={{ padding: '20px 35px', flex: 1 }}><div style={{ fontWeight: 'bold', fontSize: '20px', color: '#fff', marginBottom: '8px' }}>{pinBadge}{p.title}</div><div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ border: `1px solid ${st.color}`, color: st.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{st.label}</span>{renderCardCategoryChip(p)} · {p.date}</div></div></>}
                     {viewMode === 'text' && <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}><div style={{ flex: 1, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: p.pinned ? '#fbbf24' : st.color }}></span>{pinBadge}{p.title}</div><div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>{renderCardCategoryChip(p)} · {p.date}</div></div>}
-                    {viewMode === 'gallery' && <><div style={{ height: '140px', background: '#303030', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}><div style={{ position: 'absolute', top: '10px', left: '10px', background: p.pinned ? '#fbbf24' : 'transparent', color: '#000', padding: p.pinned ? '2px 6px' : 0, borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{p.pinned ? 'PIN' : ''}</div><div style={{ position: 'absolute', top: '10px', right: '10px', background: st.color, color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{p.status === 'Draft' ? 'DRAFT' : 'PUB'}</div>{p.cover ? <img src={p.cover} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: '40px', color: '#444' }}>{activeTab[0]}</div>}</div><div style={{ padding: '15px' }}><div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{p.title}</div><div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>{renderCardCategoryChip(p)} · {p.date}</div></div></>}
-                    {renderCardDrawer(p, { showPin: activeTab === 'Post' || activeTab === 'Favourites' })}
+                    {viewMode === 'gallery' && <><div style={{ height: '140px', background: '#303030', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}><div style={{ position: 'absolute', top: '10px', left: '10px', background: p.pinned ? '#fbbf24' : 'transparent', color: '#000', padding: p.pinned ? '2px 6px' : 0, borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{p.pinned ? 'PIN' : ''}</div><div style={{ position: 'absolute', top: '10px', right: '10px', background: st.color, color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>{p.status === 'Draft' ? 'DRAFT' : p.status === 'Hidden' ? 'HIDDEN' : 'PUB'}</div>{p.cover ? <img src={p.cover} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: '40px', color: '#444' }}>{activeTab[0]}</div>}</div><div style={{ padding: '15px' }}><div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{p.title}</div><div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>{renderCardCategoryChip(p)} · {p.date}</div></div></>}
+                    {renderCardDrawer(p, { showPin: activeTab === 'Post' || activeTab === 'Favourites', showHide: activeTab === 'Post' || activeTab === 'Favourites' || activeTab === 'Hidden' })}
                   </div>
                   </React.Fragment>
                  );
@@ -10275,6 +10486,11 @@ const [mounted, setMounted] = useState(false);
         ) : (
           /* 这里是之前的表单编辑代码... */
           <div className="editor-form-panel" style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            {formIsPostArticle && form?.status === 'Hidden' ? (
+              <div style={{display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', marginBottom:'18px', borderRadius:'10px', background:'rgba(179,157,219,0.12)', border:'1px solid rgba(179,157,219,0.45)', color:'#b39ddb', fontSize:'12.5px', lineHeight:1.6}}>
+                <span>当前已隐藏：前台列表不展示，可通过文章链接访问。</span>
+              </div>
+            ) : null}
             <StepAccordion step={1} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>基础信息<span style={{fontSize:'10px', color:'#ff4d4f', border:'1px solid rgba(255,77,79,0.5)', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>必填</span></span>} isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
               <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
                 <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>

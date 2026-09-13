@@ -9,6 +9,7 @@ import { withNavFooterStaticProps } from '../lib/blog/withNavFooterStaticProps'
 import type { SharedNavFooterNotionData } from '../lib/blog/withNavFooterStaticProps'
 import { buildHomeFeedPosts } from '../lib/blog/postLimits'
 import { ANNOUNCEMENT_SLUG } from '../lib/blog/pinnedPosts'
+import { filterVisiblePosts } from '../lib/blog/hiddenPosts'
 import { getAnnouncementPost } from '../lib/blog/loadHomeWidgets'
 import { getPosts } from '../lib/notion/getBlogData'
 import { NextPageWithLayout, Post, SharedNavFooterStaticProps } from '../types/blog'
@@ -61,7 +62,7 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
     try {
       const postsRaw = await getPosts(ApiScope.Archive)
       let allFormattedPosts = buildHomeFeedPosts(
-        await formatPosts(postsRaw, FORMAT_POST_LIST_OPTIONS)
+        filterVisiblePosts(await formatPosts(postsRaw, FORMAT_POST_LIST_OPTIONS))
       )
 
       if (!allFormattedPosts || allFormattedPosts.length === 0) {

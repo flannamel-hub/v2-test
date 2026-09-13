@@ -8,6 +8,7 @@ import withNavFooter from '@/src/components/withNavFooter'
 import { GalleryCategoryIndex } from '@/src/themes/gallery/GalleryCategoryIndex'
 import { getCategoriesInfo } from '@/src/lib/blog/format/category'
 import { formatPosts, FORMAT_POST_LIST_OPTIONS } from '@/src/lib/blog/format/post'
+import { filterVisiblePosts } from '@/src/lib/blog/hiddenPosts'
 import { withNavFooterStaticProps } from '@/src/lib/blog/withNavFooterStaticProps'
 import { getPostsAndPieces } from '@/src/lib/notion/getBlogData'
 import { addSubTitle } from '@/src/lib/util'
@@ -36,7 +37,7 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
 
     const formattedPosts = await formatPosts(posts, FORMAT_POST_LIST_OPTIONS)
 
-    const categories = getCategoriesInfo(formattedPosts)
+    const categories = getCategoriesInfo(filterVisiblePosts(formattedPosts))
 
     return {
       props: {

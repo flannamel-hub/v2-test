@@ -5,6 +5,7 @@ import {
   formatPosts,
   FORMAT_POST_LIST_OPTIONS,
 } from '@/src/lib/blog/format/post'
+import { filterVisiblePosts } from '@/src/lib/blog/hiddenPosts'
 import { ApiScope } from '@/src/types/notion'
 
 type UrlEntry = { loc: string; lastmod?: string }
@@ -56,7 +57,10 @@ export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
 
   try {
     const raw = await getPosts(ApiScope.Archive)
-    const posts = await formatPosts(raw, FORMAT_POST_LIST_OPTIONS)
+    // 隐藏文章不进 sitemap（用户拍板）；直链仍可访问
+    const posts = filterVisiblePosts(
+      await formatPosts(raw, FORMAT_POST_LIST_OPTIONS)
+    )
     const categoryIds = new Set<string>()
     const tagIds = new Set<string>()
 

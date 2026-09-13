@@ -18,6 +18,7 @@ import { shouldLoadGalleryFeedCovers } from '@/src/lib/gallery/shouldLoadGallery
 import { loadTweetFeedMedia } from '@/src/lib/tweet/loadTweetFeedMedia'
 import { getAllCategories } from '@/src/lib/blog/format/category'
 import { formatPosts, FORMAT_POST_LIST_OPTIONS } from '@/src/lib/blog/format/post'
+import { filterVisiblePosts } from '@/src/lib/blog/hiddenPosts'
 import { withNavFooterStaticProps } from '@/src/lib/blog/withNavFooterStaticProps'
 import { onDemandStaticPaths } from '@/src/lib/blog/postLimits'
 import { addSubTitle, getSubTitleInfo } from '@/src/lib/util'
@@ -50,7 +51,9 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
     const subTitle = getSubTitleInfo(slug, sharedPageStaticProps.props)
     addSubTitle(sharedPageStaticProps.props, '', subTitle)
     const posts = await getPosts(ApiScope.Archive)
-    const formattedPosts = await formatPosts(posts, FORMAT_POST_LIST_OPTIONS)
+    const formattedPosts = filterVisiblePosts(
+      await formatPosts(posts, FORMAT_POST_LIST_OPTIONS)
+    )
     const categoryId = context.params?.category as string
     const postsByCategory = formattedPosts.filter(
       (post) => post.category.id === categoryId

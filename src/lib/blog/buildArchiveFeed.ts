@@ -2,6 +2,7 @@ import CONFIG from '@/blog.config'
 import { getAllCategories, initialCategory } from '@/src/lib/blog/format/category'
 import { formatPosts, FORMAT_POST_LIST_OPTIONS } from '@/src/lib/blog/format/post'
 import { getAllTags, initialTag } from '@/src/lib/blog/format/tag'
+import { filterVisiblePosts } from '@/src/lib/blog/hiddenPosts'
 import { loadGalleryFeedCovers } from '@/src/lib/gallery/galleryFeedPreviews'
 import { shouldLoadGalleryFeedCovers } from '@/src/lib/gallery/shouldLoadGalleryFeedCovers'
 import { isShopTheme } from '@/src/themes/shop/shopTheme'
@@ -15,7 +16,10 @@ const PER_COUNT = CONFIG.ARCHIVE_PER_COUNT
 export async function loadSortedArchivePosts(): Promise<Post[]> {
   const { posts } = await getPostsAndPieces(ApiScope.Archive)
   const formatted = await formatPosts(posts, FORMAT_POST_LIST_OPTIONS)
-  return formatted.sort(
+  // 隐藏文章集中过滤：Archive scope 含 Hidden（设计意图=直链可访问），
+  // 列表场景在此统一剔除（覆盖归档分页/分类/标签/shopAllPosts/archiveNav 上下篇）。
+  // 注意：post/[post].tsx 直链走 getPostBySlug，不经此函数，Hidden 直链仍可访问。
+  return filterVisiblePosts(formatted).sort(
     (a, b) =>
       Number(new Date(b.date.created)) - Number(new Date(a.date.created))
   )
