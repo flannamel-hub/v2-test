@@ -49,3 +49,11 @@ Notion 驱动的 BLOG SaaS(前台 Next.js 13 Pages Router + Notion 数据源 + S
 - **F3 六步+主题步**：文案逐字按用户稿（第 3 步删主题、新增第 6 步 theme-switch=主题切换器左簇按钮，锚点 `data-tour="theme-switch"`）✓。
 - 验收全过：6 步文案逐字、完成→DB 标记写入（23:19:32）、刷新不弹、齿轮重放+跳过、<768px 不弹；**测试站标记已复位**（用户下次进入仍会弹）。
 - 坑：R2 模板包下载 curl 是原生程序，`-o` 输出路径必须 Windows 式（`$LOCALAPPDATA/...`），MSYS `/c/...` 会 write error；上传脚本已加空目录护栏（文件数异常直接 abort，避免空部署）。
+
+## R16G — 引导扩展至 10 步 + 第 10 步强制点击交互步（2026-09-19，上线并真机验收）
+
+用户设计：7=刷新按钮、8=草稿箱、9=垃圾箱（各步新文案）、10=再次聚焦「发布新内容」并**强制点击**（气泡无按钮不可点 + 点击引导动画；点了即进编辑器并结束引导，为后续「编辑界面引导」衔接铺设）。
+- **提交** `47c80e75`；`OnboardingTour.js`：TOUR_STEPS +4（文案逐字）；交互步 `interactive:true` 渲染分支——容器 pointerEvents none、挖孔外 4 捕获层防误触、呼吸光晕+双错相涟漪（keyframes 注入 style，r16tour- 前缀，reduced-motion 降级）、目标按钮 capture click→closeRef（不 preventDefault）、Esc 屏蔽、锚点缺失即关。
+- **AdminDashboard**：新锚点 `drafts`（草稿箱按钮）`refresh`（包 AdminRefreshButton 的 span）`trash`（回收站按钮）。
+- **真机 10/10**：每步文案逐字+按钮态正确；第 10 步无按钮；**坐标点击穿透**（click_at_xy 打真实按钮）→ 引导 CLOSED + 编辑器打开（正文标题等标记出现）+ 标记写入（23:47:31）✓；测后标记已复位。
+- 后续：用户将先调整文章编辑界面 UI，再设计编辑界面聚焦引导（第 10 步点击后自然衔接）。
