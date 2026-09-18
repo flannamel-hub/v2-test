@@ -9011,16 +9011,19 @@ const [mounted, setMounted] = useState(false);
                   onClick={() => (view === 'edit' ? guardLeaveEditor(openDraftsView) : openDraftsView())}
                   title="草稿"
                   className="admin-top-action-btn"
+                  data-tour="drafts"
                 >
                   草稿箱
                 </button>
                )}
-                <AdminRefreshButton
-                  isThemeLoading={isThemeLoading}
-                  blogRefreshBusy={blogRefreshBusy}
-                  blogRefreshCooldownSec={blogRefreshCooldownSec}
-                  onShellRefresh={handleManualDeploy}
-                />
+                <span style={{ display: 'inline-flex' }} data-tour="refresh">
+                  <AdminRefreshButton
+                    isThemeLoading={isThemeLoading}
+                    blogRefreshBusy={blogRefreshBusy}
+                    blogRefreshCooldownSec={blogRefreshCooldownSec}
+                    onShellRefresh={handleManualDeploy}
+                  />
+                </span>
               {view === 'list' ? (
                 <span style={{ display: 'inline-flex' }} data-tour="publish">
                   <AnimatedBtn text="发布新内容" onClick={handleCreate} />
@@ -9179,6 +9182,7 @@ const [mounted, setMounted] = useState(false);
                       disabled={loading}
                       title="回收站"
                       aria-label="回收站"
+                      data-tour="trash"
                     >
                       <Icons.Trash />
                       {recycleCount > 0 ? (
