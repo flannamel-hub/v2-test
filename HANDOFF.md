@@ -40,3 +40,12 @@ Notion 驱动的 BLOG SaaS(前台 Next.js 13 Pages Router + Notion 数据源 + S
 - 新 `src/pages/api/admin/onboarding-seen.ts`：verifyAdminRequest + 服务端调主站 `/api/merchant/blog-tour-seen`（Bearer 仅服务端，8s 超时）。
 - 标记在主站 `merchant_services.blog_admin_tour_seen_at`（仅首次进入 + 关闭后写入；已写过幂等）。middleware 零改动（tour 参数天然存活）。
 - 验证：esbuild 编译 ✓ / tsc 43 基线 0 新错；真机 7 项全过（自动弹/五步文案/完成/不重复/齿轮重放/手机不弹/DB 标记）。
+
+## R16F — 引导四处修正（2026-09-19，上线并真机验收）
+
+用户验收反馈 4 点修复（提交 `b68e5633`，部署 z4sobc）：
+- **F1 就绪后才弹**：门控改为 `!loading && (posts.length>0 || firstDataLoadDoneRef.current) && !galleryStorageLoading`；`firstDataLoadDoneRef` 在首拉取 finally 置位（覆盖空站）；就绪后 300ms 弹、200ms 轮询、10s 兜底（有锚点才弹）。实测时间线：1.4s 仍在「正在加载后台」→ 无引导；内容就绪(2.5s)后 → 6.8s 弹出（等图库容量）✓。
+- **F2 缩放重对准**：`repositionStep`（scrollIntoView→双 rAF→测量）+ resize 150ms 尾部防抖 + ResizeObserver（锚点/容器）；实测步骤 4 于 1500→1080→1500 缩放，高亮与锚点偏差 dl/dt/dw = 0 ✓。
+- **F3 六步+主题步**：文案逐字按用户稿（第 3 步删主题、新增第 6 步 theme-switch=主题切换器左簇按钮，锚点 `data-tour="theme-switch"`）✓。
+- 验收全过：6 步文案逐字、完成→DB 标记写入（23:19:32）、刷新不弹、齿轮重放+跳过、<768px 不弹；**测试站标记已复位**（用户下次进入仍会弹）。
+- 坑：R2 模板包下载 curl 是原生程序，`-o` 输出路径必须 Windows 式（`$LOCALAPPDATA/...`），MSYS `/c/...` 会 write error；上传脚本已加空目录护栏（文件数异常直接 abort，避免空部署）。
