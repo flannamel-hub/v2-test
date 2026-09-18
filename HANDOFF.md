@@ -32,3 +32,11 @@ Notion 驱动的 BLOG SaaS(前台 Next.js 13 Pages Router + Notion 数据源 + S
 ## 6. 最近批次速查
 - 2026-08-29:TWEETCARD(重设计)/TWEETSCROLL(接力)/STORE(name 字段链接)/buypage(重设计)…
 - 详细节点见 AGENTS.md §7(shop/tweet)与 §8(API/Widget 表)。
+
+## R16 — 后台新手聚焦引导（2026-09-19，上线并真机 E2E）
+
+- `src/components/blog-manager/OnboardingTour.js` 新建：零依赖 portal 挖孔引导（5 步；Esc/跳过/完成；目标缺失自动跳步；resize/scroll 重算；reduced-motion 降级）。
+- `AdminDashboard.js`：五处 `data-tour` 锚点（site-info/publish/tabs/view-tools=右簇/gallery-bar）；齿轮「新手引导」→ 重放；mount 读 `?tour=1`（≥768px）→ `replaceState` 清参 → 600ms 自动弹；关闭（完成/跳过/Esc）→ `POST /api/admin/onboarding-seen`（best-effort）。
+- 新 `src/pages/api/admin/onboarding-seen.ts`：verifyAdminRequest + 服务端调主站 `/api/merchant/blog-tour-seen`（Bearer 仅服务端，8s 超时）。
+- 标记在主站 `merchant_services.blog_admin_tour_seen_at`（仅首次进入 + 关闭后写入；已写过幂等）。middleware 零改动（tour 参数天然存活）。
+- 验证：esbuild 编译 ✓ / tsc 43 基线 0 新错；真机 7 项全过（自动弹/五步文案/完成/不重复/齿轮重放/手机不弹/DB 标记）。
