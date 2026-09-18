@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { GalleryManager } from './GalleryManager';
 import { AttachmentManager } from './AttachmentManager';
 import { GalleryStorageBar } from './GalleryStorageBar';
+import OnboardingTour, { TOUR_STEPS } from './OnboardingTour';
 import {
   flushGalleryUploads,
   revokePendingGalleryItems,
@@ -4605,6 +4606,8 @@ const [mounted, setMounted] = useState(false);
   const hiddenConfirmTimerRef = useRef(null);
   const [headerActionsMenuOpen, setHeaderActionsMenuOpen] = useState(false);
   const headerActionsMenuRef = useRef(null);
+  // R16：新手聚焦引导（首次 ?tour=1 自动弹；齿轮菜单可重放）
+  const [tourOpen, setTourOpen] = useState(false);
   const adminToastTimerRef = useRef(null);
   const [adminToast, setAdminToast] = useState({ message: '', visible: false, closing: false });
   const [tagDraft, setTagDraft] = useState('');
@@ -5529,6 +5532,35 @@ const [mounted, setMounted] = useState(false);
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [headerActionsMenuOpen]);
+  // R16：引导关闭（完成/跳过/Esc 任一）→ 关闭 + best-effort 回调主站写「已看过」标记（2B）
+  const handleCloseOnboardingTour = () => {
+    setTourOpen(false);
+    try {
+      fetch('/api/admin/onboarding-seen', { method: 'POST' }).catch(() => {});
+    } catch (err) {
+      /* best-effort，失败静默 */
+    }
+  };
+  // R16：首次自动开（4A：仅桌面宽度）——?tour=1 且 >=768px → 清参 → 600ms 后弹出
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined' || !window.location) return;
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tour') !== '1') return;
+      if (window.innerWidth < 768) return;
+      params.delete('tour');
+      const qs = params.toString();
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`
+      );
+      const timer = window.setTimeout(() => setTourOpen(true), 600);
+      return () => window.clearTimeout(timer);
+    } catch (err) {
+      /* 自动引导失败静默 */
+    }
+  }, []);
   const buildCrawlerIngestHeaders = (extra = {}, passwordOverride = crawlerIngestPassword) => ({
     ...extra,
     ...(passwordOverride
@@ -8864,6 +8896,7 @@ const [mounted, setMounted] = useState(false);
         onCancel={closeVendingAddressUnlockModal}
       />
       <AdminToast message={adminToast.message} visible={adminToast.visible} closing={adminToast.closing} />
+      <OnboardingTour open={tourOpen} onClose={handleCloseOnboardingTour} steps={TOUR_STEPS} />
       <PublishQueuePanel
         jobs={publishQueue}
         onRetry={retryJob}
@@ -8876,7 +8909,7 @@ const [mounted, setMounted] = useState(false);
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
              {(view === 'list' || view === 'recycle') && <SearchInput value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />}
-             <div style={{display:'flex', flexDirection:'column', justifyContent:'center'}}>
+              <div data-tour="site-info" style={{display:'flex', flexDirection:'column', justifyContent:'center'}}>
                   <div style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '1px', display:'flex', alignItems:'center', gap:'10px' }}>
                      {siteTitleEditing ? (
                        <>
@@ -8928,7 +8961,7 @@ const [mounted, setMounted] = useState(false);
                        crawlerIngestConfigured={crawlerIngestConfigured}
                        crawlerIngestSummary={crawlerIngestSummary}
                        onOpenIngestList={openCrawlerIngestView}
-                       onShowOnboarding={() => showAdminToast('新手引导即将上线')}
+                        onShowOnboarding={() => setTourOpen(true)}
                      />
                   </div>
              </div>
@@ -8952,7 +8985,9 @@ const [mounted, setMounted] = useState(false);
                   onShellRefresh={handleManualDeploy}
                 />
               {view === 'list' ? (
-                <AnimatedBtn text="发布新内容" onClick={handleCreate} />
+                <span style={{ display: 'inline-flex' }} data-tour="publish">
+                  <AnimatedBtn text="发布新内容" onClick={handleCreate} />
+                </span>
               ) : (
                 <AnimatedBtn
                   text="返回列表"
@@ -8970,15 +9005,17 @@ const [mounted, setMounted] = useState(false);
 
 {view === 'list' ? (
           <main>
-            <GalleryStorageBar
-              stats={galleryStorageStats}
-              loading={galleryStorageLoading}
-              error={galleryStorageError}
-            />
+            <div data-tour="gallery-bar">
+              <GalleryStorageBar
+                stats={galleryStorageStats}
+                loading={galleryStorageLoading}
+                error={galleryStorageError}
+              />
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '12px' }}>
               <div className="admin-list-head-left">
                 {/* 1. 分类标签组 */}
-                <div className="admin-list-tabs">
+                <div className="admin-list-tabs" data-tour="tabs">
                   {['Post', 'Favourites', 'Hidden', 'Widget', 'Ads', 'Page'].map(t => (
                     <button
                       key={t}
@@ -9095,7 +9132,7 @@ const [mounted, setMounted] = useState(false);
               </div>
 
               {/* 3. 右侧视图栏 + 发布日期筛选 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', position: 'relative', flexShrink: 0 }}>
+              <div data-tour="view-tools" style={{ display: 'flex', alignItems: 'center', gap: '10px', position: 'relative', flexShrink: 0 }}>
                 {activeTab === 'Post' ? (
                   <>
                     <button
