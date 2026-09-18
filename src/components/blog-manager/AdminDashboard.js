@@ -5332,7 +5332,7 @@ const [mounted, setMounted] = useState(false);
             if (dConf.success && dConf.siteInfo) setSiteTitle(dConf.siteInfo.title);
         }
      } catch(e) { console.warn(e); } 
-     finally { if (!silent) setLoading(false); } 
+     finally { firstDataLoadDoneRef.current = true; if (!silent) setLoading(false); } 
     })();
     fetchPostsInflightRef.current = run;
     try {
@@ -5541,7 +5541,15 @@ const [mounted, setMounted] = useState(false);
       /* best-effort，失败静默 */
     }
   };
-  // R16：首次自动开（4A：仅桌面宽度）——?tour=1 且 >=768px → 清参 → 600ms 后弹出
+  // R16F F1：首屏就绪镜像（标题区/列表数据到位 + 图库容量加载完）；
+  // ?tour=1 自动弹用轮询读 ref 判就绪，避免 effect 依赖 state 反复重跑（清参后早退中断轮询）
+  const tourFirstScreenReadyRef = useRef(false);
+  // R16F F1 补：首次数据加载完成一次性标记（fetchPosts finally 置位；空站 posts 为 0 也算就绪，不再只靠 10s 兜底）
+  const firstDataLoadDoneRef = useRef(false);
+  tourFirstScreenReadyRef.current = !loading && (posts.length > 0 || firstDataLoadDoneRef.current) && !galleryStorageLoading;
+  // R16F：首次自动开（4A：仅桌面宽度；F1：等首屏数据就绪后再弹）
+  // ?tour=1 且 >=768px → 清参 → 等就绪 → 300ms 后弹出；兜底最多等 10s，
+  // 届时若有 site-info 锚点（宽高>0）也弹出，否则放弃本次自动弹。手动重放不受此门控影响。
   useEffect(() => {
     try {
       if (typeof window === 'undefined' || !window.location) return;
@@ -5555,8 +5563,37 @@ const [mounted, setMounted] = useState(false);
         '',
         `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`
       );
-      const timer = window.setTimeout(() => setTourOpen(true), 600);
-      return () => window.clearTimeout(timer);
+      let opened = false;
+      let pollId = null;
+      let fallbackId = null;
+      let openTimer = null;
+      const stopAll = () => {
+        if (pollId !== null) window.clearInterval(pollId);
+        if (fallbackId !== null) window.clearTimeout(fallbackId);
+        if (openTimer !== null) window.clearTimeout(openTimer);
+      };
+      const openTour = () => {
+        if (opened) return;
+        opened = true;
+        stopAll();
+        openTimer = window.setTimeout(() => setTourOpen(true), 300);
+      };
+      if (tourFirstScreenReadyRef.current) {
+        openTour();
+      } else {
+        pollId = window.setInterval(() => {
+          if (tourFirstScreenReadyRef.current) openTour();
+        }, 200);
+        fallbackId = window.setTimeout(() => {
+          try {
+            const el = document.querySelector('[data-tour="site-info"]');
+            if (el && el.offsetWidth > 0 && el.offsetHeight > 0) openTour();
+          } catch (err) {
+            /* 锚点不可查则放弃本次自动弹 */
+          }
+        }, 10000);
+      }
+      return () => stopAll();
     } catch (err) {
       /* 自动引导失败静默 */
     }
@@ -9073,7 +9110,7 @@ const [mounted, setMounted] = useState(false);
                 </div>
 
                 {/* 2. 🎨 主题切换器 */}
-                <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div data-tour="theme-switch" style={{ position: 'relative', flexShrink: 0 }}>
                   <button
                     disabled={isThemeLoading}
                     onClick={() => setThemeMenuOpen(o => { const next = !o; if (next) void loadThemeSwitchQuota(); return next; })}

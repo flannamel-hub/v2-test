@@ -1,4 +1,4 @@
-/** R16：后台新手聚焦引导（5 步，遮罩挖孔 + 小气泡）。
+/** R16：后台新手聚焦引导（6 步，遮罩挖孔 + 小气泡）。
  * 手写零依赖：createPortal 挂 document.body（后台在 #admin-container z-index:9999 内，
  * 必须脱离该层叠上下文），引导层 z-index:10100 压过后台一切弹层。
  * 挖孔法：单个 fixed div 定位在目标 rect（外扩 6px、圆角 8）+ box-shadow 0 0 0 9999px 遮罩。
@@ -8,11 +8,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 
 export const TOUR_STEPS = [
-  { anchor: 'site-info', text: '这是你的站点。点标题能改名；版本角标显示当前版本；齿轮里有爬虫设置和本引导。' },
-  { anchor: 'publish', text: '写文章、加自定义页面，都从这里开始。' },
-  { anchor: 'tabs', text: '文章、组件、自定义页面在这切换；已隐藏=下架的内容。' },
-  { anchor: 'view-tools', text: '列表的显示方式、日历筛选都在这边；站点主题也能随时换，就在左侧的主题按钮。' },
-  { anchor: 'gallery-bar', text: '图片容量看这里。写完先存草稿箱、确认没问题后点右上角刷新，线上就会更新。' },
+  { anchor: 'site-info', text: '这是你的站点标题，点击标题文字可重命名。' },
+  { anchor: 'publish', text: '写文章、发布内容，都从这里开始。' },
+  { anchor: 'tabs', text: '文章、组件、自定义页面在这切换，隐藏文章=已发布但不在BLOG首页显示。' },
+  { anchor: 'view-tools', text: '可在此处切换视图并使用日历进行筛选' },
+  { anchor: 'gallery-bar', text: '此处显示你的BLOG剩余存储空间。' },
+  { anchor: 'theme-switch', text: '此处可以更换BLOG主题，前期确定好主题后期不要轻易更换，否则容易导致主题BUG！' },
 ]
 
 const HIGHLIGHT_PAD = 6
@@ -21,6 +22,7 @@ const BUBBLE_GAP = 12
 const BUBBLE_WIDTH = 340
 const VIEWPORT_MARGIN = 8
 const OVERLAY_Z_INDEX = 10100
+const RESIZE_DEBOUNCE_MS = 150
 
 function clamp(value, min, max) {
   const lo = Math.min(min, max)
@@ -73,6 +75,27 @@ const OnboardingTour = ({ open, onClose, steps }) => {
     })
   }, [activeIdx, steps, total])
 
+  // R16F F2：完整重定位（每步定位与 resize 稳定后共用）：
+  // scrollIntoView 居中（try/catch）→ 双 rAF 等布局定稿 → 测量 → setTargetRect
+  const repositionStep = useCallback((step) => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        if (!step || !step.anchor) return
+        const el = findTourAnchor(step.anchor)
+        if (!el) return
+        try {
+          el.scrollIntoView({ block: 'center' })
+        } catch (_) {
+          /* 定位失败则按当前视口位置测量 */
+        }
+        const rect = readRect(el)
+        if (rect) setTargetRect(rect)
+      })
+    })
+  }, [])
+
   // 打开时重置到第一步
   useEffect(() => {
     if (open) {
@@ -83,6 +106,7 @@ const OnboardingTour = ({ open, onClose, steps }) => {
   }, [open])
 
   // 每步定位：scrollIntoView 居中后测量；目标缺失/零尺寸自动跳步；越界（全部缺失）关闭
+  // R16F F2：定位本体抽到 repositionStep（scrollIntoView → 双 rAF → 测量）
   useEffect(() => {
     if (!open) return
     if (total === 0 || activeIdx >= total) {
@@ -99,21 +123,11 @@ const OnboardingTour = ({ open, onClose, steps }) => {
       rafRef.current = null
       if (cancelled) return
       const el = findTourAnchor(step.anchor)
-      if (!el) {
+      if (!el || !readRect(el)) {
         setActiveIdx((i) => i + 1)
         return
       }
-      try {
-        el.scrollIntoView({ block: 'center' })
-      } catch (_) {
-        /* 定位失败则按当前视口位置测量 */
-      }
-      const rect = readRect(el)
-      if (!rect) {
-        setActiveIdx((i) => i + 1)
-        return
-      }
-      setTargetRect(rect)
+      repositionStep(step)
     })
     return () => {
       cancelled = true
@@ -122,22 +136,62 @@ const OnboardingTour = ({ open, onClose, steps }) => {
         rafRef.current = null
       }
     }
-  }, [open, activeIdx, steps, total])
+  }, [open, activeIdx, steps, total, repositionStep])
 
   // resize / 滚动（含 #admin-container 内部滚动，capture 捕获）重算位置
+  // R16F F2：resize 另加 150ms 尾部防抖——布局稳定后做一次完整重定位（含 scrollIntoView）
   useEffect(() => {
     if (!open) return
-    window.addEventListener('resize', scheduleReposition)
+    let resizeDebounceId = null
+    const onResize = () => {
+      scheduleReposition()
+      if (resizeDebounceId !== null) window.clearTimeout(resizeDebounceId)
+      resizeDebounceId = window.setTimeout(() => {
+        resizeDebounceId = null
+        const step = total > 0 ? steps[Math.min(activeIdx, total - 1)] : null
+        if (step) repositionStep(step)
+      }, RESIZE_DEBOUNCE_MS)
+    }
+    window.addEventListener('resize', onResize)
     window.addEventListener('scroll', scheduleReposition, true)
     return () => {
-      window.removeEventListener('resize', scheduleReposition)
+      window.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', scheduleReposition, true)
+      if (resizeDebounceId !== null) {
+        window.clearTimeout(resizeDebounceId)
+        resizeDebounceId = null
+      }
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current)
         rafRef.current = null
       }
     }
-  }, [open, scheduleReposition])
+  }, [open, activeIdx, steps, total, scheduleReposition, repositionStep])
+
+  // R16F F2：目标锚点自身（缺失时退回 #admin-container）尺寸变化 → 同样的完整重定位
+  useEffect(() => {
+    if (!open || typeof ResizeObserver === 'undefined') return
+    const step = total > 0 ? steps[Math.min(activeIdx, total - 1)] : null
+    if (!step) return
+    const target = findTourAnchor(step.anchor) || document.getElementById('admin-container')
+    if (!target) return
+    let roDebounceId = null
+    const observer = new ResizeObserver(() => {
+      if (roDebounceId !== null) window.clearTimeout(roDebounceId)
+      roDebounceId = window.setTimeout(() => {
+        roDebounceId = null
+        repositionStep(step)
+      }, RESIZE_DEBOUNCE_MS)
+    })
+    observer.observe(target)
+    return () => {
+      observer.disconnect()
+      if (roDebounceId !== null) {
+        window.clearTimeout(roDebounceId)
+        roDebounceId = null
+      }
+    }
+  }, [open, activeIdx, steps, total, repositionStep])
 
   // Esc = 跳过
   useEffect(() => {
