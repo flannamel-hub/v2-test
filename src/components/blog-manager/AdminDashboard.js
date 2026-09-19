@@ -10731,8 +10731,7 @@ const [mounted, setMounted] = useState(false);
 
             {/* R17G: 附件回归 StepAccordion step=5（说明文本 + AttachmentManager 零改动） */}
             {!editingSimplePage && form.type !== 'Widget' ? (
-            <StepAccordion step={5} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>附件<span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span></span>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
-              <p style={{fontSize:'12px', color:'#888', lineHeight:1.6, margin:'0 0 12px'}}>上传附件后将在本篇文章页面中提供下载入口，未添加附件则不显示</p>
+            <StepAccordion step={5} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>附件<span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="上传附件后将在本篇文章页面中提供下载入口，未添加附件则不显示" /></span>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
               <AttachmentManager postSlug={form.slug} />
             </StepAccordion>
             ) : null}
