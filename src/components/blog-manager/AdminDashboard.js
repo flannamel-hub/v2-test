@@ -29,25 +29,22 @@ import {
 } from '@/src/lib/admin/contentMediaFlush';
 import {
   applyBodyCoverSelection,
-  applyDefaultCoverToggle,
   applyGalleryCoverSelection,
-  applyManualCoverUrl,
   clearBodyCoverSelection,
   clearGalleryCoverFlags,
   COVER_MODE_AUTO,
   COVER_MODE_BODY,
-  COVER_MODE_DEFAULT,
-  COVER_MODE_URL,
   createInitialCoverSettings,
   resolveEditorBodyCoverBlockId,
   resolveEditorGalleryCoverIndex,
   resolveNotionCoverForSave,
   restoreEditorCoverState,
-  formatEditorCoverStatus,
   clearGalleryCoverSelection,
 } from '@/src/lib/admin/coverSettings';
 import { remoteFromApiImage } from '@/src/lib/admin/galleryFlush';
 import CardCategoryQuickPicker from './CardCategoryQuickPicker';
+// R17-D3（§七-11）: 发布校验缺项弹窗（独立组件，open/closing 双态 + 240ms 退场）
+import MissingFieldsModal from './MissingFieldsModal';
 // 派工单 B3:后台「数据统计」面板(独立文件,AdminDashboard 只做引入与视图接线)
 import StatsPanel from './StatsPanel';
 import { FiBarChart2 } from 'react-icons/fi';
@@ -417,7 +414,7 @@ const GlobalStyle = () => (
     .block-minimap-add-btn:hover, .block-minimap-add-btn.open { border-color: greenyellow; background: rgba(173,255,47,0.14); box-shadow: 0 3px 12px rgba(173,255,47,0.2); transform: scale(1.05); }
     .block-builder-shell { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 10px 16px; box-sizing: border-box; background: rgba(255, 255, 255, 0.015); box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.03), 0 8px 32px rgba(0, 0, 0, 0.35); transition: background-color 0.3s ease, border-color 0.3s ease; }
     .block-builder-shell:hover { border-color: rgba(255, 255, 255, 0.14); background-color: rgba(255, 255, 255, 0.025); }
-    .block-builder-area-title { font-size: 15px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.55); margin-bottom: 14px; user-select: none; display: flex; align-items: center; gap: 8px; }
+    .block-builder-area-title { font-size: 15px; letter-spacing: 2px; color: #fff; font-weight: 700; margin-bottom: 14px; user-select: none; display: flex; align-items: center; gap: 8px; }
     .block-builder-area-title::before { content: ''; width: 2px; height: 14px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); flex-shrink: 0; }
     .block-builder-expanded { display: flex; flex-direction: column; gap: 72px; padding-bottom: 28px; }
     .block-minimap-item { position: relative; display: flex; flex-direction: column; width: 140px; min-height: 118px; flex-shrink: 0; border: 1px solid #444; border-radius: 8px; background: #1c1c1f; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s; user-select: none; cursor: grab; touch-action: none; }
@@ -535,8 +532,9 @@ const GlobalStyle = () => (
     .editor-step-grid--single { grid-template-columns: 1fr; }
     .editor-date-field { min-width: 0; }
     .editor-date-field input[type="date"] { width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
-    .block-add-toolbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 25px; }
-    .block-add-toolbar .neo-btn { width: 100%; padding: 0.8em 0.4em; font-size: 13px; white-space: nowrap; box-sizing: border-box; justify-content: center; }
+    .block-add-toolbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 25px; }
+    .block-add-toolbar .neo-btn { width: 100%; padding: 0.75em 0.3em; font-size: 12px; white-space: nowrap; box-sizing: border-box; justify-content: center; }
+    .hint-bubble-icon:hover { color: #ddd !important; border-color: #999 !important; }
     .category-picker-wrap { position: relative; margin-bottom: 10px; min-width: 0; }
     .category-picker-trigger { display: flex; align-items: stretch; min-width: 0; }
     .category-picker-selected { flex: 1; min-width: 0; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #18181c; border: 1px solid #333; border-right: none; border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
@@ -637,8 +635,94 @@ const AdminToast = ({ message, visible, closing }) => {
   );
 };
 
+// R17-C3（§七 V4）: 问号气泡（图库标题/附件按钮/商品按钮共用）。
+// 气泡 fixed 定位（显示时按图标 getBoundingClientRect 计算坐标），
+// 避免被 .editor-form-panel 的 overflow-x:hidden 裁剪；zIndex 与后台弹窗同层。
+// 桌面 hover 显示/移出隐藏；点按（触屏）切换；点击页面其他处关闭。
+const HintBubble = ({ text, light = false }) => {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const iconRef = useRef(null);
+
+  const showBubble = () => {
+    const rect = iconRef.current?.getBoundingClientRect();
+    if (rect) {
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - 276));
+      setPos({ top: rect.bottom + 8, left });
+    }
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDocClick = () => setOpen(false);
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [open]);
+
+  const iconColor = light ? 'rgba(255,255,255,0.75)' : '#888';
+  const iconBorder = light ? 'rgba(255,255,255,0.55)' : '#666';
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+      <button
+        ref={iconRef}
+        type="button"
+        aria-label="说明"
+        className="hint-bubble-icon"
+        onMouseEnter={showBubble}
+        onMouseLeave={() => setOpen(false)}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        style={{
+          width: '15px',
+          height: '15px',
+          borderRadius: '50%',
+          border: `1px solid ${iconBorder}`,
+          background: 'transparent',
+          color: iconColor,
+          fontSize: '10px',
+          fontWeight: 'bold',
+          lineHeight: 1,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 0,
+        }}
+      >?</button>
+      {open && pos ? (
+        <span
+          role="tooltip"
+          style={{
+            position: 'fixed',
+            top: pos.top,
+            left: pos.left,
+            zIndex: 10000,
+            background: '#2a2a2e',
+            border: '1px solid #555',
+            borderRadius: 10,
+            padding: '8px 10px',
+            fontSize: 12,
+            color: '#ccc',
+            lineHeight: 1.6,
+            maxWidth: 260,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            pointerEvents: 'none',
+          }}
+        >
+          {text}
+        </span>
+      ) : null}
+    </span>
+  );
+};
+
 const StepAccordion = ({ step, title, isOpen, onToggle, children }) => (
-  <div>
+  <div data-editor-step={step}>
     <div className="acc-btn" onClick={onToggle}>
       <div className="acc-btn-title">
         <span style={{color:'greenyellow'}}>Step {step}</span>
@@ -2989,89 +3073,16 @@ const BLOCK_TYPE_OPTIONS = [
   { type: 'image', label: '🖼️ 图片块' },
   { type: 'quote', label: '💭❝引用块' },
   { type: 'link', label: '🔗 超链文字' },
-  { type: 'note', label: '💬 注释块' },
-  { type: 'lock', label: '🔒 加密块' },
+  { type: 'note', label: '💬 注释' },
+  { type: 'lock', label: '🔒 加密盒子' },
   { type: 'ol', label: '🔢 有序列表' },
   { type: 'ul', label: '• 无序列表' },
-  { type: 'todo', label: '☑️ 待办列表' },
-  { type: 'toggle', label: '▶ 折叠块' },
+  { type: 'toggle', label: '▶ 折叠内容' },
 ];
 
 /** 块类型菜单预估高度，用于判断向上/向下弹出 */
 const BLOCK_TYPE_MENU_EST_HEIGHT = 400;
 const BLOCK_TYPE_MENU_MIN_WIDTH = 210;
-
-const BlockCoverHint = ({
-  coverSettings,
-  coverStatusText,
-  showManualCoverInput,
-  onToggleDefaultCover,
-  onToggleManualInput,
-  onManualUrlChange,
-  onApplyManualUrl,
-}) => (
-  <div
-    className="block-cover-hint"
-    style={{
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '12px',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    }}
-  >
-    <div style={{ flex: '1 1 280px', lineHeight: 1.55 }}>
-      <div>
-        🖼️ <b style={{ color: 'greenyellow' }}>封面说明</b>：可手动将图库中的图片或正文图片块设定为封面，未手动设定封面则自动采取正文首图或图库首图作为封面。可手动添加外链作为封面或使用系统默认封面。
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-      <button
-        type="button"
-        className="neo-btn"
-        style={{
-          fontSize: '12px',
-          padding: '6px 12px',
-          background: coverSettings.mode === COVER_MODE_DEFAULT ? '#7dd3fc' : undefined,
-        }}
-        onClick={() => onToggleDefaultCover(coverSettings.mode !== COVER_MODE_DEFAULT)}
-      >
-        {coverSettings.mode === COVER_MODE_DEFAULT ? '✓ 已启用默认封面' : '启用默认封面'}
-      </button>
-      <button
-        type="button"
-        className="neo-btn"
-        style={{
-          fontSize: '12px',
-          padding: '6px 12px',
-          background: coverSettings.mode === COVER_MODE_URL ? '#7dd3fc' : undefined,
-        }}
-        onClick={onToggleManualInput}
-      >
-        手动添加封面
-      </button>
-      {showManualCoverInput ? (
-        <>
-          <input
-            className="glow-input"
-            style={{ width: '220px', fontSize: '12px', padding: '6px 10px' }}
-            placeholder="https://图片直链"
-            value={coverSettings.manualUrl}
-            onChange={(e) => onManualUrlChange(e.target.value)}
-          />
-          <button
-            type="button"
-            className="neo-btn"
-            style={{ fontSize: '12px', padding: '6px 12px' }}
-            onClick={onApplyManualUrl}
-          >
-            确认
-          </button>
-        </>
-      ) : null}
-    </div>
-  </div>
-  </div>
-);
 
 const isFileDragEvent = (e) => {
   const dt = e.dataTransfer;
@@ -3854,15 +3865,15 @@ const BlockBuilder = ({
 
   const getBlockLabel = (type) => {
       if (type === 'h1') return 'H1 标题';
-      if (type === 'lock') return '🔒 加密块';
-      if (type === 'note') return '💬 注释块';
+      if (type === 'lock') return '🔒 加密盒子';
+      if (type === 'note') return '💬 注释';
       if (type === 'image') return '🖼️ 图片块';
       if (type === 'quote') return '❝ 引用';
       if (type === 'link') return '🔗 超链文字';
       if (type === 'ol') return '🔢 有序列表';
       if (type === 'ul') return '• 无序列表';
       if (type === 'todo') return '☑️ 待办列表';
-      if (type === 'toggle') return '▶ 折叠块';
+      if (type === 'toggle') return '▶ 折叠内容';
       return '📄 内容块';
   };
   const linkModalValid = !!(linkModal && (linkModal.label || '').trim() && (linkModal.url || '').trim() && (linkModal.url || '').trim() !== 'https://');
@@ -3968,13 +3979,12 @@ const BlockBuilder = ({
           <div className="neo-btn" onClick={()=>addBlock('text')}>正文内容</div>
           <div className="neo-btn" onClick={()=>addBlock('image')}>正文图片</div>
           <div className="neo-btn" onClick={()=>addBlock('link')}>超链文字</div>
+          <div className="neo-btn" onClick={()=>addBlock('lock')}>🔒 加密盒子</div>
           <div className="neo-btn" onClick={()=>addBlock('quote')}>❝ 引用</div>
-          <div className="neo-btn" onClick={()=>addBlock('note')}>💬 注释块</div>
-          <div className="neo-btn" onClick={()=>addBlock('lock')}>🔒 加密块</div>
+          <div className="neo-btn" onClick={()=>addBlock('note')}>💬 注释</div>
           <div className="neo-btn" onClick={()=>addBlock('ol')}>🔢 有序列表</div>
           <div className="neo-btn" onClick={()=>addBlock('ul')}>• 无序列表</div>
-          <div className="neo-btn" onClick={()=>addBlock('todo')}>☑️ 待办列表</div>
-          <div className="neo-btn" onClick={()=>addBlock('toggle')}>▶ 折叠块</div>
+          <div className="neo-btn" onClick={()=>addBlock('toggle')}>▶ 折叠内容</div>
       </div>
       <div className="block-view-toolbar">
         <div className="block-view-toggle">
@@ -4532,6 +4542,8 @@ const [mounted, setMounted] = useState(false);
   const openProductLookupModal = () => {
     setProductLookup({ open: true, sku: String(form.linked_product_sku || '').trim(), loading: false, result: null });
   };
+  // R17-C1（§七 V2）: 附件步改按钮+弹窗（弹窗内 AttachmentManager 零改动）
+  const [attachmentModalOpen, setAttachmentModalOpen] = useState(false);
   // 当场查询:走服务端代理 /api/admin/merchant-product-lookup(主站 8s 超时),
   // 客户端 10s AbortController 仅作兜底;token 全程不出服务端
   const runProductLookupQuery = async () => {
@@ -4710,7 +4722,6 @@ const [mounted, setMounted] = useState(false);
   const [galleryItems, setGalleryItems] = useState([]);
   const [galleryDirty, setGalleryDirty] = useState(false);
   const [coverSettings, setCoverSettings] = useState(createInitialCoverSettings);
-  const [showManualCoverInput, setShowManualCoverInput] = useState(false);
   const [savePhase, setSavePhase] = useState(''); // '' | 'media' | 'post' | 'gallery' | 'delete'
   const [saveProgress, setSaveProgress] = useState(null); // { done, total }
   const [publishQueue, setPublishQueue] = useState([]); // 后台发布队列
@@ -4734,6 +4745,11 @@ const [mounted, setMounted] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [publishConfirmClosing, setPublishConfirmClosing] = useState(false);
   const publishConfirmTimerRef = useRef(null);
+  // R17-D2/D3（§七-11）: 发布校验缺项弹窗（open/closing 双态 + 240ms 退场）
+  const [missingFieldsOpen, setMissingFieldsOpen] = useState(false);
+  const [missingFieldsClosing, setMissingFieldsClosing] = useState(false);
+  const [missingFieldsItems, setMissingFieldsItems] = useState([]);
+  const missingFieldsTimerRef = useRef(null);
   const [taxonomyConfirmOpen, setTaxonomyConfirmOpen] = useState(false);
   const [taxonomyConfirmClosing, setTaxonomyConfirmClosing] = useState(false);
   const [taxonomyConfirmName, setTaxonomyConfirmName] = useState('');
@@ -4764,7 +4780,6 @@ const [mounted, setMounted] = useState(false);
 
   const resetCoverSettings = () => {
     setCoverSettings(createInitialCoverSettings());
-    setShowManualCoverInput(false);
   };
 
   const editorBodyCoverBlockId = useMemo(
@@ -4777,50 +4792,6 @@ const [mounted, setMounted] = useState(false);
     [galleryItems, coverSettings.mode]
   );
 
-  const coverStatusText = useMemo(
-    () =>
-      formatEditorCoverStatus({
-        coverSettings,
-        blocks: editorBlocks,
-        galleryItems,
-      }).full,
-    [coverSettings, editorBlocks, galleryItems]
-  );
-
-  const handleToggleDefaultCover = (enabled) => {
-    const applied = applyDefaultCoverToggle(enabled);
-    setCoverSettings(applied.coverSettings);
-    if (applied.clearBody) {
-      setEditorBlocks((prev) => clearManualCoverFlags(prev));
-    }
-    if (applied.clearGallery) {
-      setGalleryItems((prev) => clearGalleryCoverFlags(prev));
-    }
-    setShowManualCoverInput(false);
-    markDirty();
-  };
-
-  const handleApplyManualCoverUrl = () => {
-    const url = (coverSettings.manualUrl || '').trim();
-    if (!url) {
-      alert('请输入图片直链');
-      return;
-    }
-    if (!/^https?:\/\//i.test(url)) {
-      alert('请输入以 http(s) 开头的有效链接');
-      return;
-    }
-    const applied = applyManualCoverUrl(url);
-    setCoverSettings(applied.coverSettings);
-    if (applied.clearBody) {
-      setEditorBlocks((prev) => clearManualCoverFlags(prev));
-    }
-    if (applied.clearGallery) {
-      setGalleryItems((prev) => clearGalleryCoverFlags(prev));
-    }
-    markDirty();
-  };
-
   const handleSetBodyCover = (blockId) => {
     const applied = applyBodyCoverSelection(editorBlocks, blockId);
     setCoverSettings(applied.coverSettings);
@@ -4828,7 +4799,6 @@ const [mounted, setMounted] = useState(false);
     if (applied.clearGallery) {
       setGalleryItems((prev) => clearGalleryCoverFlags(prev));
     }
-    setShowManualCoverInput(false);
     markDirty();
   };
 
@@ -4846,7 +4816,6 @@ const [mounted, setMounted] = useState(false);
     if (applied.clearBody) {
       setEditorBlocks((prev) => clearManualCoverFlags(prev));
     }
-    setShowManualCoverInput(false);
     setGalleryDirty(true);
     markDirty();
   };
@@ -4905,6 +4874,26 @@ const [mounted, setMounted] = useState(false);
     if ((form?.date || '') === '') return '请选择发布日期';
     return '';
   };
+  // R17-D2（§七-13）: 全量缺失必填项列表（分支与 getMissingFieldMsg 一一对应；
+  // step 为编辑器步骤锚点，供缺项弹窗「去填写」展开并滚动定位；无 step 的项不渲染跳转）
+  const getMissingFields = () => {
+    const fields = [];
+    if ((form?.title?.trim() || '') === '') {
+      fields.push(
+        form?.type === 'Widget'
+          ? { label: '组件标题', step: null }
+          : { label: '文章标题', step: 1 }
+      );
+    }
+    if (form?.type === 'Widget') return fields;
+    if (isSimpleCustomPage(form?.slug) || form?.type === 'Page') {
+      if ((form?.date || '') === '') fields.push({ label: '发布日期', step: 1 });
+      return fields;
+    }
+    if ((form?.category?.trim() || '') === '') fields.push({ label: '文章分类', step: 2 });
+    if ((form?.date || '') === '') fields.push({ label: '发布日期', step: 1 });
+    return fields;
+  };
   // 统一的"尝试保存"：无效时弹出具体缺失项提示，有效时才真正保存
   const closeCoverModal = () => {
     if (coverModalTimerRef.current) clearTimeout(coverModalTimerRef.current);
@@ -4922,6 +4911,33 @@ const [mounted, setMounted] = useState(false);
       setPublishConfirmOpen(false);
       setPublishConfirmClosing(false);
     }, 240);
+  };
+
+  // R17-D3: 缺项弹窗打开/关闭（240ms 退场）与「去填写」跳转
+  const openMissingFieldsModal = (items) => {
+    if (missingFieldsTimerRef.current) clearTimeout(missingFieldsTimerRef.current);
+    setMissingFieldsItems(Array.isArray(items) ? items : []);
+    setMissingFieldsClosing(false);
+    setMissingFieldsOpen(true);
+  };
+
+  const closeMissingFieldsModal = () => {
+    if (missingFieldsTimerRef.current) clearTimeout(missingFieldsTimerRef.current);
+    setMissingFieldsClosing(true);
+    missingFieldsTimerRef.current = setTimeout(() => {
+      setMissingFieldsOpen(false);
+      setMissingFieldsClosing(false);
+    }, 240);
+  };
+
+  const jumpToMissingFieldStep = (step) => {
+    closeMissingFieldsModal();
+    setExpandedStep(step);
+    setTimeout(() => {
+      document
+        .querySelector(`[data-editor-step="${step}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 80);
   };
 
   const closeTaxonomyConfirmModal = () => {
@@ -5058,7 +5074,6 @@ const [mounted, setMounted] = useState(false);
     setGalleryItems(Array.isArray(snap.galleryItems) ? snap.galleryItems : []);
     if (snap.coverSettings && typeof snap.coverSettings === 'object') {
       setCoverSettings({ ...createInitialCoverSettings(), ...snap.coverSettings });
-      setShowManualCoverInput(snap.coverSettings.mode === COVER_MODE_URL);
     }
     if (snap.postId) {
       setCurrentId(snap.postId);
@@ -5243,8 +5258,12 @@ const [mounted, setMounted] = useState(false);
   }, [publishQueue]);
 
   const attemptSave = () => {
-    const msg = getMissingFieldMsg();
-    if (msg) { alert('⚠️ ' + msg); return; }
+    // R17-D2: 先算全量缺失项，非空则弹缺项弹窗并返回；空则走原发布确认流程
+    const missing = getMissingFields();
+    if (missing.length > 0) {
+      openMissingFieldsModal(missing);
+      return;
+    }
     setPublishAs('Published');
     setPublishConfirmClosing(false);
     setPublishConfirmOpen(true);
@@ -5932,7 +5951,6 @@ const [mounted, setMounted] = useState(false);
         setEditorBlocks(restored.blocks);
         setGalleryItems(restored.galleryItems);
         setGalleryDirty(false);
-        setShowManualCoverInput(restored.coverSettings.mode === COVER_MODE_URL);
         setCurrentId(p.id);
         editingSlugRef.current = post.slug || null;
         editingCategoryRef.current = post.category || null;
@@ -8887,6 +8905,13 @@ const [mounted, setMounted] = useState(false);
         onConfirm={proceedPublishAfterConfirm}
         onCancel={closePublishConfirmModal}
       />
+      <MissingFieldsModal
+        open={missingFieldsOpen}
+        closing={missingFieldsClosing}
+        items={missingFieldsItems}
+        onJump={jumpToMissingFieldStep}
+        onClose={closeMissingFieldsModal}
+      />
       <LeaveConfirmModal
         open={leaveConfirmOpen}
         onLeave={leaveConfirmLeaveAnyway}
@@ -10559,7 +10584,7 @@ const [mounted, setMounted] = useState(false);
                 <div><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><textarea className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="组件简介..." style={{minHeight:'90px'}} /></div>
               </div>
             </div>
-            <button onClick={attemptSave} title={isFormValid ? '' : (getMissingFieldMsg() || '')} style={{width:'100%', padding:'20px', background:isFormValid?'#fff':'#222', color:isFormValid?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor:'pointer', transition:'0.3s'}}>保存修改</button>
+            <button onClick={attemptSave} style={{width:'100%', padding:'20px', background:'#fff', color:'#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor:'pointer', transition:'0.3s'}}>保存修改</button>
           </div>
         ) : (
           /* 这里是之前的表单编辑代码... */
@@ -10569,9 +10594,10 @@ const [mounted, setMounted] = useState(false);
                 <span>当前已隐藏：前台列表不展示，可通过文章链接访问。</span>
               </div>
             ) : null}
-            <StepAccordion step={1} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>基础信息<span style={{fontSize:'10px', color:'#ff4d4f', border:'1px solid rgba(255,77,79,0.5)', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>必填</span></span>} isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
-              <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
-                <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>
+            <StepAccordion step={1} title="基础信息" isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
+               <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
+                 <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>
+                 <div className="editor-date-field" style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>发布日期 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" type="date" value={form.date} onChange={e=>setFormDirty({...form, date:e.target.value})} /></div>
                {!editingSimplePage ? (
                <div style={{marginTop:'4px', marginBottom:'0', paddingTop:'16px', borderTop:'1px solid #333'}}>
                  <label style={{display:'block', fontSize:'11px', color:'#fbbf24', marginBottom:'6px', fontWeight:'bold'}}>🔒 文章访问密码</label>
@@ -10591,11 +10617,10 @@ const [mounted, setMounted] = useState(false);
                  </div>
                  ) : null}
               </StepAccordion>
-            <StepAccordion step={2} title={editingSimplePage ? '发布时间' : (<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>分类与时间<span style={{fontSize:'10px', color:'#ff4d4f', border:'1px solid rgba(255,77,79,0.5)', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>必填</span></span>)} isOpen={expandedStep === 2} onToggle={()=>setExpandedStep(expandedStep===2?0:2)}>
-               <div className={`editor-step-grid ${editingSimplePage ? 'editor-step-grid--single' : 'editor-step-grid--dual'}`}>
-                 {!editingSimplePage ? (
-                 <div>
-                   <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>分类 <span style={{color: '#ff4d4f'}}>*</span></label>
+            {!editingSimplePage ? (
+            <StepAccordion step={2} title="分类和标签" isOpen={expandedStep === 2} onToggle={()=>setExpandedStep(expandedStep===2?0:2)}>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>分类 <span style={{color: '#ff4d4f'}}>*</span></label>
                    <CategoryPicker
                      value={form.category || ''}
                      categories={options.categories}
@@ -10614,16 +10639,10 @@ const [mounted, setMounted] = useState(false);
                      </div>
                    ) : (
                      <span onClick={()=>setShowCatInput(true)} style={{ display: 'inline-block', cursor:'pointer', border:'1px dashed #666', color:'greenyellow', padding:'6px 12px', borderRadius:'6px', fontSize:'13px' }}>＋ 创建分类</span>
-                   )}
-                 </div>
-                 ) : null}
-                  <div className="editor-date-field"><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>发布日期 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" type="date" value={form.date} onChange={e=>setFormDirty({...form, date:e.target.value})} /></div>
-               </div>
-            </StepAccordion>
-{!editingSimplePage ? (
-<StepAccordion step={3} title="标签" isOpen={expandedStep === 3} onToggle={()=>setExpandedStep(expandedStep===3?0:3)}>
-               <div style={{marginBottom:'15px'}}>
-                 <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标签</label>
+                    )}
+                  </div>
+                  <div style={{marginBottom:'15px'}}>
+                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标签</label>
                  <div style={{display:'flex', flexWrap:'wrap', gap:'8px', alignItems:'center'}}>
                    {selectedTags.map(t => (
                      <span key={t} style={{display:'inline-flex', alignItems:'center', gap:'6px', background:'#333', padding:'6px 10px', borderRadius:'6px', fontSize:'13px', color:'#fff'}}>
@@ -10665,15 +10684,21 @@ const [mounted, setMounted] = useState(false);
                          </span>
                        ))}
                        {options.tags.length > 12 && <span onClick={()=>setShowAllTags(!showAllTags)} style={{fontSize:'12px', color:'greenyellow', cursor:'pointer', fontWeight:'bold'}}>{showAllTags ? '收起' : '更多...'}</span>}
-                     </div>
-                   </div>
-                 )}
-               </div>
-            </StepAccordion>
-) : null}
+                      </div>
+                    </div>
+                  )}
+                  </div>
+             </StepAccordion>
+            ) : null}
 
             {!editingSimplePage ? (
-            <StepAccordion step={4} title="图库" isOpen={expandedStep === 4} onToggle={()=>setExpandedStep(expandedStep===4?0:4)}>
+            <StepAccordion step={3} title="文章封面" isOpen={expandedStep === 3} onToggle={()=>setExpandedStep(expandedStep===3?0:3)}>
+              <div className="block-cover-hint"><b style={{ color: 'greenyellow' }}>封面说明</b>：可手动将图库中的图片或正文图片块设定为封面，未手动设定封面则自动采取正文首图或图库首图作为封面。</div>
+            </StepAccordion>
+            ) : null}
+
+            {!editingSimplePage ? (
+            <StepAccordion step={4} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>图库<span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="添加图库后会在文章内页添加图库展示区域并展示添加的图片内容，不添加则不显示" /></span>} isOpen={expandedStep === 4} onToggle={()=>setExpandedStep(expandedStep===4?0:4)}>
               <GalleryManager
                 postSlug={form.slug}
                 postTitle={form.title}
@@ -10691,23 +10716,7 @@ const [mounted, setMounted] = useState(false);
 
             {!editingSimplePage ? (
             <>
-            <StepAccordion step={5} title={<>封面</>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
-              <div style={{ marginBottom: '14px', padding: '14px', borderRadius: '10px', border: '1px solid #3a3a42', background: '#1a1a1e' }}>
-                <BlockCoverHint
-                  coverSettings={coverSettings}
-                  coverStatusText={coverStatusText}
-                  showManualCoverInput={showManualCoverInput}
-                  onToggleDefaultCover={handleToggleDefaultCover}
-                  onToggleManualInput={() => setShowManualCoverInput((v) => !v)}
-                  onManualUrlChange={(url) => {
-                    markDirty();
-                    setCoverSettings((prev) => ({ ...prev, manualUrl: url }));
-                  }}
-                  onApplyManualUrl={handleApplyManualCoverUrl}
-                />
-              </div>
-            </StepAccordion>
-            <StepAccordion step={6} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 6} onToggle={()=>setExpandedStep(expandedStep===6?0:6)}>
+            <StepAccordion step={5} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
                <div>
                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>Gallery 主题下载弹窗中展示的链接内容，留空则显示「暂无下载」。</p>
@@ -10724,12 +10733,6 @@ const [mounted, setMounted] = useState(false);
                   </div>
                 </div>
              </StepAccordion>
-              {/* 存储基座 S3：文章附件（上传/列表/删除；读者在文章页可见下载按钮） */}
-              {form.type !== 'Widget' ? (
-              <StepAccordion step={7} title={<>附件</>} isOpen={expandedStep === 7} onToggle={()=>setExpandedStep(expandedStep===7?0:7)}>
-                <AttachmentManager postSlug={form.slug} />
-              </StepAccordion>
-              ) : null}
                {form.type !== 'Widget' ? (
                <div style={{marginTop:'12px'}}>
                  {form.linked_product_sku ? (
@@ -10739,21 +10742,52 @@ const [mounted, setMounted] = useState(false);
                   <button type="button" onClick={()=>{ setFormDirty({...form, linked_product_sku: ''}); showAdminToast('已清除商品关联，保存后生效', 2600); }} style={{height:'32px', padding:'0 14px', borderRadius:'8px', cursor:'pointer', border:'1px solid rgba(239,68,68,0.6)', background:'rgba(239,68,68,0.12)', color:'#f87171', fontSize:'12px', fontWeight:'bold'}}>清除关联</button>
                 </div>
                 ) : null}
-                <button type="button" onClick={openProductLookupModal}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
-                  onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; }}
-                  onMouseUp={(e) => { e.currentTarget.style.transform = 'none'; }}
-                  style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(37,99,235,0.35)'}}>
-                   <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 添加商品信息
-                </button>
+                 {/* 存储基座 S3：文章附件步改按钮+弹窗（R17-C1；弹窗内 AttachmentManager 零改动） */}
+                 <div style={{position:'relative', marginTop:'12px'}}>
+                 <button type="button" onClick={() => setAttachmentModalOpen(true)}
+                   onMouseEnter={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
+                   onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
+                   onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; }}
+                   onMouseUp={(e) => { e.currentTarget.style.transform = 'none'; }}
+                   style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(37,99,235,0.35)'}}>
+                    <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 添加附件下载
+                 </button>
+                 <span style={{position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)'}}><HintBubble light text="未添加附件则不显示附件下载" /></span>
+                </div>
+                {attachmentModalOpen && (
+                <div
+                  onMouseDown={(e) => { if (e.target === e.currentTarget) setAttachmentModalOpen(false); }}
+                  style={{ position:'fixed', inset:0, zIndex:10000, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(2px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}
+                >
+                  <div style={{ width:'100%', maxWidth:'560px', maxHeight:'80vh', background:'#1f1f24', border:'1px solid #3a3a42', borderRadius:'14px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', padding:'22px', display:'flex', flexDirection:'column', boxSizing:'border-box' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px', flexShrink:0 }}>
+                      <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff' }}>添加附件下载</div>
+                      <button type="button" onClick={() => setAttachmentModalOpen(false)} style={{ height:'36px', padding:'0 16px', borderRadius:'8px', cursor:'pointer', border:'1px solid #444', background:'transparent', color:'#ccc', fontSize:'13px' }}>关闭</button>
+                    </div>
+                    <div style={{ overflowY:'auto', minHeight:0 }}>
+                      <AttachmentManager postSlug={form.slug} />
+                    </div>
+                  </div>
+                </div>
+                )}
+                <div style={{position:'relative', marginTop:'10px'}}>
+                 <button type="button" onClick={openProductLookupModal}
+                   onMouseEnter={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
+                   onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
+                   onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; }}
+                   onMouseUp={(e) => { e.currentTarget.style.transform = 'none'; }}
+                   style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(37,99,235,0.35)'}}>
+                    <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 绑定商品信息
+                 </button>
+                 <span style={{position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)'}}><HintBubble light text="未绑定商品信息则不显示商品购买组件" /></span>
+                </div>
                 {productLookup.open && (
                 <div
                   onMouseDown={(e) => { if (e.target === e.currentTarget) setProductLookup((p) => ({ ...p, open: false })); }}
                   style={{ position:'fixed', inset:0, zIndex:10000, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(2px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}
                 >
                    <div style={{ width:'100%', maxWidth:'420px', background:'#1f1f24', border:'1px solid #3a3a42', borderRadius:'14px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', padding:'22px' }}>
-                     <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'4px' }}>添加商品信息</div>
+                      <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'4px' }}>绑定商品信息</div>
                      {/* P18C45UI 批3:弹窗强调色统一蓝色(原粉红已改) */}
                      <div style={{ fontSize:'12px', color:'#93c5fd', marginBottom:'16px', lineHeight:1.6 }}>输入商品码并点击底部【关联商品】。</div>
                      <label style={{ display:'block', fontSize:'12px', color:'#bbb', marginBottom:'6px' }}>商品码（编号）</label>
@@ -10807,11 +10841,11 @@ const [mounted, setMounted] = useState(false);
                          {productLookup.loading ? '查询中…' : (productLookupConfirmable ? '确认使用该商品' : '关联商品')}
                        </button>
                      </div>
-                   </div>
-                </div>
-                )}
-              </div>
-              ) : null}
+                    </div>
+                  </div>
+                 )}
+               </div>
+               ) : null}
              </>
              ) : null}
 
@@ -10833,7 +10867,7 @@ const [mounted, setMounted] = useState(false);
             {formIsPostArticle ? (
               <button type="button" onClick={handleSaveDraftClick} disabled={loading} style={{width:'100%', padding:'13px', background:'#303030', color:'greenyellow', border:'1px solid rgba(173,255,47,0.45)', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', marginTop:'56px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>💾 存草稿（仅保存到本机，不上传）</button>
             ) : null}
-            <button onClick={attemptSave} disabled={loading} title={isFormValid ? '' : (getMissingFieldMsg() || '')} style={{width:'100%', padding:'20px', background:isFormValid && !loading?'#fff':'#222', color:isFormValid && !loading?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>
+            <button onClick={attemptSave} disabled={loading} style={{width:'100%', padding:'20px', background:!loading?'#fff':'#222', color:!loading?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>
               {currentId ? '保存修改' : '确认发布'}
             </button>
           </div>
