@@ -9,6 +9,9 @@ import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
  * 仅服务端使用,绝不回传浏览器/落日志),body {site_id: BLOG_SITE_ID},8s 超时。
  * best-effort 语义:未配置 BLOG_SITE_ID → 200 {ok:true,skipped:true};
  * 上游非 2xx/异常 → 200 {ok:false,error}(前端 fire-and-forget,忽略结果)。
+ *
+ * R18(§八-5):body 可选 kind:'home' | 'editor'(缺省按 'home',向后兼容)→ 透传主站
+ * 同名参数,主站按 kind 写对应列(editor → blog_editor_tour_seen_at)。
  */
 
 type OnboardingSeenResponse = {
@@ -37,6 +40,9 @@ export default async function handler(
     return res.status(200).json({ ok: true, skipped: true })
   }
 
+  // R18:kind 透传(仅接受 'editor',其余一律按 'home',与主站缺省语义一致)
+  const kind = req.body?.kind === 'editor' ? 'editor' : 'home'
+
   const base =
     (process.env.MERCHANT_API_BASE || '').trim().replace(/\/+$/, '') ||
     'https://creator.proplus.onl'
@@ -52,7 +58,7 @@ export default async function handler(
         Accept: 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ site_id: siteId }),
+      body: JSON.stringify({ site_id: siteId, kind }),
       signal: controller.signal,
     }).finally(() => clearTimeout(timer))
 

@@ -45,6 +45,8 @@ import { remoteFromApiImage } from '@/src/lib/admin/galleryFlush';
 import CardCategoryQuickPicker from './CardCategoryQuickPicker';
 // R17-D3（§七-11）: 发布校验缺项弹窗（独立组件，open/closing 双态 + 240ms 退场）
 import MissingFieldsModal from './MissingFieldsModal';
+// R18: 编辑器引导完成恭喜弹窗（独立组件，open/closing 双态 + 240ms 退场）
+import EditorTourDoneModal from './EditorTourDoneModal';
 // 派工单 B3:后台「数据统计」面板(独立文件,AdminDashboard 只做引入与视图接线)
 import StatsPanel from './StatsPanel';
 import { FiBarChart2 } from 'react-icons/fi';
@@ -744,8 +746,36 @@ const HintBubble = ({ text, light = false }) => {
   );
 };
 
+// R18：编辑器聚焦引导 14 步（文案=派工单 §四草稿版）。
+// 锚点：editor-steps-region/editor-body-region 为新增纯包裹 div；editor-step-N 挂在
+// StepAccordion 根节点（与 data-editor-step 并存）；其余挂既有元素。锚点缺失自动跳步
+// 沿用 OnboardingTour 既有逻辑（如 Widget 无商品按钮、非文章类型无存草稿）。
+const EDITOR_TOUR_STEPS = [
+  { anchor: 'editor-steps-region', text: '这里集中了文章的信息与功能设置，先在这里完成基础配置。' },
+  { anchor: 'editor-step-1', text: '标题、摘要、发布时间都在这里；带星号的是必填项。' },
+  { anchor: 'editor-step-2', text: '分类决定文章归属，标签让读者更容易找到相似内容。' },
+  { anchor: 'editor-step-3', text: '封面说明：未手动设置时会自动采用正文首图或图库首图。' },
+  { anchor: 'editor-step-4', text: '图库为可选项：添加后文章内页会展示图库区域。' },
+  { anchor: 'editor-step-5', text: '附件为可选项：上传后文章页会提供下载入口。' },
+  { anchor: 'editor-step-6', text: '下载链接与下载信息（Gallery 主题使用）。' },
+  { anchor: 'editor-product-btn', text: '绑定商品信息：绑定后文章内出现商品购买组件。' },
+  { anchor: 'editor-body-region', text: '这里是正文编辑区，文章内容都在这里编排。' },
+  { anchor: 'editor-block-toolbar', text: '两排按钮是内容块的添加区，需要什么内容就加什么块。' },
+  { anchor: 'editor-view-toolbar', text: '这里切换放大/缩小视图；缩小视图下可以拖拽快速调整内容顺序。' },
+  { anchor: 'editor-blocks-area', text: '已添加的内容块显示在这里；也可以直接点击此区域快速添加内容块。' },
+  { anchor: 'editor-save-draft', text: '内容没写完可以先存草稿（仅保存在本机，不上传）。' },
+  { anchor: 'editor-publish', text: '内容完成后点这里发布上线。' },
+];
+
+// R18：编辑器引导每步动作表（index → setExpandedStep；§2.2）
+// 0=区域总览收起全部；1~6=展开对应 StepAccordion；7~14 无动作（结束/跳过时统一收起）
+const editorTourStepToExpanded = (index) => {
+  if (index >= 0 && index <= 6) return index;
+  return null;
+};
+
 const StepAccordion = ({ step, title, isOpen, onToggle, children }) => (
-  <div data-editor-step={step}>
+  <div data-editor-step={step} data-tour={`editor-step-${step}`}>
     <div className="acc-btn" onClick={onToggle}>
       <div className="acc-btn-title">
         <span style={{color:'greenyellow'}}>Step {step}</span>
@@ -3997,7 +4027,7 @@ const BlockBuilder = ({
         </div>
       )}
       <div className="block-builder-area-title">正文区域</div>
-      <div className="block-add-toolbar">
+      <div className="block-add-toolbar" data-tour="editor-block-toolbar">
           <div className="neo-btn" onClick={()=>addBlock('h1')}>正文标题</div>
           <div className="neo-btn" onClick={()=>addBlock('text')}>正文内容</div>
           <div className="neo-btn" onClick={()=>addBlock('image')}>正文图片</div>
@@ -4009,7 +4039,7 @@ const BlockBuilder = ({
           <div className="neo-btn" onClick={()=>addBlock('ul')}>• 无序列表</div>
           <div className="neo-btn" onClick={()=>addBlock('toggle')}>▶ 折叠内容</div>
       </div>
-      <div className="block-view-toolbar">
+      <div className="block-view-toolbar" data-tour="editor-view-toolbar">
         <div className="block-view-toggle">
           <ViewModeButton
             label="放大视图"
@@ -4091,6 +4121,7 @@ const BlockBuilder = ({
       ) : (
       <div
         className="block-builder-expanded"
+        data-tour="editor-blocks-area"
         onDragOver={(e) => {
           if (!isFileDragEvent(e) || !blocks.length) return;
           e.preventDefault();
@@ -4641,6 +4672,16 @@ const [mounted, setMounted] = useState(false);
   const headerActionsMenuRef = useRef(null);
   // R16：新手聚焦引导（首次 ?tour=1 自动弹；齿轮菜单可重放）
   const [tourOpen, setTourOpen] = useState(false);
+  // R18：编辑器聚焦引导（14 步；?etour=1 一次性 / 首页引导第 10 步链式接续）
+  const [editorTourOpen, setEditorTourOpen] = useState(false);
+  // 链式标记：首页引导交互步（点「发布新内容」）命中时置位；编辑器引导打开时消费（一次性）
+  const chainToEditorRef = useRef(false);
+  // 登录链接 ?etour=1 一次性标记（主站 editor 列未看过时随链接下发；mount 读参后清 URL）
+  const editorTourPendingRef = useRef(false);
+  // R18：编辑器引导完成恭喜弹窗（open/closing 双态 + 240ms 退场，父层持定时器）
+  const [editorTourDoneOpen, setEditorTourDoneOpen] = useState(false);
+  const [editorTourDoneClosing, setEditorTourDoneClosing] = useState(false);
+  const editorTourDoneTimerRef = useRef(null);
   const adminToastTimerRef = useRef(null);
   const [adminToast, setAdminToast] = useState({ message: '', visible: false, closing: false });
   const [tagDraft, setTagDraft] = useState('');
@@ -5573,13 +5614,56 @@ const [mounted, setMounted] = useState(false);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [headerActionsMenuOpen]);
   // R16：引导关闭（完成/跳过/Esc 任一）→ 关闭 + best-effort 回调主站写「已看过」标记（2B）
-  const handleCloseOnboardingTour = () => {
+  // R18（§八-2）：onClose 带 reason；'interactive'（第 10 步点「发布新内容」命中）时额外置
+  // 链式标记（随后 handleCreate 照常打开编辑器，编辑器引导接续）；写 home 标记逻辑不变
+  const handleCloseOnboardingTour = (reason) => {
     setTourOpen(false);
+    if (reason === 'interactive') chainToEditorRef.current = true;
     try {
       fetch('/api/admin/onboarding-seen', { method: 'POST' }).catch(() => {});
     } catch (err) {
       /* best-effort，失败静默 */
     }
+  };
+  // R18：编辑器引导每步定位回调——按 §2.2 动作表展开/收起 StepAccordion（不触发 dirty）
+  const handleEditorTourStepChange = (index) => {
+    const expanded = editorTourStepToExpanded(index);
+    if (expanded !== null) setExpandedStep(expanded);
+  };
+  // R18：编辑器引导关闭——写 editor 标记（kind:'editor'，best-effort）+ 步骤全收起；
+  // reason='done'（末步「下一步」）→ 打开恭喜弹窗；'skip'（跳过/Esc）→ 不弹
+  const handleCloseEditorTour = (reason) => {
+    setEditorTourOpen(false);
+    setExpandedStep(0);
+    try {
+      fetch('/api/admin/onboarding-seen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'editor' }),
+      }).catch(() => {});
+    } catch (err) {
+      /* best-effort，失败静默 */
+    }
+    if (reason === 'done') {
+      if (editorTourDoneTimerRef.current) clearTimeout(editorTourDoneTimerRef.current);
+      setEditorTourDoneClosing(false);
+      setEditorTourDoneOpen(true);
+    }
+  };
+  // R18：恭喜弹窗关闭（240ms 退场）
+  const closeEditorTourDoneModal = () => {
+    if (editorTourDoneTimerRef.current) clearTimeout(editorTourDoneTimerRef.current);
+    setEditorTourDoneClosing(true);
+    editorTourDoneTimerRef.current = setTimeout(() => {
+      setEditorTourDoneOpen(false);
+      setEditorTourDoneClosing(false);
+    }, 240);
+  };
+  // R18：恭喜弹窗「回到首页」= 关闭弹窗 + 调用与顶部「返回列表」按钮完全相同的处理函数
+  // （guardLeaveEditor 语义原样：dirty 时照旧三选一，干净则直接回列表）
+  const handleEditorTourBackHome = () => {
+    closeEditorTourDoneModal();
+    guardLeaveEditor(leaveEditView);
   };
   // R16F F1：首屏就绪镜像（标题区/列表数据到位 + 图库容量加载完）；
   // ?tour=1 自动弹用轮询读 ref 判就绪，避免 effect 依赖 state 反复重跑（清参后早退中断轮询）
@@ -5590,19 +5674,25 @@ const [mounted, setMounted] = useState(false);
   // R16F：首次自动开（4A：仅桌面宽度；F1：等首屏数据就绪后再弹）
   // ?tour=1 且 >=768px → 清参 → 等就绪 → 300ms 后弹出；兜底最多等 10s，
   // 届时若有 site-info 锚点（宽高>0）也弹出，否则放弃本次自动弹。手动重放不受此门控影响。
+  // R18（§八-1）：同 effect 增读 ?etour=1 → editorTourPendingRef（一次性）；replaceState
+  // 同时清掉 tour 与 etour（保持其他参数）；tour 既有处理逻辑不变，仅 etour 时无首页弹。
   useEffect(() => {
     try {
       if (typeof window === 'undefined' || !window.location) return;
       const params = new URLSearchParams(window.location.search);
-      if (params.get('tour') !== '1') return;
-      if (window.innerWidth < 768) return;
+      if (params.get('etour') === '1') editorTourPendingRef.current = true;
+      const hasTour = params.get('tour') === '1';
+      if (!hasTour && !editorTourPendingRef.current) return;
       params.delete('tour');
+      params.delete('etour');
       const qs = params.toString();
       window.history.replaceState(
         null,
         '',
         `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`
       );
+      if (!hasTour) return;
+      if (window.innerWidth < 768) return;
       let opened = false;
       let pollId = null;
       let fallbackId = null;
@@ -5638,6 +5728,48 @@ const [mounted, setMounted] = useState(false);
       /* 自动引导失败静默 */
     }
   }, []);
+  // R18（§八-3）：编辑器引导自动弹 effect（view==='edit' 时生效）。
+  // 生效条件（全部满足）：view='edit'；单飞（首页引导与编辑器引导均未 open）；
+  // (editorTourPendingRef || chainToEditorRef)；window.innerWidth >= 768；
+  // 锚点就绪（200ms 轮询 [data-tour="editor-step-1"] 存在，上限 5s）。
+  // 命中后：清两个 ref（一次性）→ setExpandedStep(0) → 600ms 后 editorTourOpen=true。
+  useEffect(() => {
+    if (view !== 'edit') return;
+    if (editorTourOpen || tourOpen) return;
+    if (!editorTourPendingRef.current && !chainToEditorRef.current) return;
+    if (typeof window === 'undefined' || window.innerWidth < 768) return;
+    let cancelled = false;
+    let pollId = null;
+    let openTimer = null;
+    let fallbackId = null;
+    const stopAll = () => {
+      if (pollId !== null) window.clearInterval(pollId);
+      if (openTimer !== null) window.clearTimeout(openTimer);
+      if (fallbackId !== null) window.clearTimeout(fallbackId);
+    };
+    pollId = window.setInterval(() => {
+      if (cancelled) return;
+      let el = null;
+      try {
+        el = document.querySelector('[data-tour="editor-step-1"]');
+      } catch (err) {
+        el = null;
+      }
+      if (!el) return;
+      editorTourPendingRef.current = false;
+      chainToEditorRef.current = false;
+      stopAll();
+      setExpandedStep(0);
+      openTimer = window.setTimeout(() => {
+        if (!cancelled) setEditorTourOpen(true);
+      }, 600);
+    }, 200);
+    fallbackId = window.setTimeout(() => stopAll(), 5000);
+    return () => {
+      cancelled = true;
+      stopAll();
+    };
+  }, [view, tourOpen, editorTourOpen]);
   const buildCrawlerIngestHeaders = (extra = {}, passwordOverride = crawlerIngestPassword) => ({
     ...extra,
     ...(passwordOverride
@@ -8980,6 +9112,19 @@ const [mounted, setMounted] = useState(false);
       />
       <AdminToast message={adminToast.message} visible={adminToast.visible} closing={adminToast.closing} />
       <OnboardingTour open={tourOpen} onClose={handleCloseOnboardingTour} steps={TOUR_STEPS} />
+      {/* R18：编辑器聚焦引导（14 步；onStepChange 按动作表展开/收起 StepAccordion；与首页引导单飞） */}
+      <OnboardingTour
+        open={editorTourOpen}
+        onClose={handleCloseEditorTour}
+        onStepChange={handleEditorTourStepChange}
+        steps={EDITOR_TOUR_STEPS}
+      />
+      {/* R18：编辑器引导完成恭喜弹窗（reason='done' 才弹；「回到首页」走返回列表同函数） */}
+      <EditorTourDoneModal
+        open={editorTourDoneOpen}
+        closing={editorTourDoneClosing}
+        onBackHome={handleEditorTourBackHome}
+      />
       <PublishQueuePanel
         jobs={publishQueue}
         onRetry={retryJob}
@@ -10615,6 +10760,8 @@ const [mounted, setMounted] = useState(false);
                 <span>当前已隐藏：前台列表不展示，可通过文章链接访问。</span>
               </div>
             ) : null}
+            {/* R18：编辑器引导锚点——纯包裹 div（包住 Step1~6 + 商品按钮块，不改布局） */}
+            <div data-tour="editor-steps-region">
             <StepAccordion step={1} title="基础信息" isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
                <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
                  <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>
@@ -10770,8 +10917,8 @@ const [mounted, setMounted] = useState(false);
                   <button type="button" onClick={()=>{ setFormDirty({...form, linked_product_sku: ''}); showAdminToast('已清除商品关联，保存后生效', 2600); }} style={{height:'32px', padding:'0 14px', borderRadius:'8px', cursor:'pointer', border:'1px solid rgba(239,68,68,0.6)', background:'rgba(239,68,68,0.12)', color:'#f87171', fontSize:'12px', fontWeight:'bold'}}>清除关联</button>
                 </div>
                 ) : null}
-                 <div style={{marginTop:'10px'}}>
-                  <button type="button" onClick={openProductLookupModal}
+                  <div style={{marginTop:'10px'}} data-tour="editor-product-btn">
+                   <button type="button" onClick={openProductLookupModal}
                    onMouseEnter={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
                    onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
                    onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; }}
@@ -10845,9 +10992,13 @@ const [mounted, setMounted] = useState(false);
                  )}
                </div>
                ) : null}
-             </>
-             ) : null}
+              </>
+              ) : null}
+            </div>
+            {/* R18：编辑器引导锚点——editor-steps-region 包裹结束（纯 div 不改布局） */}
 
+            {/* R18：编辑器引导锚点——正文编辑区纯包裹 div */}
+            <div data-tour="editor-body-region">
             <BlockBuilder
               blocks={editorBlocks}
               setBlocks={setEditorBlocksDirty}
@@ -10857,16 +11008,17 @@ const [mounted, setMounted] = useState(false);
               onClearBodyCover={handleClearBodyCover}
               onToast={showAdminToast}
             />
-            
+            </div>
+
             <div className="fab-scroll">
               <div className="fab-btn" onClick={() => scrollEditView('top')}><Icons.ArrowUp /></div>
               <div className="fab-btn" onClick={() => scrollEditView('bottom')}><Icons.ArrowDown /></div>
             </div>
 
             {formIsPostArticle ? (
-              <button type="button" onClick={handleSaveDraftClick} disabled={loading} style={{width:'100%', padding:'13px', background:'#303030', color:'greenyellow', border:'1px solid rgba(173,255,47,0.45)', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', marginTop:'56px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>💾 存草稿（仅保存到本机，不上传）</button>
+              <button type="button" onClick={handleSaveDraftClick} disabled={loading} data-tour="editor-save-draft" style={{width:'100%', padding:'13px', background:'#303030', color:'greenyellow', border:'1px solid rgba(173,255,47,0.45)', borderRadius:'12px', fontWeight:'bold', fontSize:'14px', marginTop:'56px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>💾 存草稿（仅保存到本机，不上传）</button>
             ) : null}
-            <button onClick={attemptSave} disabled={loading} style={{width:'100%', padding:'20px', background:!loading?'#fff':'#222', color:!loading?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>
+            <button onClick={attemptSave} disabled={loading} data-tour="editor-publish" style={{width:'100%', padding:'20px', background:!loading?'#fff':'#222', color:!loading?'#000':'#666', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'16px', marginTop:'12px', cursor: loading ? 'wait' : 'pointer', transition:'0.3s'}}>
               {currentId ? '保存修改' : '确认发布'}
             </button>
           </div>

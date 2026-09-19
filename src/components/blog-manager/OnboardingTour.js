@@ -8,7 +8,16 @@
  * 真实按钮、挖孔外 4 块捕获层防误触（仅 preventDefault）、呼吸光晕+双错相涟漪引导动画
  * （keyframes 注入 <style>，r16tour- 前缀防撞，reduced-motion 降级静态光晕）、
  * 目标按钮 capture click 命中即走既有 close 流程（不 preventDefault）、交互步 Esc 屏蔽、
- * 交互步目标缺失直接关闭。 */
+ * 交互步目标缺失直接关闭。
+ * R18（编辑器引导增强，仅新增能力、既有首页 10 步行为零改动）：
+ * - 可选 prop onStepChange(index, step)：每步定位 effect 内、reposition 前调用（父层用于
+ *   展开/收起编辑器步骤）；不传则行为与旧版完全一致。
+ * - onClose(reason)：所有关闭路径带 reason——跳过按钮/Esc='skip'；末步「完成/下一步」=
+ *   'done'；交互步点击真实按钮命中='interactive'；异常兜底='skip'。父层可忽略该参数（向后兼容）。
+ * - 长目标（高度 > 视口 80%）：scrollIntoView({block:'start'}) 顶对齐（其余仍 center），
+ *   且气泡改放目标顶部内侧（top = targetRect.top + 16，水平仍居中+视口钳制），避免气泡被
+ *   钳到屏幕底部。
+ * - 步进稳定复测：每步定位后 +300ms 再执行一次完整 reposition（防手风琴展开动画期间测量错位）。 */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -32,6 +41,11 @@ const BUBBLE_WIDTH = 340
 const VIEWPORT_MARGIN = 8
 const OVERLAY_Z_INDEX = 10100
 const RESIZE_DEBOUNCE_MS = 150
+// R18：长目标阈值（高度 > 视口 80%）与气泡顶部内侧缩进
+const LONG_TARGET_VIEWPORT_RATIO = 0.8
+const LONG_TARGET_BUBBLE_INSET = 16
+// R18：步进/展开布局变化后的稳定复测延时（手风琴动画约 0.32s，300ms 后再测一次）
+const STEP_STABILITY_RECHECK_MS = 300
 // R16G G2：交互步点击引导动画（呼吸光晕 + 双错相涟漪，约 1.8s 循环）
 const RIPPLE_BORDER = '2px solid rgba(255,255,255,0.5)'
 const RIPPLE_ANIM_MS = 1800
@@ -94,7 +108,7 @@ function readRect(el) {
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
 }
 
-const OnboardingTour = ({ open, onClose, steps }) => {
+const OnboardingTour = ({ open, onClose, onStepChange, steps }) => {
   const [activeIdx, setActiveIdx] = useState(0)
   const [targetRect, setTargetRect] = useState(null)
   const [bubbleHeight, setBubbleHeight] = useState(0)
@@ -102,6 +116,9 @@ const OnboardingTour = ({ open, onClose, steps }) => {
   const rafRef = useRef(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  // R18：onStepChange 经 ref 调用（父层回调 identity 变化不需要重跑定位 effect）
+  const stepChangeRef = useRef(onStepChange)
+  stepChangeRef.current = onStepChange
 
   const total = Array.isArray(steps) ? steps.length : 0
 
@@ -119,6 +136,7 @@ const OnboardingTour = ({ open, onClose, steps }) => {
 
   // R16F F2：完整重定位（每步定位与 resize 稳定后共用）：
   // scrollIntoView 居中（try/catch）→ 双 rAF 等布局定稿 → 测量 → setTargetRect
+  // R18：长目标（高度 > 视口 80%）改 block:'start' 顶对齐滚屏（气泡由渲染层放目标顶部内侧）
   const repositionStep = useCallback((step) => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = requestAnimationFrame(() => {
@@ -128,7 +146,9 @@ const OnboardingTour = ({ open, onClose, steps }) => {
         const el = findTourAnchor(step.anchor)
         if (!el) return
         try {
-          el.scrollIntoView({ block: 'center' })
+          const vh = window.innerHeight || 0
+          const isLongTarget = vh > 0 && el.offsetHeight > vh * LONG_TARGET_VIEWPORT_RATIO
+          el.scrollIntoView({ block: isLongTarget ? 'start' : 'center' })
         } catch (_) {
           /* 定位失败则按当前视口位置测量 */
         }
@@ -149,10 +169,12 @@ const OnboardingTour = ({ open, onClose, steps }) => {
 
   // 每步定位：scrollIntoView 居中后测量；目标缺失/零尺寸自动跳步；越界（全部缺失）关闭
   // R16F F2：定位本体抽到 repositionStep（scrollIntoView → 双 rAF → 测量）
+  // R18：①reposition 前调 onStepChange(index, step)（可选；父层展开/收起编辑器步骤）；
+  // ②关闭路径带 reason（越界兜底='skip'、交互步锚点缺失='skip'）；③+300ms 稳定复测一次
   useEffect(() => {
     if (!open) return
     if (total === 0 || activeIdx >= total) {
-      if (closeRef.current) closeRef.current()
+      if (closeRef.current) closeRef.current('skip')
       return
     }
     const step = steps[activeIdx]
@@ -161,6 +183,7 @@ const OnboardingTour = ({ open, onClose, steps }) => {
       return
     }
     let cancelled = false
+    let stabilityTimer = null
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null
       if (cancelled) return
@@ -168,16 +191,30 @@ const OnboardingTour = ({ open, onClose, steps }) => {
       if (!el || !readRect(el)) {
         if (step.interactive) {
           // R16G G2：交互步目标锚点缺失 → 直接关闭（走既有 close 流程）
-          if (closeRef.current) closeRef.current()
+          if (closeRef.current) closeRef.current('skip')
           return
         }
         setActiveIdx((i) => i + 1)
         return
       }
+      // R18：每步定位 effect 内、reposition 前通知父层（不传则跳过，首页引导行为不变）
+      try {
+        if (stepChangeRef.current) stepChangeRef.current(activeIdx, step)
+      } catch (_) {
+        /* 父层回调失败不影响引导定位 */
+      }
       repositionStep(step)
+      // R18：步进/展开导致布局变化后 +300ms 再复测一次（防展开动画期间测量错位）
+      stabilityTimer = window.setTimeout(() => {
+        if (!cancelled) repositionStep(step)
+      }, STEP_STABILITY_RECHECK_MS)
     })
     return () => {
       cancelled = true
+      if (stabilityTimer !== null) {
+        window.clearTimeout(stabilityTimer)
+        stabilityTimer = null
+      }
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current)
         rafRef.current = null
@@ -240,7 +277,7 @@ const OnboardingTour = ({ open, onClose, steps }) => {
     }
   }, [open, activeIdx, steps, total, repositionStep])
 
-  // Esc = 跳过（R16G G2：交互步屏蔽 Esc，必须点击目标按钮才算完成）
+  // Esc = 跳过（R16G G2：交互步屏蔽 Esc，必须点击目标按钮才算完成；R18：close 带 reason='skip'）
   useEffect(() => {
     if (!open) return
     const onKey = (e) => {
@@ -248,7 +285,7 @@ const OnboardingTour = ({ open, onClose, steps }) => {
       const step = total > 0 ? steps[Math.min(activeIdx, total - 1)] : null
       if (step && step.interactive) return
       try {
-        if (closeRef.current) closeRef.current()
+        if (closeRef.current) closeRef.current('skip')
       } catch (_) {
         /* ignore */
       }
@@ -260,6 +297,7 @@ const OnboardingTour = ({ open, onClose, steps }) => {
   // R16G G2：交互步完成判定——对目标按钮 capture 挂 click，命中即走既有 close 流程
   // （不 preventDefault，按钮自身的进编辑器逻辑照常执行）；
   // 步进 / 关闭 / 卸载均经此 effect 的 cleanup removeEventListener
+  // R18：close 带 reason='interactive'（首页引导据此置链式标记，接续编辑器引导）
   useEffect(() => {
     if (!open) return
     const step = total > 0 ? steps[Math.min(activeIdx, total - 1)] : null
@@ -268,7 +306,7 @@ const OnboardingTour = ({ open, onClose, steps }) => {
     if (!el) return
     const onTargetClick = () => {
       try {
-        if (closeRef.current) closeRef.current()
+        if (closeRef.current) closeRef.current('interactive')
       } catch (_) {
         /* ignore */
       }
@@ -311,21 +349,27 @@ const OnboardingTour = ({ open, onClose, steps }) => {
       VIEWPORT_MARGIN,
       vw - bubbleWidth - VIEWPORT_MARGIN
     )
-    const belowTop = targetRect.top + targetRect.height + BUBBLE_GAP
-    if (
-      belowTop + bubbleHeight > vh - VIEWPORT_MARGIN &&
-      targetRect.top - BUBBLE_GAP - bubbleHeight >= VIEWPORT_MARGIN
-    ) {
-      bubbleTop = targetRect.top - BUBBLE_GAP - bubbleHeight
+    // R18：长目标（高度 > 视口 80%）气泡改放目标顶部内侧，避免被钳到屏幕底部
+    const isLongTarget = targetRect.height > vh * LONG_TARGET_VIEWPORT_RATIO
+    if (isLongTarget) {
+      bubbleTop = targetRect.top + LONG_TARGET_BUBBLE_INSET
     } else {
-      bubbleTop = belowTop
+      const belowTop = targetRect.top + targetRect.height + BUBBLE_GAP
+      if (
+        belowTop + bubbleHeight > vh - VIEWPORT_MARGIN &&
+        targetRect.top - BUBBLE_GAP - bubbleHeight >= VIEWPORT_MARGIN
+      ) {
+        bubbleTop = targetRect.top - BUBBLE_GAP - bubbleHeight
+      } else {
+        bubbleTop = belowTop
+      }
     }
     bubbleTop = clamp(bubbleTop, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, vh - bubbleHeight - VIEWPORT_MARGIN))
   }
 
   const handleNext = () => {
     if (idx >= total - 1) {
-      if (closeRef.current) closeRef.current()
+      if (closeRef.current) closeRef.current('done')
       return
     }
     setTargetRect(null)
@@ -337,7 +381,7 @@ const OnboardingTour = ({ open, onClose, steps }) => {
     setActiveIdx(idx - 1)
   }
   const handleClose = () => {
-    if (closeRef.current) closeRef.current()
+    if (closeRef.current) closeRef.current('skip')
   }
   // R16G G2：捕获层点击只 preventDefault 防误触（不冒泡处理、不拦截真实按钮）
   const blockClick = (e) => {
