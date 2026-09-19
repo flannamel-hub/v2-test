@@ -534,8 +534,8 @@ const GlobalStyle = () => (
     .editor-date-field input[type="date"] { width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
     .block-add-toolbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 25px; }
     .block-add-toolbar .neo-btn { width: 100%; padding: 0.75em 0.3em; font-size: 12px; white-space: nowrap; box-sizing: border-box; justify-content: center; }
-    .hint-bubble-icon:hover { color: #ddd !important; }
-    .hint-bubble-icon.hint-bubble-light:hover { color: #fff !important; }
+    .hint-bubble-icon:hover { color: #ddd !important; border-color: #999 !important; }
+    .hint-bubble-icon.hint-bubble-light:hover { color: #fff !important; border-color: rgba(255,255,255,0.9) !important; }
     .category-picker-wrap { position: relative; margin-bottom: 10px; min-width: 0; }
     .category-picker-trigger { display: flex; align-items: stretch; min-width: 0; }
     .category-picker-selected { flex: 1; min-width: 0; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #18181c; border: 1px solid #333; border-right: none; border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
@@ -636,8 +636,9 @@ const AdminToast = ({ message, visible, closing }) => {
   );
 };
 
-// R17-C3（§七 V4）: 问号气泡（图库标题/商品按钮共用）。
-// R17G: 去圆圈改裸「?」span(role=button)，可直接放进按钮内容流（button 嵌 button 非法）。
+// R17-C3（§七 V4）: 问号气泡（图库标题/商品按钮/Step6下载链接共用）。
+// R17I: 图标改回圆圈描边（16px 圆形、flex 双居中 + lineHeight 1），仍为 span(role=button)
+// 可直接放进按钮内容流（button 嵌 button 非法）。
 // 气泡 fixed 定位（显示时按图标 getBoundingClientRect 计算坐标），
 // 避免被 .editor-form-panel 的 overflow-x:hidden 裁剪；zIndex 与后台弹窗同层。
 // 桌面 hover 显示/移出隐藏；点按（触屏/键盘）切换；点击页面其他处关闭。
@@ -697,18 +698,23 @@ const HintBubble = ({ text, light = false }) => {
           toggleBubble();
         }}
         style={{
+          width: 16,
+          height: 16,
+          boxSizing: 'border-box',
+          border: `1px solid ${light ? 'rgba(255,255,255,0.55)' : '#666'}`,
+          borderRadius: '50%',
           background: 'transparent',
-          border: 'none',
-          borderRadius: 0,
-          padding: '0 3px',
-          color: light ? 'rgba(255,255,255,0.8)' : '#999',
-          fontSize: '13px',
+          color: light ? 'rgba(255,255,255,0.85)' : '#999',
+          fontSize: '11px',
           fontWeight: 700,
           lineHeight: 1,
-          cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
+          padding: 0,
+          userSelect: 'none',
+          flexShrink: 0,
+          cursor: 'pointer',
         }}
       >?</span>
       {open && pos ? (
@@ -10738,7 +10744,7 @@ const [mounted, setMounted] = useState(false);
 
             {!editingSimplePage ? (
             <>
-            <StepAccordion step={6} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 6} onToggle={()=>setExpandedStep(expandedStep===6?0:6)}>
+            <StepAccordion step={6} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>下载链接 <GalleryOnlyTag /><span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="gallery主题会默认开启下载链接分享按钮，非gallery主题无需填写。" /></span>} isOpen={expandedStep === 6} onToggle={()=>setExpandedStep(expandedStep===6?0:6)}>
                <div>
                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>Gallery 主题下载弹窗中展示的链接内容，留空则显示「暂无下载」。</p>

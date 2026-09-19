@@ -77,3 +77,6 @@ Notion 驱动的 BLOG SaaS(前台 Next.js 13 Pages Router + Notion 数据源 + S
 ### R17H — 附件步说明改标题问号气泡（2026-09-19，提交 `ce1f2814`）
 - Step5「附件」标题在「可选」胶囊后追加与 Step4 同款裸问号 HintBubble（文案=上传附件后将在本篇文章页面中提供下载入口，未添加附件则不显示）；步骤内容删除说明段，只留 `AttachmentManager`。
 - 复验：标题「附件 | 可选 | ?」、问号 border none/color #999 与 Step4 一致、hover 出正确气泡、展开内容=上传附件（无说明段）。测试站标记已复位。
+
+### R17I — Step6 下载链接加可选+问号；标题问号改圆圈居中（2026-09-19）
+- Step6 标题=下载链接+(Gallery主题专用)+可选灰胶囊+问号（文案：gallery主题会默认开启下载链接分享按钮，非gallery主题无需填写。）；HintBubble 图标改回 16px 圆圈（border-box+flex 双居中+lineHeight 1，?' 居中），hover 颜色+边框变亮。用户直接验收。
