@@ -644,12 +644,16 @@ const HintBubble = ({ text, light = false }) => {
   const [pos, setPos] = useState(null);
   const iconRef = useRef(null);
 
-  const showBubble = () => {
+  const computePos = () => {
     const rect = iconRef.current?.getBoundingClientRect();
     if (rect) {
       const left = Math.max(8, Math.min(rect.left, window.innerWidth - 276));
       setPos({ top: rect.bottom + 8, left });
     }
+  };
+
+  const showBubble = () => {
+    computePos();
     setOpen(true);
   };
 
@@ -675,7 +679,12 @@ const HintBubble = ({ text, light = false }) => {
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          setOpen((v) => !v);
+          if (!open) {
+            computePos();
+            setOpen(true);
+          } else {
+            setOpen(false);
+          }
         }}
         style={{
           width: '15px',
