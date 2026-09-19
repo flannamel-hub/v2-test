@@ -67,3 +67,9 @@ Notion 驱动的 BLOG SaaS(前台 Next.js 13 Pages Router + Notion 数据源 + S
 - **D 发布校验**：底部按钮常亮（仅 loading 禁用）；attemptSave 缺项 → 新 MissingFieldsModal（还有必填项未完成 + 逐条缺项红星 + 「去填写」→ 展开步骤并 scrollIntoView；StepAccordion 加 data-editor-step）；组件编辑器分支同改；存草稿链零改动。
 - **R17F（850803c2）验收修复**：HintBubble 点按路径补 computePos（原只 toggle open，未 hover 时 pos 为 null → 触屏点按不显示；验收实测抓到）。
 - **真机验收（z4sobc）**：5 步标题/无必填胶囊/Step1 含日期(预填 2026-09-19)/封面仅说明文本/图库可选+气泡/工具栏 5+5+三改名+无待办入口/两按钮顺序蓝色+bubbles 文案/附件弹窗内容/缺项弹窗(文章标题+文章分类)+去填写跳转 Step2/有效路径→发布确认弹窗(取消不发布)/加块回归(内容块+格式化工具渲染正常)/简单页面(介绍页)仅 1 步且日期在 Step1 ✓；三气泡点按全通。测试站标记已复位。
+
+### R17G — 验收反馈修正（2026-09-19，上线并复验，提交 `22ff6c61`）
+- **问号气泡**：去圆圈改裸「?」（原 15px 圆+边框 → span role=button/tabIndex，无边框无底，hover 变亮 via CSS 类 `.hint-bubble-icon/.hint-bubble-light`）；「绑定商品信息」按钮的问号从按钮右端 absolute 移入**内容流紧跟文字**（button 不再套 button）；hover/点按/键盘 Enter 均可开气泡。
+- **附件回归 Step5**：删蓝色「添加附件下载」按钮+弹窗+attachmentModalOpen；恢复 StepAccordion `step={5}`「附件」+可选灰胶囊（与 step4 同款）+逐字说明文本（上传附件后将在本篇文章页面中提供下载入口，未添加附件则不显示）+AttachmentManager（零改动）；`!editingSimplePage && form.type!=='Widget'` 双条件保持。
+- **下载链接 → step6**；缺项弹窗/跳转（1/2 步锚点）不受影响。
+- **复验（真机）**：六步标题全对；附件步展开=说明文本+上传附件；底部无蓝色附件按钮、商品按钮问号紧贴文字无圆圈且 hover/click 均出气泡；图库问号同款可用；缺项弹窗正常列出标题/分类。测试站标记已复位。
