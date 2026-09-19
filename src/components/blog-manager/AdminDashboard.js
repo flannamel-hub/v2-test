@@ -534,7 +534,8 @@ const GlobalStyle = () => (
     .editor-date-field input[type="date"] { width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
     .block-add-toolbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 25px; }
     .block-add-toolbar .neo-btn { width: 100%; padding: 0.75em 0.3em; font-size: 12px; white-space: nowrap; box-sizing: border-box; justify-content: center; }
-    .hint-bubble-icon:hover { color: #ddd !important; border-color: #999 !important; }
+    .hint-bubble-icon:hover { color: #ddd !important; }
+    .hint-bubble-icon.hint-bubble-light:hover { color: #fff !important; }
     .category-picker-wrap { position: relative; margin-bottom: 10px; min-width: 0; }
     .category-picker-trigger { display: flex; align-items: stretch; min-width: 0; }
     .category-picker-selected { flex: 1; min-width: 0; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #18181c; border: 1px solid #333; border-right: none; border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
@@ -635,10 +636,11 @@ const AdminToast = ({ message, visible, closing }) => {
   );
 };
 
-// R17-C3（§七 V4）: 问号气泡（图库标题/附件按钮/商品按钮共用）。
+// R17-C3（§七 V4）: 问号气泡（图库标题/商品按钮共用）。
+// R17G: 去圆圈改裸「?」span(role=button)，可直接放进按钮内容流（button 嵌 button 非法）。
 // 气泡 fixed 定位（显示时按图标 getBoundingClientRect 计算坐标），
 // 避免被 .editor-form-panel 的 overflow-x:hidden 裁剪；zIndex 与后台弹窗同层。
-// 桌面 hover 显示/移出隐藏；点按（触屏）切换；点击页面其他处关闭。
+// 桌面 hover 显示/移出隐藏；点按（触屏/键盘）切换；点击页面其他处关闭。
 const HintBubble = ({ text, light = false }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
@@ -657,6 +659,15 @@ const HintBubble = ({ text, light = false }) => {
     setOpen(true);
   };
 
+  const toggleBubble = () => {
+    if (!open) {
+      computePos();
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+  };
+
   useEffect(() => {
     if (!open) return undefined;
     const onDocClick = () => setOpen(false);
@@ -664,45 +675,42 @@ const HintBubble = ({ text, light = false }) => {
     return () => document.removeEventListener('click', onDocClick);
   }, [open]);
 
-  const iconColor = light ? 'rgba(255,255,255,0.75)' : '#888';
-  const iconBorder = light ? 'rgba(255,255,255,0.55)' : '#666';
-
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
-      <button
+      <span
         ref={iconRef}
-        type="button"
+        role="button"
+        tabIndex={0}
         aria-label="说明"
-        className="hint-bubble-icon"
+        className={light ? 'hint-bubble-icon hint-bubble-light' : 'hint-bubble-icon'}
         onMouseEnter={showBubble}
         onMouseLeave={() => setOpen(false)}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          if (!open) {
-            computePos();
-            setOpen(true);
-          } else {
-            setOpen(false);
-          }
+          toggleBubble();
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.stopPropagation();
+          e.preventDefault();
+          toggleBubble();
         }}
         style={{
-          width: '15px',
-          height: '15px',
-          borderRadius: '50%',
-          border: `1px solid ${iconBorder}`,
           background: 'transparent',
-          color: iconColor,
-          fontSize: '10px',
-          fontWeight: 'bold',
+          border: 'none',
+          borderRadius: 0,
+          padding: '0 3px',
+          color: light ? 'rgba(255,255,255,0.8)' : '#999',
+          fontSize: '13px',
+          fontWeight: 700,
           lineHeight: 1,
           cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 0,
         }}
-      >?</button>
+      >?</span>
       {open && pos ? (
         <span
           role="tooltip"
@@ -4551,8 +4559,6 @@ const [mounted, setMounted] = useState(false);
   const openProductLookupModal = () => {
     setProductLookup({ open: true, sku: String(form.linked_product_sku || '').trim(), loading: false, result: null });
   };
-  // R17-C1（§七 V2）: 附件步改按钮+弹窗（弹窗内 AttachmentManager 零改动）
-  const [attachmentModalOpen, setAttachmentModalOpen] = useState(false);
   // 当场查询:走服务端代理 /api/admin/merchant-product-lookup(主站 8s 超时),
   // 客户端 10s AbortController 仅作兜底;token 全程不出服务端
   const runProductLookupQuery = async () => {
@@ -10723,9 +10729,17 @@ const [mounted, setMounted] = useState(false);
             </StepAccordion>
             ) : null}
 
+            {/* R17G: 附件回归 StepAccordion step=5（说明文本 + AttachmentManager 零改动） */}
+            {!editingSimplePage && form.type !== 'Widget' ? (
+            <StepAccordion step={5} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>附件<span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span></span>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
+              <p style={{fontSize:'12px', color:'#888', lineHeight:1.6, margin:'0 0 12px'}}>上传附件后将在本篇文章页面中提供下载入口，未添加附件则不显示</p>
+              <AttachmentManager postSlug={form.slug} />
+            </StepAccordion>
+            ) : null}
+
             {!editingSimplePage ? (
             <>
-            <StepAccordion step={5} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
+            <StepAccordion step={6} title={<>下载链接 <GalleryOnlyTag /></>} isOpen={expandedStep === 6} onToggle={()=>setExpandedStep(expandedStep===6?0:6)}>
                <div>
                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>Gallery 主题下载弹窗中展示的链接内容，留空则显示「暂无下载」。</p>
@@ -10751,45 +10765,16 @@ const [mounted, setMounted] = useState(false);
                   <button type="button" onClick={()=>{ setFormDirty({...form, linked_product_sku: ''}); showAdminToast('已清除商品关联，保存后生效', 2600); }} style={{height:'32px', padding:'0 14px', borderRadius:'8px', cursor:'pointer', border:'1px solid rgba(239,68,68,0.6)', background:'rgba(239,68,68,0.12)', color:'#f87171', fontSize:'12px', fontWeight:'bold'}}>清除关联</button>
                 </div>
                 ) : null}
-                 {/* 存储基座 S3：文章附件步改按钮+弹窗（R17-C1；弹窗内 AttachmentManager 零改动） */}
-                 <div style={{position:'relative', marginTop:'12px'}}>
-                 <button type="button" onClick={() => setAttachmentModalOpen(true)}
+                 <div style={{marginTop:'10px'}}>
+                  <button type="button" onClick={openProductLookupModal}
                    onMouseEnter={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
                    onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
                    onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; }}
                    onMouseUp={(e) => { e.currentTarget.style.transform = 'none'; }}
-                   style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(37,99,235,0.35)'}}>
-                    <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 添加附件下载
-                 </button>
-                 <span style={{position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)'}}><HintBubble light text="未添加附件则不显示附件下载" /></span>
-                </div>
-                {attachmentModalOpen && (
-                <div
-                  onMouseDown={(e) => { if (e.target === e.currentTarget) setAttachmentModalOpen(false); }}
-                  style={{ position:'fixed', inset:0, zIndex:10000, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(2px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}
-                >
-                  <div style={{ width:'100%', maxWidth:'560px', maxHeight:'80vh', background:'#1f1f24', border:'1px solid #3a3a42', borderRadius:'14px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', padding:'22px', display:'flex', flexDirection:'column', boxSizing:'border-box' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px', flexShrink:0 }}>
-                      <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff' }}>添加附件下载</div>
-                      <button type="button" onClick={() => setAttachmentModalOpen(false)} style={{ height:'36px', padding:'0 16px', borderRadius:'8px', cursor:'pointer', border:'1px solid #444', background:'transparent', color:'#ccc', fontSize:'13px' }}>关闭</button>
-                    </div>
-                    <div style={{ overflowY:'auto', minHeight:0 }}>
-                      <AttachmentManager postSlug={form.slug} />
-                    </div>
-                  </div>
-                </div>
-                )}
-                <div style={{position:'relative', marginTop:'10px'}}>
-                 <button type="button" onClick={openProductLookupModal}
-                   onMouseEnter={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
-                   onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
-                   onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; }}
-                   onMouseUp={(e) => { e.currentTarget.style.transform = 'none'; }}
-                   style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(37,99,235,0.35)'}}>
-                    <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 绑定商品信息
-                 </button>
-                 <span style={{position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)'}}><HintBubble light text="未绑定商品信息则不显示商品购买组件" /></span>
-                </div>
+                    style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(37,99,235,0.35)'}}>
+                     <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 绑定商品信息 <HintBubble light text="未绑定商品信息则不显示商品购买组件" />
+                  </button>
+                 </div>
                 {productLookup.open && (
                 <div
                   onMouseDown={(e) => { if (e.target === e.currentTarget) setProductLookup((p) => ({ ...p, open: false })); }}
