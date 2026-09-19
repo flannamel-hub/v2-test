@@ -299,15 +299,19 @@
 - **存草稿只对 Post 文章开放**：发布确认弹窗「存为草稿」选项、编辑器「存草稿」按钮、离开拦截「保存到草稿并离开」，三处均按 `formIsPostArticle`（`type=Post` 且非 `Page`/自定义页/`Widget`）渲染；非 Post 的离开拦截降级为二选一。
 - **草稿箱**：仅本地草稿（`localStorage` 快照）；原「云端草稿」区已于 2026-08-30 移除，`status=Draft` 文章仍在内容列表以「草稿」徽标展示。
 
-### 新手聚焦引导与编辑器引导链（R16/R18，2026-09-19）
+### 新手聚焦引导与编辑器引导链（R16/R18/R18X，2026-09-19）
 
-- **组件**：`OnboardingTour.js`（挖孔遮罩气泡引导，createPortal 挂 body，z-index 10100）。首页 10 步（`TOUR_STEPS`，第 10 步交互步点「发布新内容」）；编辑器 14 步（`EDITOR_TOUR_STEPS`，定义在 `AdminDashboard.js`，文案=派工单 §四；最后一步聚焦发布按钮仍是普通步）。
-- **R18 组件增强（既有首页 10 步行为零改动）**：①可选 prop `onStepChange(index, step)`——每步定位 effect 内、reposition 前调用（编辑器引导用于展开/收起 StepAccordion；不传则行为不变）；②`onClose(reason)`——跳过/Esc=`'skip'`、末步按钮=`'done'`、交互步命中=`'interactive'`（兜底 `'skip'`，父层可忽略参数向后兼容）；③长目标（高度>视口 80%）`scrollIntoView({block:'start'})` 顶对齐 + 气泡放目标顶部内侧（`top=targetRect.top+16`），其余仍 center+上下翻转；④每步定位后 +300ms 再 reposition 一次（防手风琴 0.32s 展开动画期间测量错位）。
+- **组件**：`OnboardingTour.js`（聚焦引导，createPortal 挂 body，z-index 10100）。首页 10 步（`TOUR_STEPS`，第 10 步交互步点「发布新内容」）；编辑器 14 步（`EDITOR_TOUR_STEPS`，定义在 `AdminDashboard.js`，文案=派工单 §四；最后一步聚焦发布按钮仍是普通步）。
+- **R18 组件增强（既有首页 10 步行为零改动）**：①可选 prop `onStepChange(index, step)`——每步「动作先行」阶段调用（编辑器引导用于展开/收起 StepAccordion；不传则行为不变）；②`onClose(reason)`——跳过/Esc/退出确认=`'skip'`、末步按钮=`'done'`、交互步命中=`'interactive'`（兜底 `'skip'`，父层可忽略参数向后兼容）；③长目标（高度>视口 80%）`scrollIntoView({block:'start'})` 顶对齐 + 气泡放目标顶部内侧（`top=targetRect.top+16`），其余仍 center+上下翻转。
+- **R18X 阶段化编排重做（视觉层-only，步骤文案/锚点/close reason 契约零改动）**：每步五阶段——①全亮（遮罩 opacity 0、框隐藏；**动作先执行**=onStepChange+瞬时 scrollIntoView）→ ②布局静置 500ms（取代旧 +300ms 复测，覆盖手风琴 0.32s 展开动画）→ ③变暗+聚焦（**全屏均匀遮罩** opacity 0→0.5 无挖孔；聚焦框仅描边 2px 白/圆角 10/轻外发光，transform 自中心 scale 1.12 收拢至 1 约 480ms，禁止 left/top/width/height 过渡；气泡同步淡入）→ ④holding（上一步/下一步/完成 仅此阶段可用；resize/scroll/ResizeObserver 重测仅此阶段生效、即时更新不加过渡）→ ⑤步进=框淡出+变亮 350ms 后进下一聚焦（上一步同机制）。`prefers-reduced-motion` 全过渡时长 0。交互步在 holding 阶段沿用点击穿透（容器/遮罩 pointerEvents none+框外 4 捕获层）+呼吸光晕/涟漪+点目标即完成。
+- **R18X 退出确认（§二）**：左下角「退出新手指引」按钮 / Esc（**含交互步**，旧屏蔽行为取消）/ 工具条「跳过」三条路径统一先弹引导层级内 z 最高的页内确认窗（「是否退出新手指引？」+确认退出/继续引导；点遮罩或 Esc=继续）；确认窗打开期间 上一步/下一步/完成 不可用；确认退出=close('skip') 走既有写标记路径。
+- **R18X 欢迎弹窗（§四，`WelcomeTourModal.js`）**：入口参数（`tour=1` 或 `etour=1`，≥768px）不再直接自动弹引导，mount 清参后自动弹欢迎窗（<768px 清参不弹）；「开始指引」=关窗→`startOnboardingFromWelcome` 走既有首页引导就绪门控（轮询 `tourFirstScreenReadyRef`→300ms `setTourOpen`，10s 兜底 site-info 锚点；链式接编辑器照旧）；「不需要」=关窗+清 `editorTourPendingRef`/`chainToEditorRef`+best-effort 两次 fetch 双写 home/editor 标记（1A 语义=以后不再自动打扰），不启动任何引导。齿轮「新手引导」重放**不经欢迎窗**直接开引导；欢迎窗打开期间与两条引导单飞（编辑器自动弹 effect 增 `welcomeTourOpen` 守卫）。
+- **R18X 回首页定位（§三）**：`EditorTourDoneModal` 的【回到首页】/遮罩点击在 `onBackHome` 后追加滚动归零——`window.scrollTo(0,0)` + `#admin-container.scrollTop=0`（try/catch，延后 ~100ms 待视图切换）。
 - **编辑器引导锚点（§2.2）**：`editor-steps-region`（包住 Step1~6+商品按钮块的纯 div）→ 步 0 收起全部；`editor-step-N`（StepAccordion 根 `data-tour`，与 `data-editor-step` 并存）→ 步 1~6 展开 N；`editor-product-btn`（商品按钮容器）；`editor-body-region`（BlockBuilder 外包纯 div）；`editor-block-toolbar`（.block-add-toolbar）；`editor-view-toolbar`（.block-view-toolbar）；`editor-blocks-area`（.block-builder-expanded，含空态）；`editor-save-draft`（存草稿按钮，非 Post 自动跳步）；`editor-publish`（发布/保存按钮）。锚点缺失自动跳步沿用组件逻辑，`n/total` 编号跳变可接受。
 - **触发与链式（§八）**：主站登录链接按两列标记（`blog_admin_tour_seen_at`/`blog_editor_tour_seen_at`）为空分别追加 `&tour=1`/`&etour=1`（可同时）；AdminDashboard mount effect 读 `etour` 存 `editorTourPendingRef`（一次性）并与 `tour` 一并 replaceState 清参。编辑器自动弹 effect（`view==='edit'`）：`(etour pending || chainToEditorRef)` 且 `innerWidth>=768` 且锚点就绪（200ms 轮询 `[data-tour="editor-step-1"]`，上限 5s）→ 清两 ref → `setExpandedStep(0)` → 600ms 后打开；链式重放无视标记（首页第 10 步 `reason='interactive'` 关闭时置 `chainToEditorRef`，handleCreate 照常进编辑器后接续）。两条引导**单飞**（互斥以两 open 状态为准）；<768px 一律不弹。
-- **关闭语义**：编辑器引导任一关闭路径写标记 `POST /api/admin/onboarding-seen` body `{kind:'editor'}`（best-effort）+ `setExpandedStep(0)`；`reason='done'` 才弹 `EditorTourDoneModal.js`（恭喜文案+【回到首页】= 关闭弹窗 + `guardLeaveEditor(leaveEditView)` 与顶部「返回列表」同函数，dirty 照旧三选一）；skip/Esc 不弹。首页引导关闭仍写 home 标记（kind 缺省）。
+- **关闭语义**：编辑器引导任一关闭路径写标记 `POST /api/admin/onboarding-seen` body `{kind:'editor'}`（best-effort）+ `setExpandedStep(0)`；`reason='done'` 才弹 `EditorTourDoneModal.js`（恭喜文案+【回到首页】= 关闭弹窗 + `guardLeaveEditor(leaveEditView)` 与顶部「返回列表」同函数，dirty 照旧三选一，另 R18X 追加滚动归零）；skip/Esc 不弹。首页引导关闭仍写 home 标记（kind 缺省）。
 - **API**：`/api/admin/onboarding-seen` body 支持 `kind:'home'|'editor'`（白名单，缺省 home）透传主站 `/api/merchant/blog-tour-seen`；主站按 kind 写对应列（`editor` → `blog_editor_tour_seen_at`，主站侧改动见派工单 §一，不在本仓库）。
-- 冒烟：`tmp/opencode/r18-etour-smoke/smoke.cjs`（59 断言：EditorTourDoneModal SSR、14 步文案/锚点/动作表、链式接线、红线抽查）+ esbuild + tsc 43 基线对拍。
+- 冒烟：`tmp/opencode/r18-etour-smoke/smoke.cjs`（R18 版，其对挖孔/+300ms 的断言随 R18X 有意失效）+ `tmp/opencode/r18x-smoke/smoke.cjs`（R18X 版 68 断言：欢迎窗/恭喜窗 SSR、阶段化编排与退出确认结构红线、TOUR_STEPS 与 R18 快照逐字对拍、触发改造红线）+ esbuild + tsc 43 基线对拍。
 
 ### 列表 Tab 与广告位分类
 

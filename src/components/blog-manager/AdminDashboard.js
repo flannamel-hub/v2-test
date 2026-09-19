@@ -47,6 +47,8 @@ import CardCategoryQuickPicker from './CardCategoryQuickPicker';
 import MissingFieldsModal from './MissingFieldsModal';
 // R18: 编辑器引导完成恭喜弹窗（独立组件，open/closing 双态 + 240ms 退场）
 import EditorTourDoneModal from './EditorTourDoneModal';
+// R18X: 新手引导欢迎弹窗（?tour=1/?etour=1 ≥768px 先弹欢迎窗；开始指引→既有首页引导门控）
+import WelcomeTourModal from './WelcomeTourModal';
 // 派工单 B3:后台「数据统计」面板(独立文件,AdminDashboard 只做引入与视图接线)
 import StatsPanel from './StatsPanel';
 import { FiBarChart2 } from 'react-icons/fi';
@@ -4682,6 +4684,12 @@ const [mounted, setMounted] = useState(false);
   const [editorTourDoneOpen, setEditorTourDoneOpen] = useState(false);
   const [editorTourDoneClosing, setEditorTourDoneClosing] = useState(false);
   const editorTourDoneTimerRef = useRef(null);
+  // R18X（§四）：欢迎弹窗（入口参数不再直接弹引导，先弹欢迎窗；open/closing 双态 + 240ms 退场）
+  const [welcomeTourOpen, setWelcomeTourOpen] = useState(false);
+  const [welcomeTourClosing, setWelcomeTourClosing] = useState(false);
+  const welcomeTourTimerRef = useRef(null);
+  // R18X：「开始指引」后的就绪门控定时器（轮询/兜底/延迟弹出；卸载时清理）
+  const welcomeStartTimersRef = useRef({ pollId: null, fallbackId: null, openTimer: null });
   const adminToastTimerRef = useRef(null);
   const [adminToast, setAdminToast] = useState({ message: '', visible: false, closing: false });
   const [tagDraft, setTagDraft] = useState('');
@@ -5665,17 +5673,101 @@ const [mounted, setMounted] = useState(false);
     closeEditorTourDoneModal();
     guardLeaveEditor(leaveEditView);
   };
+  // R18X（§四）：欢迎弹窗开/关（open/closing 双态 + 240ms 退场，与其他 cover-modal 一致）
+  const openWelcomeTourModal = () => {
+    if (welcomeTourTimerRef.current) clearTimeout(welcomeTourTimerRef.current);
+    setWelcomeTourClosing(false);
+    setWelcomeTourOpen(true);
+  };
+  const closeWelcomeTourModal = () => {
+    if (welcomeTourTimerRef.current) clearTimeout(welcomeTourTimerRef.current);
+    setWelcomeTourClosing(true);
+    welcomeTourTimerRef.current = setTimeout(() => {
+      setWelcomeTourOpen(false);
+      setWelcomeTourClosing(false);
+    }, 240);
+  };
+  // R18X（§四）：「开始指引」= 关欢迎窗 → 走既有首页引导自动弹逻辑（就绪门控：轮询
+  // tourFirstScreenReadyRef → 300ms 后 setTourOpen；兜底最多等 10s，届时若有 site-info
+  // 锚点（宽高>0）也弹出）。链式接编辑器照旧；齿轮重放不经此处。
+  const startOnboardingFromWelcome = () => {
+    closeWelcomeTourModal();
+    if (tourOpen || editorTourOpen) return;
+    const timers = welcomeStartTimersRef.current;
+    const stopAll = () => {
+      if (timers.pollId !== null) window.clearInterval(timers.pollId);
+      if (timers.fallbackId !== null) window.clearTimeout(timers.fallbackId);
+      if (timers.openTimer !== null) window.clearTimeout(timers.openTimer);
+      timers.pollId = null;
+      timers.fallbackId = null;
+      timers.openTimer = null;
+    };
+    let opened = false;
+    const openTour = () => {
+      if (opened) return;
+      opened = true;
+      stopAll();
+      timers.openTimer = window.setTimeout(() => setTourOpen(true), 300);
+    };
+    if (tourFirstScreenReadyRef.current) {
+      openTour();
+      return;
+    }
+    timers.pollId = window.setInterval(() => {
+      if (tourFirstScreenReadyRef.current) openTour();
+    }, 200);
+    timers.fallbackId = window.setTimeout(() => {
+      try {
+        const el = document.querySelector('[data-tour="site-info"]');
+        if (el && el.offsetWidth > 0 && el.offsetHeight > 0) openTour();
+      } catch (err) {
+        /* 锚点不可查则放弃本次自动弹 */
+      }
+    }, 10000);
+  };
+  // R18X（§四）：「不需要」= 关欢迎窗 + 清 etour 待弹/链式标记（不启动任何引导）+
+  // best-effort 双写标记（两次 fetch：kind home + kind editor，1A 语义=以后都不再自动打扰）
+  const declineOnboardingFromWelcome = () => {
+    closeWelcomeTourModal();
+    editorTourPendingRef.current = false;
+    chainToEditorRef.current = false;
+    try {
+      fetch('/api/admin/onboarding-seen', { method: 'POST' }).catch(() => {});
+    } catch (err) {
+      /* best-effort，失败静默 */
+    }
+    try {
+      fetch('/api/admin/onboarding-seen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'editor' }),
+      }).catch(() => {});
+    } catch (err) {
+      /* best-effort，失败静默 */
+    }
+  };
+  // R18X：欢迎弹窗/就绪门控定时器卸载清理
+  useEffect(
+    () => () => {
+      if (welcomeTourTimerRef.current) clearTimeout(welcomeTourTimerRef.current);
+      const timers = welcomeStartTimersRef.current;
+      if (timers.pollId !== null) window.clearInterval(timers.pollId);
+      if (timers.fallbackId !== null) window.clearTimeout(timers.fallbackId);
+      if (timers.openTimer !== null) window.clearTimeout(timers.openTimer);
+    },
+    []
+  );
   // R16F F1：首屏就绪镜像（标题区/列表数据到位 + 图库容量加载完）；
-  // ?tour=1 自动弹用轮询读 ref 判就绪，避免 effect 依赖 state 反复重跑（清参后早退中断轮询）
+  // 「开始指引」后的自动弹用轮询读 ref 判就绪，避免 effect 依赖 state 反复重跑
   const tourFirstScreenReadyRef = useRef(false);
   // R16F F1 补：首次数据加载完成一次性标记（fetchPosts finally 置位；空站 posts 为 0 也算就绪，不再只靠 10s 兜底）
   const firstDataLoadDoneRef = useRef(false);
   tourFirstScreenReadyRef.current = !loading && (posts.length > 0 || firstDataLoadDoneRef.current) && !galleryStorageLoading;
-  // R16F：首次自动开（4A：仅桌面宽度；F1：等首屏数据就绪后再弹）
-  // ?tour=1 且 >=768px → 清参 → 等就绪 → 300ms 后弹出；兜底最多等 10s，
-  // 届时若有 site-info 锚点（宽高>0）也弹出，否则放弃本次自动弹。手动重放不受此门控影响。
-  // R18（§八-1）：同 effect 增读 ?etour=1 → editorTourPendingRef（一次性）；replaceState
-  // 同时清掉 tour 与 etour（保持其他参数）；tour 既有处理逻辑不变，仅 etour 时无首页弹。
+  // R16F→R18X（§四触发改造）：mount 读 ?tour=1 / ?etour=1 → 清参（保持其他参数）。
+  // R18X：入口参数（tour=1 或 etour=1，≥768px）不再直接自动弹引导，改为自动弹欢迎弹窗；
+  // 原就绪门控与轮询逻辑移至欢迎弹窗「开始指引」（startOnboardingFromWelcome）；
+  // <768px：清参、不弹欢迎窗、不弹引导（桌面限定与 R16F 一致）。齿轮「新手引导」重放不经欢迎窗。
+  // R18（§八-1）：?etour=1 → editorTourPendingRef（一次性）；欢迎窗「开始指引」起链照旧。
   useEffect(() => {
     try {
       if (typeof window === 'undefined' || !window.location) return;
@@ -5691,51 +5783,22 @@ const [mounted, setMounted] = useState(false);
         '',
         `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`
       );
-      if (!hasTour) return;
+      // R18X：改为自动弹欢迎弹窗（≥768px）；后续引导由用户在欢迎窗内选择
       if (window.innerWidth < 768) return;
-      let opened = false;
-      let pollId = null;
-      let fallbackId = null;
-      let openTimer = null;
-      const stopAll = () => {
-        if (pollId !== null) window.clearInterval(pollId);
-        if (fallbackId !== null) window.clearTimeout(fallbackId);
-        if (openTimer !== null) window.clearTimeout(openTimer);
-      };
-      const openTour = () => {
-        if (opened) return;
-        opened = true;
-        stopAll();
-        openTimer = window.setTimeout(() => setTourOpen(true), 300);
-      };
-      if (tourFirstScreenReadyRef.current) {
-        openTour();
-      } else {
-        pollId = window.setInterval(() => {
-          if (tourFirstScreenReadyRef.current) openTour();
-        }, 200);
-        fallbackId = window.setTimeout(() => {
-          try {
-            const el = document.querySelector('[data-tour="site-info"]');
-            if (el && el.offsetWidth > 0 && el.offsetHeight > 0) openTour();
-          } catch (err) {
-            /* 锚点不可查则放弃本次自动弹 */
-          }
-        }, 10000);
-      }
-      return () => stopAll();
+      openWelcomeTourModal();
     } catch (err) {
       /* 自动引导失败静默 */
     }
   }, []);
   // R18（§八-3）：编辑器引导自动弹 effect（view==='edit' 时生效）。
-  // 生效条件（全部满足）：view='edit'；单飞（首页引导与编辑器引导均未 open）；
-  // (editorTourPendingRef || chainToEditorRef)；window.innerWidth >= 768；
-  // 锚点就绪（200ms 轮询 [data-tour="editor-step-1"] 存在，上限 5s）。
+  // 生效条件（全部满足）：view='edit'；单飞（首页引导与编辑器引导均未 open；
+  // R18X：欢迎弹窗打开期间也不并发）；(editorTourPendingRef || chainToEditorRef)；
+  // window.innerWidth >= 768；锚点就绪（200ms 轮询 [data-tour="editor-step-1"] 存在，上限 5s）。
   // 命中后：清两个 ref（一次性）→ setExpandedStep(0) → 600ms 后 editorTourOpen=true。
   useEffect(() => {
     if (view !== 'edit') return;
     if (editorTourOpen || tourOpen) return;
+    if (welcomeTourOpen) return;
     if (!editorTourPendingRef.current && !chainToEditorRef.current) return;
     if (typeof window === 'undefined' || window.innerWidth < 768) return;
     let cancelled = false;
@@ -5769,7 +5832,7 @@ const [mounted, setMounted] = useState(false);
       cancelled = true;
       stopAll();
     };
-  }, [view, tourOpen, editorTourOpen]);
+  }, [view, tourOpen, editorTourOpen, welcomeTourOpen]);
   const buildCrawlerIngestHeaders = (extra = {}, passwordOverride = crawlerIngestPassword) => ({
     ...extra,
     ...(passwordOverride
@@ -9119,11 +9182,18 @@ const [mounted, setMounted] = useState(false);
         onStepChange={handleEditorTourStepChange}
         steps={EDITOR_TOUR_STEPS}
       />
-      {/* R18：编辑器引导完成恭喜弹窗（reason='done' 才弹；「回到首页」走返回列表同函数） */}
+      {/* R18：编辑器引导完成恭喜弹窗（reason='done' 才弹；「回到首页」走返回列表同函数 + 滚动归零） */}
       <EditorTourDoneModal
         open={editorTourDoneOpen}
         closing={editorTourDoneClosing}
         onBackHome={handleEditorTourBackHome}
+      />
+      {/* R18X（§四）：欢迎弹窗（?tour=1/?etour=1 ≥768px 自动弹；开始指引→既有首页引导门控；不需要→双写标记） */}
+      <WelcomeTourModal
+        open={welcomeTourOpen}
+        closing={welcomeTourClosing}
+        onStart={startOnboardingFromWelcome}
+        onDecline={declineOnboardingFromWelcome}
       />
       <PublishQueuePanel
         jobs={publishQueue}

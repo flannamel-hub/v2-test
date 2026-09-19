@@ -10,9 +10,29 @@ import React, { useEffect, useState } from 'react';
  *   - onBackHome：「回到首页」/遮罩点击——父层实现 = 关闭弹窗 + 调用与顶部
  *     「返回列表」按钮完全相同的处理函数（guardLeaveEditor 语义原样：dirty 时照旧三选一）
  * 仅 reason='done'（末步「下一步」）时由父层打开；跳过/Esc 不弹。
+ * R18X（§三）：「回到首页」在执行 onBackHome 后追加滚动归零——window.scrollTo(0,0) +
+ * #admin-container 的 scrollTop=0（try/catch，延后 ~100ms 执行待视图切换）。
  */
 const EditorTourDoneModal = ({ open, closing, onBackHome }) => {
   const [visible, setVisible] = useState(false);
+
+  // R18X（§三）：回到首页后页面自动定位到顶部（延后 ~100ms 待视图切换）
+  const handleBackHome = () => {
+    if (onBackHome) onBackHome();
+    try {
+      window.setTimeout(() => {
+        try {
+          window.scrollTo(0, 0);
+          const container = document.getElementById('admin-container');
+          if (container) container.scrollTop = 0;
+        } catch (_) {
+          /* 滚动归零失败静默 */
+        }
+      }, 100);
+    } catch (_) {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     if (open && !closing) {
@@ -30,7 +50,7 @@ const EditorTourDoneModal = ({ open, closing, onBackHome }) => {
   return (
     <div
       className={`cover-modal-backdrop ${visible && !closing ? 'is-visible' : ''} ${closing ? 'is-closing' : ''}`}
-      onClick={onBackHome}
+      onClick={handleBackHome}
       role="presentation"
     >
       <div
@@ -43,7 +63,7 @@ const EditorTourDoneModal = ({ open, closing, onBackHome }) => {
         <div className="cover-modal-icon" aria-hidden>🎉</div>
         <h3 id="editor-tour-done-modal-title" className="cover-modal-title">恭喜你已经掌握BLOG内容发布的基本技巧</h3>
         <div className="cover-modal-actions">
-          <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={onBackHome} style={{ flex: 1 }}>
+          <button type="button" className="cover-modal-btn cover-modal-btn-primary" onClick={handleBackHome} style={{ flex: 1 }}>
             回到首页
           </button>
         </div>
