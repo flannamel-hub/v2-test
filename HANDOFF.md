@@ -80,3 +80,9 @@ Notion 驱动的 BLOG SaaS(前台 Next.js 13 Pages Router + Notion 数据源 + S
 
 ### R17I — Step6 下载链接加可选+问号；标题问号改圆圈居中（2026-09-19）
 - Step6 标题=下载链接+(Gallery主题专用)+可选灰胶囊+问号（文案：gallery主题会默认开启下载链接分享按钮，非gallery主题无需填写。）；HintBubble 图标改回 16px 圆圈（border-box+flex 双居中+lineHeight 1，?' 居中），hover 颜色+边框变亮。用户直接验收。
+
+## R18 — 编辑器聚焦引导（14 步）+ 首页连续链 + 恭喜弹窗（2026-09-19，上线并全场景验收）
+
+- **主站（`b893ef0c`，迁移先落库）**：`merchant_services.blog_editor_tour_seen_at` 新列；`/api/merchant/blog-tour-seen` body 增 `kind`（home/editor 分列、只写一次）；登录链接 `createBlogAdminLoginLink` 同时读两列 → 追加 `&tour=1`/`&etour=1`（fail-safe 不变）。
+- **BLOG（`f375bd23`）**：OnboardingTour 增 `onStepChange(index,step)`、`onClose(reason)`（skip/done/interactive）、长目标 `block:'start'`+气泡顶部内侧、+300ms 步进复测（首页 10 步行为零改动）；`EDITOR_TOUR_STEPS` 14 步（文案按 §四）+ 动作表（0=全收起/1-6=展开 N）; 锚点新增 editor-steps-region/editor-body-region 包裹 div、StepAccordion 根 `data-tour=editor-step-N`、product-btn/block-toolbar/view-toolbar/blocks-area/save-draft/publish；`EditorTourDoneModal.js` 新组件；接线：`?etour=1`→pendingRef、首页 `reason='interactive'`→chainRef、编辑器引导 effect（view=edit+单飞+≥768+锚点轮询5s→清ref→收起→600ms 开）、关闭写 kind:'editor'+全收起、done 才弹恭喜窗、【回到首页】=guardLeaveEditor(leaveEditView)。
+- **验收（z4sobc 全场景）**：①首链：链接 tour+etour → 首页 10 步 → 点发布 → 编辑器 14 步接续（每步聚焦时对应 step 展开 469/351/148/290/128px、其余 66px 收起；14 步文案逐条 OK）→ 末步下一步 → 恭喜弹窗 → 回到首页落列表 → 两列标记写入（02:32/02:33）✓；②再进编辑器不弹 ✓；③齿轮重放：首页全链 → 点发布 → 编辑器引导起（无视标记）→ 跳过 → 无恭喜窗 + 步骤全收起 ✓。收尾：两列已复位（供用户体验），Edge/凭据/临时包全清。
