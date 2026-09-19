@@ -86,3 +86,13 @@ Notion 驱动的 BLOG SaaS(前台 Next.js 13 Pages Router + Notion 数据源 + S
 - **主站（`b893ef0c`，迁移先落库）**：`merchant_services.blog_editor_tour_seen_at` 新列；`/api/merchant/blog-tour-seen` body 增 `kind`（home/editor 分列、只写一次）；登录链接 `createBlogAdminLoginLink` 同时读两列 → 追加 `&tour=1`/`&etour=1`（fail-safe 不变）。
 - **BLOG（`f375bd23`）**：OnboardingTour 增 `onStepChange(index,step)`、`onClose(reason)`（skip/done/interactive）、长目标 `block:'start'`+气泡顶部内侧、+300ms 步进复测（首页 10 步行为零改动）；`EDITOR_TOUR_STEPS` 14 步（文案按 §四）+ 动作表（0=全收起/1-6=展开 N）; 锚点新增 editor-steps-region/editor-body-region 包裹 div、StepAccordion 根 `data-tour=editor-step-N`、product-btn/block-toolbar/view-toolbar/blocks-area/save-draft/publish；`EditorTourDoneModal.js` 新组件；接线：`?etour=1`→pendingRef、首页 `reason='interactive'`→chainRef、编辑器引导 effect（view=edit+单飞+≥768+锚点轮询5s→清ref→收起→600ms 开）、关闭写 kind:'editor'+全收起、done 才弹恭喜窗、【回到首页】=guardLeaveEditor(leaveEditView)。
 - **验收（z4sobc 全场景）**：①首链：链接 tour+etour → 首页 10 步 → 点发布 → 编辑器 14 步接续（每步聚焦时对应 step 展开 469/351/148/290/128px、其余 66px 收起；14 步文案逐条 OK）→ 末步下一步 → 恭喜弹窗 → 回到首页落列表 → 两列标记写入（02:32/02:33）✓；②再进编辑器不弹 ✓；③齿轮重放：首页全链 → 点发布 → 编辑器引导起（无视标记）→ 跳过 → 无恭喜窗 + 步骤全收起 ✓。收尾：两列已复位（供用户体验），Edge/凭据/临时包全清。
+
+## R18X — 引导动效编排重做 + 退出确认窗 + 欢迎弹窗 + 回首页定位（2026-09-19，上线并全场景验收）
+
+- **BLOG 侧（`aa6f1c88`）**：
+  - `OnboardingTour.js` 视觉层五阶段编排：全亮+动作先行（onStepChange+instant scroll）→ 500ms 布局静置 → 均匀遮罩 0→0.5 + 白描边框 transform 1.12→1 收拢 480ms → holding；步进=退场 350ms 后再动作。box-shadow 挖孔**整体删除**（根源消灭弹跳）；动画仅 transform/opacity；`prefers-reduced-motion` 全过渡 0。
+  - 退出三路径（Esc 任意步含交互步 / 左下角「退出新手指引」按钮 / 工具条跳过）→ 统一页内确认窗「是否退出新手指引？」【继续引导】【确认退出】；确认才退出，取消继续。
+  - `EditorTourDoneModal.js`：「回到首页」后 window.scrollTo(0,0)+#admin-container.scrollTop=0。
+  - `WelcomeTourModal.js`（新）：首进欢迎窗「欢迎使用 BLOG 后台/这里是你的内容发布中心。需要一份新手引导带你快速上手吗？」【不需要】（双写两列标记、不再打扰）【开始指引】（就绪门控后开链条）；齿轮重放直达不经欢迎窗；<768px 不弹。
+- **验收（测试站 z4sobc 真机，1500×1150）**：欢迎窗四断言 ✓；不需要→双写(03:08)✓；开始指引→首页引导→点发布→编辑器引导自动接续→14 步走完→恭喜窗→回到首页→**滚动归零 {win:0, cont:0}** ✓；动效三帧（全亮无遮罩/遮罩渐入+描边框/停留态）目检 ✓；退出三路径（按钮/Esc/跳过→确认窗→继续引导/Esc 取消/确认退出）✓；标记双写(03:11)后已复位 null 供验收。
+- 主站侧零改动（本单全在 BLOG 侧）。
