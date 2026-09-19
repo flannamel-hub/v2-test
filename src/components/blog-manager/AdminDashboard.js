@@ -75,6 +75,22 @@ import {
   triggerContentRevalidation,
   triggerShellBlogRefresh,
 } from './adminRevalidateClient';
+// R19: 缩小视图（minimap）拖拽重制 — dnd-kit 标准方案（PointerSensor 5px 激活 + DragOverlay 悬浮卡）
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 /** 后台分类下拉中隐藏且不可删改的系统保留分类 */
 const PROTECTED_CATEGORIES = new Set(['网站信息', '系统组件', '站长通知']);
@@ -416,6 +432,10 @@ const GlobalStyle = () => (
     .block-minimap-add-wrap { position: relative; display: flex; justify-content: center; align-items: center; padding: 2px 0; flex-shrink: 0; width: 100%; }
     .block-minimap-add-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px dashed #555; background: #1c1c1f; color: greenyellow; font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
     .block-minimap-add-btn:hover, .block-minimap-add-btn.open { border-color: greenyellow; background: rgba(173,255,47,0.14); box-shadow: 0 3px 12px rgba(173,255,47,0.2); transform: scale(1.05); }
+    /* R19: dnd-kit 拖拽进行中——行间「+」按钮淡出禁点（布局不塌缩，避免起拖瞬间跳变） */
+    .block-minimap-list.is-sorting .block-minimap-add-wrap { opacity: .3; pointer-events: none; }
+    /* R19: DragOverlay 幽灵卡——半透明/轻微放大/投影/grabbing 光标 */
+    .block-minimap-item.is-ghost { border-color: greenyellow; box-shadow: 0 18px 44px rgba(0,0,0,0.6), 0 0 0 1px rgba(173,255,47,0.3); opacity: 0.92; transform: scale(1.04); cursor: grabbing; pointer-events: none; }
     .block-builder-shell { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 10px 16px; box-sizing: border-box; background: rgba(255, 255, 255, 0.015); box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.03), 0 8px 32px rgba(0, 0, 0, 0.35); transition: background-color 0.3s ease, border-color 0.3s ease; }
     .block-builder-shell:hover { border-color: rgba(255, 255, 255, 0.14); background-color: rgba(255, 255, 255, 0.025); }
     .block-builder-area-title { font-size: 15px; letter-spacing: 2px; color: #fff; font-weight: 700; margin-bottom: 14px; user-select: none; display: flex; align-items: center; gap: 8px; }
@@ -3018,22 +3038,26 @@ const BLOCK_TYPE_SHORT = {
   toggle: '折叠',
 };
 
-const BlockMinimapItem = ({
+// R19: 纯展示卡片（序号徽标/类型行/锁标/封面标/缩略图/预览文本），供排序列表项与 DragOverlay 幽灵卡共用；
+// DOM class 名与内部结构保持不变（.block-minimap-item 等），rootRef/rootStyle/rootProps 由外层接线。
+const BlockMinimapCard = ({
   block,
   index,
   isCover,
-  isDragging,
-  isDropBefore,
-  isDropAfter,
-  justMoved,
-  selectMode,
-  isSelected,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onDragEnd,
+  isDraggingItem = false,
+  isDropBefore = false,
+  isDropAfter = false,
+  justMoved = false,
+  selectMode = false,
+  isSelected = false,
+  isGhost = false,
   onClick,
   onRemove,
+  onFileDragOver,
+  onFileDrop,
+  rootRef,
+  rootStyle,
+  rootProps,
 }) => {
   const previewText = (() => {
     // toggle 的 content 为行数组，统一转成多行字符串再取预览
@@ -3061,25 +3085,25 @@ const BlockMinimapItem = ({
 
   return (
     <div
-      className={`block-minimap-item ${isDragging ? 'is-dragging' : ''} ${isDropBefore ? 'is-drop-before' : ''} ${isDropAfter ? 'is-drop-after' : ''} ${isCover ? 'is-cover' : ''} ${justMoved ? 'just-moved' : ''} ${selectMode ? 'is-select-mode' : ''} ${isSelected ? 'is-selected' : ''}`}
-      draggable={!selectMode}
-      onDragStart={(e) => { if (selectMode) { e.preventDefault(); return; } onDragStart(e, index); }}
-      onDragOver={(e) => { if (selectMode) return; onDragOver(e, index); }}
-      onDrop={(e) => { if (selectMode) return; onDrop(e, index); }}
-      onDragEnd={onDragEnd}
-      onClick={(e) => {
+      ref={rootRef}
+      {...(rootProps || {})}
+      className={`block-minimap-item ${isDraggingItem ? 'is-dragging' : ''} ${isDropBefore ? 'is-drop-before' : ''} ${isDropAfter ? 'is-drop-after' : ''} ${isCover ? 'is-cover' : ''} ${justMoved ? 'just-moved' : ''} ${selectMode ? 'is-select-mode' : ''} ${isSelected ? 'is-selected' : ''} ${isGhost ? 'is-ghost' : ''}`}
+      style={rootStyle}
+      onClick={onClick ? (e) => {
         if (e.target.closest('.block-minimap-del')) return;
         onClick(block.id);
-      }}
+      } : undefined}
       title={selectMode ? `第 ${index + 1} 块 · 点击选择/取消` : `第 ${index + 1} 块 · 拖拽排序 · 点击放大编辑`}
+      onDragOver={onFileDragOver}
+      onDrop={onFileDrop}
     >
       <span className="block-minimap-index">{index + 1}</span>
-      {!selectMode ? (
+      {!selectMode && !isGhost ? (
         <button
           type="button"
           className="block-minimap-del"
           draggable={false}
-          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onRemove(block.id); }}
           title="删除此块"
           aria-label="删除此块"
@@ -3102,6 +3126,57 @@ const BlockMinimapItem = ({
         )}
       </div>
     </div>
+  );
+};
+
+// R19: dnd-kit 排序列表项（包住每行）。卡片根节点即 sortable 节点，不新增 DOM 层级；
+// 触发方式为按住行任意处移动 ≥5px（PointerSensor distance 约束）；多选模式 disabled 不可拖。
+const BlockMinimapSortableItem = ({
+  block,
+  index,
+  isCover,
+  justMoved,
+  selectMode,
+  isSelected,
+  isDropBefore,
+  isDropAfter,
+  onClick,
+  onRemove,
+  onFileDragOver,
+  onFileDrop,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: block.id, disabled: selectMode });
+  return (
+    <BlockMinimapCard
+      block={block}
+      index={index}
+      isCover={isCover}
+      isDraggingItem={isDragging}
+      isDropBefore={isDropBefore}
+      isDropAfter={isDropAfter}
+      justMoved={justMoved}
+      selectMode={selectMode}
+      isSelected={isSelected}
+      onClick={onClick}
+      onRemove={onRemove}
+      onFileDragOver={onFileDragOver}
+      onFileDrop={onFileDrop}
+      rootRef={setNodeRef}
+      rootStyle={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        touchAction: 'none',
+        ...(isDragging ? { zIndex: 10 } : null),
+      }}
+      rootProps={{ ...attributes, ...listeners }}
+    />
   );
 };
 
@@ -3190,15 +3265,18 @@ const BlockBuilder = ({
 }) => {
   const [movingId, setMovingId] = useState(null);
   const [blockViewMode, setBlockViewMode] = useState('expanded');
-  const [dragIndex, setDragIndex] = useState(null);
-  const [dropIndex, setDropIndex] = useState(null);
-  const [dropPosition, setDropPosition] = useState(null);
+  // R19: dnd-kit 拖拽当前活跃块 id（null=未在拖拽）；旧自研三态拖拽索引状态已删除
+  const [activeSortId, setActiveSortId] = useState(null);
   const [fileDropIndex, setFileDropIndex] = useState(null);
   const [fileDropPosition, setFileDropPosition] = useState(null);
   const [fileDropEmpty, setFileDropEmpty] = useState(false);
   const [compactMultiSelect, setCompactMultiSelect] = useState(false);
   const [compactSelectedIds, setCompactSelectedIds] = useState([]);
   const minimapDragMovedRef = useRef(false);
+  // R19: PointerSensor 移动 ≥5px 才激活拖拽（点击放大/多选勾选不受影响）；不引入 KeyboardSensor
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
   // 行内超链接弹窗：{ blockId, start, end, label, url }，为 null 时关闭
   const [linkModal, setLinkModal] = useState(null);
   const [lockModal, setLockModal] = useState(null);
@@ -3633,13 +3711,12 @@ const BlockBuilder = ({
     setFileDropEmpty(false);
   };
 
+  // R19: 高亮判定只剩文件拖入（fileDrop*）；块排序拖拽由 dnd-kit 让位动画承担
   const isBlockDropBefore = (index) =>
-    (dropIndex === index && dropPosition === 'before') ||
-    (fileDropIndex === index && fileDropPosition === 'before');
+    fileDropIndex === index && fileDropPosition === 'before';
 
   const isBlockDropAfter = (index) =>
-    (dropIndex === index && dropPosition === 'after') ||
-    (fileDropIndex === index && fileDropPosition === 'after');
+    fileDropIndex === index && fileDropPosition === 'after';
 
   const handleFilesForBlock = (blockId, fileList) => {
     const files = Array.from(fileList || []).filter(f => /^(image|video)\//i.test(f.type));
@@ -3784,129 +3861,84 @@ const BlockBuilder = ({
     scrollToBlock(item.id);
   };
 
-  const reorderBlocks = (fromIndex, insertAt) => {
-    if (fromIndex < 0 || insertAt < 0 || insertAt > blocks.length) return;
-    if (fromIndex === insertAt || fromIndex + 1 === insertAt) return;
-    const newBlocks = [...blocks];
-    const [item] = newBlocks.splice(fromIndex, 1);
-    let target = insertAt;
-    if (fromIndex < insertAt) target -= 1;
-    newBlocks.splice(target, 0, item);
-    setBlocks(newBlocks);
-    setMovingId(item.id);
+  // R19: dnd-kit 拖拽生命周期。onDragStart 置 minimapDragMovedRef=true（≥5px 才会到这里），
+  // 抑制松手后同帧触发的 click 放大；onDragEnd/onDragCancel 里 setTimeout(0) 复位，纯点击不拖不会置位。
+  const handleMinimapSortStart = (event) => {
+    clearFileDrop();
+    minimapDragMovedRef.current = true;
+    setActiveSortId(event.active.id);
+  };
+
+  const resetMinimapDragMoved = () => {
+    setTimeout(() => { minimapDragMovedRef.current = false; }, 0);
+  };
+
+  const handleMinimapSortEnd = (event) => {
+    const { active, over } = event;
+    setActiveSortId(null);
+    resetMinimapDragMoved();
+    if (!over || active.id === over.id) return;
+    const oldIndex = blocks.findIndex(b => b.id === active.id);
+    const newIndex = blocks.findIndex(b => b.id === over.id);
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+    const nextBlocks = arrayMove(blocks, oldIndex, newIndex);
+    setBlocks(nextBlocks);
+    setMovingId(nextBlocks[newIndex].id);
     setTimeout(() => setMovingId(null), 600);
   };
 
-  const handleMinimapDragStart = (e, index) => {
-    if (e.target.closest('.block-minimap-del')) {
-      e.preventDefault();
-      return;
-    }
-    clearFileDrop();
-    minimapDragMovedRef.current = false;
-    setDragIndex(index);
-    setDropIndex(null);
-    setDropPosition(null);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(index));
-    const row = e.currentTarget;
-    if (row) e.dataTransfer.setDragImage(row, row.offsetWidth / 2, row.offsetHeight / 2);
+  const handleMinimapSortCancel = () => {
+    setActiveSortId(null);
+    resetMinimapDragMoved();
   };
 
-  const handleMinimapDragOver = (e, index) => {
+  // 文件拖入（从桌面拖图片）：仅处理 isFileDragEvent 的原生 dragover/drop，
+  // fileDropIndex/fileDropPosition 高亮与 handleFileDropAt 落点逻辑原样保留。
+  const handleMinimapFileDragOver = (e, index) => {
+    if (compactMultiSelect) return;
+    if (!isFileDragEvent(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    if (compactMultiSelect) return;
-    if (isFileDragEvent(e) && dragIndex === null) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-      setFileDropIndex(index);
-      setFileDropPosition(position);
-      setFileDropEmpty(false);
-      return;
-    }
-    if (dragIndex === null) return;
-    minimapDragMovedRef.current = true;
-    if (dragIndex === index) {
-      setDropIndex(null);
-      setDropPosition(null);
-      return;
-    }
     const rect = e.currentTarget.getBoundingClientRect();
     const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-    setDropIndex(index);
-    setDropPosition(position);
+    setFileDropIndex(index);
+    setFileDropPosition(position);
+    setFileDropEmpty(false);
   };
 
-  const handleMinimapContainerDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleMinimapContainerFileDragOver = (e) => {
     if (compactMultiSelect) return;
-    if (isFileDragEvent(e) && dragIndex === null) {
-      if (!blocks.length) {
-        setFileDropEmpty(true);
-        setFileDropIndex(null);
-        setFileDropPosition(null);
-        return;
-      }
-      setFileDropIndex(blocks.length - 1);
-      setFileDropPosition('after');
-      setFileDropEmpty(false);
-      return;
-    }
-    if (dragIndex === null || !blocks.length) return;
-    minimapDragMovedRef.current = true;
-    setDropIndex(blocks.length - 1);
-    setDropPosition('after');
-  };
-
-  const handleMinimapDrop = (e, index) => {
+    if (!isFileDragEvent(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    const fileList = extractImageFilesFromDataTransfer(e.dataTransfer);
-    if (fileList.length && dragIndex === null) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-      const insertAt = position === 'after' ? index + 1 : index;
-      handleFileDropAt(e, insertAt);
+    if (!blocks.length) {
+      setFileDropEmpty(true);
+      setFileDropIndex(null);
+      setFileDropPosition(null);
       return;
     }
-    const from = dragIndex ?? parseInt(e.dataTransfer.getData('text/plain'), 10);
-    if (Number.isNaN(from)) return;
+    setFileDropIndex(blocks.length - 1);
+    setFileDropPosition('after');
+    setFileDropEmpty(false);
+  };
+
+  const handleMinimapFileDrop = (e, index) => {
+    const fileList = extractImageFilesFromDataTransfer(e.dataTransfer);
+    if (!fileList.length) return;
+    e.preventDefault();
+    e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
     const insertAt = position === 'after' ? index + 1 : index;
-    reorderBlocks(from, insertAt);
-    setDragIndex(null);
-    setDropIndex(null);
-    setDropPosition(null);
+    handleFileDropAt(e, insertAt);
   };
 
-  const handleMinimapContainerDrop = (e) => {
+  const handleMinimapContainerFileDrop = (e) => {
+    const fileList = extractImageFilesFromDataTransfer(e.dataTransfer);
+    if (!fileList.length) return;
     e.preventDefault();
     e.stopPropagation();
-    const fileList = extractImageFilesFromDataTransfer(e.dataTransfer);
-    if (fileList.length && dragIndex === null) {
-      if (!blocks.length) {
-        handleFileDropAt(e, 0);
-      } else {
-        handleFileDropAt(e, blocks.length);
-      }
-      return;
-    }
-    const from = dragIndex ?? parseInt(e.dataTransfer.getData('text/plain'), 10);
-    if (Number.isNaN(from)) return;
-    reorderBlocks(from, blocks.length);
-    setDragIndex(null);
-    setDropIndex(null);
-    setDropPosition(null);
-  };
-
-  const handleMinimapDragEnd = () => {
-    setDragIndex(null);
-    setDropIndex(null);
-    setDropPosition(null);
-    setTimeout(() => { minimapDragMovedRef.current = false; }, 0);
+    handleFileDropAt(e, blocks.length);
   };
 
   const handleMinimapClick = (blockId) => {
@@ -3934,6 +3966,8 @@ const BlockBuilder = ({
   const linkModalValid = !!(linkModal && (linkModal.label || '').trim() && (linkModal.url || '').trim() && (linkModal.url || '').trim() !== 'https://');
   const lockModalBlock = lockModal ? blocks.find((b) => b.id === lockModal.blockId) : null;
   const lockModalIsDedicated = lockModalBlock?.type === 'lock';
+  // R19: DragOverlay 幽灵卡数据源
+  const activeSortBlock = activeSortId ? (blocks.find((b) => b.id === activeSortId) || null) : null;
   return (
     <div className="block-builder-shell" style={{marginTop:'30px'}}>
       {renderFloatingBlockTypeMenu()}
@@ -4087,36 +4121,53 @@ const BlockBuilder = ({
             {renderCompactMinimapToolbar()}
             <div
               className="block-minimap-scroll"
-              onDragOver={handleMinimapContainerDragOver}
-              onDrop={handleMinimapContainerDrop}
+              onDragOver={handleMinimapContainerFileDragOver}
+              onDrop={handleMinimapContainerFileDrop}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget)) clearFileDrop();
               }}
             >
-              <div className="block-minimap-list">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleMinimapSortStart}
+                onDragEnd={handleMinimapSortEnd}
+                onDragCancel={handleMinimapSortCancel}
+              >
+                <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                  <div className={`block-minimap-list${activeSortId ? ' is-sorting' : ''}`}>
               {blocks.map((b, index) => (
                 <React.Fragment key={b.id}>
-                  <BlockMinimapItem
+                  <BlockMinimapSortableItem
                     block={b}
                     index={index}
                     isCover={b.id === coverImageBlockId}
-                    isDragging={dragIndex === index}
-                    isDropBefore={!compactMultiSelect && isBlockDropBefore(index)}
-                    isDropAfter={!compactMultiSelect && isBlockDropAfter(index)}
                     justMoved={movingId === b.id}
                     selectMode={compactMultiSelect}
                     isSelected={compactSelectedIds.includes(b.id)}
-                    onDragStart={handleMinimapDragStart}
-                    onDragOver={handleMinimapDragOver}
-                    onDrop={handleMinimapDrop}
-                    onDragEnd={handleMinimapDragEnd}
+                    isDropBefore={!compactMultiSelect && isBlockDropBefore(index)}
+                    isDropAfter={!compactMultiSelect && isBlockDropAfter(index)}
                     onClick={handleMinimapClick}
                     onRemove={removeBlock}
+                    onFileDragOver={(e) => handleMinimapFileDragOver(e, index)}
+                    onFileDrop={(e) => handleMinimapFileDrop(e, index)}
                   />
                   {renderMinimapAddBtn(`compact-after-${b.id}`, index)}
                 </React.Fragment>
               ))}
             </div>
+                </SortableContext>
+                <DragOverlay zIndex={10040} dropAnimation={null}>
+                  {activeSortBlock ? (
+                    <BlockMinimapCard
+                      block={activeSortBlock}
+                      index={blocks.findIndex((b) => b.id === activeSortBlock.id)}
+                      isCover={activeSortBlock.id === coverImageBlockId}
+                      isGhost
+                    />
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
             </div>
           </div>
         )
@@ -4131,7 +4182,7 @@ const BlockBuilder = ({
         }}
         onDrop={(e) => {
           const files = extractImageFilesFromDataTransfer(e.dataTransfer);
-          if (!files.length || dragIndex !== null) return;
+          if (!files.length) return;
           e.preventDefault();
           e.stopPropagation();
           const { index, position } = resolveExpandedFileInsertFromY(e.currentTarget, e.clientY);
