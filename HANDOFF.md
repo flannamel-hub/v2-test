@@ -96,3 +96,10 @@ Notion 驱动的 BLOG SaaS(前台 Next.js 13 Pages Router + Notion 数据源 + S
   - `WelcomeTourModal.js`（新）：首进欢迎窗「欢迎使用 BLOG 后台/这里是你的内容发布中心。需要一份新手引导带你快速上手吗？」【不需要】（双写两列标记、不再打扰）【开始指引】（就绪门控后开链条）；齿轮重放直达不经欢迎窗；<768px 不弹。
 - **验收（测试站 z4sobc 真机，1500×1150）**：欢迎窗四断言 ✓；不需要→双写(03:08)✓；开始指引→首页引导→点发布→编辑器引导自动接续→14 步走完→恭喜窗→回到首页→**滚动归零 {win:0, cont:0}** ✓；动效三帧（全亮无遮罩/遮罩渐入+描边框/停留态）目检 ✓；退出三路径（按钮/Esc/跳过→确认窗→继续引导/Esc 取消/确认退出）✓；标记双写(03:11)后已复位 null 供验收。
 - 主站侧零改动（本单全在 BLOG 侧）。
+
+## R19 — 缩小视图拖拽重制（dnd-kit 标准方案）（2026-09-19，上线并真机验收）
+
+- **拍板**：1A dnd-kit 重制 / 2A 悬浮卡+让位开缝 / 3A 5px 激活阈值 / 4A 自动滚动 / 5A 多选禁拖。
+- **BLOG 侧（`c3b14b99`）**：`AdminDashboard.js` ±325 行——新依赖 `@dnd-kit/core ^6.3.1 / sortable ^10.0.0 / utilities ^3.2.2`（package.json + lock 已提交）；`BlockMinimapCard`（纯展示卡，供排序项与幽灵卡共用）+ `BlockMinimapSortableItem`（useSortable，disabled=selectMode，transform/transition/touchAction 自带，拖中 zIndex 10）；`DndContext`（PointerSensor distance:5 + closestCenter）包 `.block-minimap-list`；`DragOverlay zIndex={10040} dropAnimation={null}` 幽灵卡（is-ghost 绿边/投影/缩放 1.04）；`onDragEnd` 按 id 求索引 `arrayMove` + `justMoved` 闪 600ms；`onDragCancel` 兜底；`is-sorting` 时 `+` 行 opacity .3 且 pointer-events none；旧自研 5 态/10 handler/`reorderBlocks` 全删（零残留）；文件拖入分支改名保留（handleMinimapFileDragOver/FileDrop/Container*）；**红区唯一触碰点**：放大视图 onDrop 的 `dragIndex !== null` 守卫删除（行为等价）。
+- **验收（z4sobc 真机，CDP 指针级模拟）**：T1 H1 拖到顶部 ✓ 精确落位；T2 拖回 index2 ✓；T3 原地放下无变化 ✓；T4 缝隙释放落在 index1（**未甩末尾**，旧 bug 消除）✓；T5 多选模式拖拽不激活+点选/退出 ✓；T6 纯点击切放大视图 ✓（拖动后不误触缩放 ✓）；文件拖入合成高亮 ✓；**内层容器自动滚动 scrollTop 0→255** ✓；放大视图 5 块卡+上下移按钮基线 ✓；删除钮 ✓。停靠期间改动均未保存（服务端零写入）。
+- **工具沉淀**：`scripts/tmp_r19_mint.ts`（pro-merchant-v3）= 免密生成 5 分钟 admin 登录链接（读实例密钥解密+签名，生产同逻辑）；CDP 拖拽模拟要点：move 事件 `button:'none', buttons:1`、必须先 `elementFromPoint` 验证命中（内层 `.block-minimap-scroll` 会裁剪列表且自带滚动——测试前把目标项滚进可视区）。
