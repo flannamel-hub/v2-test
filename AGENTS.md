@@ -339,8 +339,9 @@
 - `announcement-popup` 定位为**站务通知**，不是广告：前台无 CTA 跳转按钮，无「通知」类标签；布局为标题栏 + 正文/可选附图 + 底部全宽「知道了」；正文内 URL 自动链接触可保留。
 - 前台浅色：`gallery`、`tweet-light`、standard 的 `html:not(.dark)`；深色：`tweet`、`tweet-dark`、standard 的 `html.dark`。
 - 关闭后用 `sessionStorage` + 内容 hash，同会话同内容不再弹；内容变更后会再弹。
+- **弹窗时序与遮罩宽限期（2026-09-20 修复 P1/P2/P3，BLOG_FIX_POPUP_CART_BRIEF）**：`SitePopups` 的「公告结清」按**内容 key** 结算（`announcementSessionKey`，由 `AnnouncementPopup.tsx` 导出，单一来源）——记录已结清 key、与当前 key 一致才允许广告出现；公告内容变化→新 key 自然回到未结清。**不得**改回挂载期 reset effect（同批次子组件 `onSettled` 会被复位覆盖，曾导致公告已关/无公告时广告被永久压死、`activeTheme` 无关变化隐藏已可见广告）。公告与广告任何时刻互斥，广告只在公告结清后出现；广告可见性仅在「用户关闭/结清交接/离开首页/配置关闭」时变化。公告与广告的遮罩点击带 **400ms 宽限期**（`POPUP_BACKDROP_GRACE_MS`，防出现瞬间误触关闭；关闭按钮/「知道了」/CTA 不受限）。仿真装置 `tmp/opencode/popup-cart-repro`（62 断言，含真实卡片树跨卡隔离）为该模块回归入口。
 - `gallery-ad` 后台有开启/关闭开关（Notion `status`）；关闭后前台不渲染。文章页全主题生效（`GalleryAdBanner` / `TweetAdBanner` / `StandardAdBanner`）；下载页广告目前仅 Gallery。
-- `popup-ad` 为营销弹窗：主图 + 标题 + 文案 + CTA；**仅首页**进入时弹出；`sessionStorage` 键 `popup-ad:session-shown` 每浏览器会话一次；与公告同时开启时由 `SitePopups` 先公告、关闭后再弹广告。
+- `popup-ad` 为营销弹窗：主图 + 标题 + 文案 + CTA；**仅首页**进入时弹出；`sessionStorage` 键 `popup-ad:session-shown` 每会话一次；**2026-09-20 起为「展示即记」**（变为可见即写标记，用户不关离开页面也不再弹）；与公告同时开启时由 `SitePopups` 先公告、关闭后再弹广告。
 - `click-ad` 为首页遮罩广告：开启后访客在首页第一次有效点击时，原点击照常进行，同时 `window.open` 新标签打开广告链接；`localStorage` 键 `click-ad:day:YYYY-MM-DD` 每天一次；排除贩售机（`data-blog-vending="1"`）以及公告/弹窗广告 UI。
 - 公告弹窗深色适配：standard / tweet-dark 为纯黑面板；tweet（灰色）为灰阶深色；浅色主题（gallery / tweet-light / standard light）保持白底。
 - 前台挂载：`withNavFooter` → `SitePopups`（公告 + 弹窗广告 + 遮罩广告捕获）。

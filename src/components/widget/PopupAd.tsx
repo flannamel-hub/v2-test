@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PopupAdConfig } from '@/src/lib/blog/popupAdDefaults'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
+import { POPUP_BACKDROP_GRACE_MS } from './AnnouncementPopup'
 
 type Props = {
   config?: PopupAdConfig | null
@@ -39,34 +40,44 @@ export function PopupAd({
     return text || '了解详情'
   }, [config?.buttonText])
   const [visible, setVisible] = useState(false)
+  // P3:本次变为可见的时间戳(遮罩宽限期判定;关闭按钮/CTA 不受限)
+  const shownAtRef = useRef(0)
 
   useEffect(() => {
     if (!isHomePage || !announceSettled || !config || !hasContent) {
+      // 合法隐藏路径:公告未结清(交接让位)/离开首页/广告配置关闭
       setVisible(false)
       return
     }
+    // P2:已可见时不重复判定(会话标记在展示时已写),无关重渲染不得隐藏;
+    // 仅用户关闭或上方合法路径可改变可见性。
+    if (visible) return
     try {
       if (sessionStorage.getItem(SESSION_KEY) === '1') {
-        setVisible(false)
         return
       }
     } catch {
       // private mode: still show once in this mount
     }
     setVisible(true)
-  }, [isHomePage, announceSettled, config, hasContent])
-
-  if (!config || !hasContent || !visible || !isHomePage || !announceSettled) {
-    return null
-  }
-
-  const markShownAndClose = () => {
-    setVisible(false)
+    shownAtRef.current = Date.now()
+    // 会话语义:展示即记——变为可见即写会话标记,用户不关离开也不再弹
     try {
       sessionStorage.setItem(SESSION_KEY, '1')
     } catch {
       // ignore
     }
+  }, [visible, isHomePage, announceSettled, config, hasContent])
+
+  if (!config || !hasContent || !visible || !isHomePage || !announceSettled) {
+    return null
+  }
+
+  const close = () => setVisible(false)
+  // P3:遮罩点击带宽限期——可见后短时间内忽略,防出现瞬间误触关闭
+  const handleBackdropClick = () => {
+    if (Date.now() - shownAtRef.current < POPUP_BACKDROP_GRACE_MS) return
+    close()
   }
 
   const themeClass = resolveThemeClass(activeTheme)
@@ -82,13 +93,13 @@ export function PopupAd({
       aria-modal="true"
       aria-labelledby={title ? 'popup-ad-title' : undefined}
     >
-      <div className="popup-ad__backdrop" onClick={markShownAndClose} />
+      <div className="popup-ad__backdrop" onClick={handleBackdropClick} />
       <section className="popup-ad__panel">
         <button
           className="popup-ad__close"
           type="button"
           aria-label="关闭广告"
-          onClick={markShownAndClose}
+          onClick={close}
         >
           &times;
         </button>
@@ -98,7 +109,7 @@ export function PopupAd({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={markShownAndClose}
+            onClick={close}
           >
             <img src={image} alt="" />
           </a>
@@ -117,7 +128,7 @@ export function PopupAd({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={markShownAndClose}
+            onClick={close}
           >
             {ctaText}
           </a>

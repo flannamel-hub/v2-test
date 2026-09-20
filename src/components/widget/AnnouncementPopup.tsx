@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AnnouncementPopupConfig } from '@/src/lib/blog/announcementPopupDefaults'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
 
@@ -9,7 +9,24 @@ type Props = {
   onSettled?: () => void
 }
 
-function buildPopupKey(config: AnnouncementPopupConfig) {
+/**
+ * P3:弹窗出现后的遮罩点击宽限期(毫秒)——可见后该时间内忽略遮罩点击,
+ * 杜绝「出现瞬间被误触/ghost click 关掉」;关闭按钮与「知道了」不受限。
+ */
+export const POPUP_BACKDROP_GRACE_MS = 400
+
+/**
+ * 公告会话 key:enabled 且 title/content/image 任一非空时按 `title|content|image`
+ * 生成(截断 500),否则返回 ''(视为无公告、立即结清)。
+ * 父组件 SitePopups 用同一 key 判断「当前公告是否已结清」,单一来源防口径漂移。
+ */
+export function announcementSessionKey(config?: AnnouncementPopupConfig | null): string {
+  const hasContent = Boolean(
+    (config?.title || '').trim() ||
+      (config?.content || '').trim() ||
+      (config?.image || '').trim()
+  )
+  if (!config?.enabled || !hasContent) return ''
   return [config.title, config.content, config.image].join('|').slice(0, 500)
 }
 
@@ -71,10 +88,12 @@ export function AnnouncementPopup({ config, activeTheme, onSettled }: Props) {
         (config.image || '').trim())
   )
   const popupKey = useMemo(
-    () => (config && hasContent ? buildPopupKey(config) : ''),
+    () => (config && hasContent ? announcementSessionKey(config) : ''),
     [config, hasContent]
   )
   const [visible, setVisible] = useState(false)
+  // P3:本次变为可见的时间戳(遮罩宽限期判定;关闭按钮/「知道了」不受限)
+  const shownAtRef = useRef(0)
 
   useEffect(() => {
     if (!config || !hasContent || !popupKey) {
@@ -86,9 +105,14 @@ export function AnnouncementPopup({ config, activeTheme, onSettled }: Props) {
       const storageKey = `announcement-popup:${popupKey}`
       const closed = sessionStorage.getItem(storageKey) === 'closed'
       setVisible(!closed)
-      if (closed) onSettled?.()
+      if (closed) {
+        onSettled?.()
+      } else {
+        shownAtRef.current = Date.now()
+      }
     } catch {
       setVisible(true)
+      shownAtRef.current = Date.now()
     }
   }, [config, hasContent, popupKey, onSettled])
 
@@ -103,6 +127,11 @@ export function AnnouncementPopup({ config, activeTheme, onSettled }: Props) {
     }
     onSettled?.()
   }
+  // P3:遮罩点击带宽限期——可见后短时间内忽略,防出现瞬间误触关闭
+  const handleBackdropClick = () => {
+    if (Date.now() - shownAtRef.current < POPUP_BACKDROP_GRACE_MS) return
+    close()
+  }
   const themeClass = resolveThemeClass(activeTheme)
   const title = (config.title || '').trim()
   const content = (config.content || '').trim()
@@ -115,7 +144,7 @@ export function AnnouncementPopup({ config, activeTheme, onSettled }: Props) {
       aria-modal="true"
       aria-labelledby={title ? 'announcement-popup-title' : undefined}
     >
-      <div className="announcement-popup__backdrop" onClick={close} />
+      <div className="announcement-popup__backdrop" onClick={handleBackdropClick} />
       <section className="announcement-popup__panel">
         <header className="announcement-popup__header">
           {title ? (

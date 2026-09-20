@@ -10,3 +10,15 @@ declare module 'react-dom' {
     key?: string | null
   ): ReactPortal
 }
+
+/** react-dom/client:createRoot(仿真装置/客户端挂载用,同上过渡补丁) */
+declare module 'react-dom/client' {
+  import type { ReactNode } from 'react'
+  export function createRoot(
+    container: Element | DocumentFragment,
+    options?: { onRecoverableError?: (error: unknown) => void }
+  ): {
+    render(children: ReactNode): void
+    unmount(): void
+  }
+}
