@@ -8,3 +8,10 @@ build
 z-broken-git-trash
 # 本地开发工具配置
 .cursor/
+
+# ── 信息面收口(2026-09-20)：内部开发/运维文档与派工单不入库（本地保留）──
+*.md
+!/README.md
+!/.agents/**
+# 本地第三方参考源码
+.dujiao-ref/
