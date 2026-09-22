@@ -28,6 +28,13 @@ const GALLERY_SKIP_BYTES = 260 * 1024
 
 
 
+/** createImageBitmap 解码超时兜底（W4-5c）：某些环境该 API 存在但会「挂住不返回」
+ * （真机实测既不 resolve 也不 reject）——超时即放弃并回退 new Image() 路径，防上传卡死 */
+
+const BITMAP_DECODE_TIMEOUT_MS = 3000
+
+
+
 /** 兰空图床：后台限速 50 张/分钟，客户端留余量走全局队列 */
 
 const LSKY_MAX_PER_MINUTE = 48
@@ -545,16 +552,38 @@ async function loadImageFromFile(file) {
 
   // W4-5a 方向加固（§3.2）：首选 createImageBitmap 显式按 EXIF 方向解码，
   // 失败回退 new Image()（现代引擎渲染时已按方向绘制）；两者都失败抛「无法读取图片」
+  // W4-5c：真机实测某些环境 createImageBitmap 会「挂住不返回」（不 resolve 也不抛错），
+  // 超时竞速兜底——超时与抛错一律回退 new Image() 路径，避免上传永久卡死
 
   if (typeof createImageBitmap === 'function') {
 
+    let bitmapTimeoutId = null
+
     try {
 
-      return await createImageBitmap(file, { imageOrientation: 'from-image' })
+      return await Promise.race([
+
+        createImageBitmap(file, { imageOrientation: 'from-image' }),
+
+        new Promise((_, reject) => {
+
+          bitmapTimeoutId = setTimeout(
+            () => reject(new Error('createImageBitmap 解码超时')),
+
+            BITMAP_DECODE_TIMEOUT_MS
+          )
+
+        }),
+
+      ])
 
     } catch {
 
-      /* 回退下方 Image 路径 */
+      /* 超时或抛错：回退下方 Image 路径 */
+
+    } finally {
+
+      clearTimeout(bitmapTimeoutId)
 
     }
 
