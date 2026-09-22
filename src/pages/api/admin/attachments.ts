@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 import {
   deleteMainSiteObject,
+  fetchSiteImageCapability,
   listMainSiteAttachments,
   uploadMainSiteAttachment,
   type MainSiteAttachment,
@@ -14,14 +15,18 @@ import {
 // Bearer + BLOG_SITE_ID 转发主站存储 API（同 /api/admin/upload 双轨惯例）。
 //
 //   GET    ?slug=<文章 slug>  → 主站 /api/storage/attachments 列表
-//                              （items 含模板拼接的绝对 download_url）
+//                              （items 优先透传主站下发的绝对 download_url
+//                                （pan 域），缺失回退拼接 ${base}/files/{key}）
 //   POST   ?slug=<文章 slug>  → 原始二进制流（x-file-name + content-type 头）
 //                              → 主站 /api/storage/upload（type=attachment + post_key）
 //   DELETE {key}              → 主站 /api/storage/delete（软删 + 幂等）
 //
-// 附件类型/大小白名单由主站统一裁决（pdf/zip/doc 类，≤50MB）；
+// 附件类型/大小白名单由主站统一裁决（pdf/zip/doc 类，≤20MB）；
 // 本地仅先做粗判（非 GET 方法 + verifyAdminRequest；middleware 只读拦截清单
 // 已含 /api/admin/attachments）。
+// W4-3：POST 转发前先取附件能力门（附件跟随图床基座），
+//   attachmentsEnabled=false → 403 attachments_unavailable；
+//   能力读取失败照旧放行（fail-open，不因主站抖动锁死附件功能）。
 // ============================================================
 
 // 关闭 Next 自带 body 解析：POST 走原始二进制流（与 /api/admin/upload 同惯例）
@@ -31,7 +36,8 @@ export const config = {
   },
 }
 
-const MAX_ATTACHMENT_MB = 50
+// W4-3：附件单文件上限 50MB → 20MB（与主站附件上限对齐）
+const MAX_ATTACHMENT_MB = 20
 const MAX_SIZE = MAX_ATTACHMENT_MB * 1024 * 1024
 
 const ATTACHMENT_EXT_RE = /\.(pdf|zip|rar|7z|doc|docx|xls|xlsx|txt)$/i
@@ -41,10 +47,17 @@ type AttachmentsApiResponse = {
   items?: MainSiteAttachment[]
   item?: MainSiteAttachment
   error?: string
+  /** W4-3：机器可读错误码（如 attachments_unavailable） */
+  code?: string
 }
 
-function fail(res: NextApiResponse<AttachmentsApiResponse>, status: number, error: string) {
-  return res.status(status).json({ success: false, error })
+function fail(
+  res: NextApiResponse<AttachmentsApiResponse>,
+  status: number,
+  error: string,
+  code?: string
+) {
+  return res.status(status).json({ success: false, error, code })
 }
 
 function readRawBody(req: NextApiRequest): Promise<Buffer> {
@@ -118,6 +131,13 @@ export default async function handler(
     const slug = requestSlug(req)
     if (!slug) return fail(res, 400, '缺少文章 slug')
 
+    // W4-3：附件能力门（附件跟随图床基座）——转发前先取能力；
+    // attachmentsEnabled=false 直接 403；能力读取失败照旧放行（fail-open）。
+    const capability = await fetchSiteImageCapability()
+    if (capability && capability.attachmentsEnabled === false) {
+      return fail(res, 403, '当前图床基座不支持附件', 'attachments_unavailable')
+    }
+
     let buffer: Buffer
     try {
       buffer = await readRawBody(req)
@@ -163,7 +183,9 @@ export default async function handler(
         size: result.data.size ?? buffer.length,
         mime: contentType,
         created_at: new Date().toISOString(),
-        download_url: `${base}/files/${result.data.key}`,
+        // W4-3：优先透传主站下发的绝对 download_url（pan 域）；缺失回退旧拼接
+        download_url:
+          (result.data.download_url || '').trim() || `${base}/files/${result.data.key}`,
       },
     })
   }

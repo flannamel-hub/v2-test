@@ -32,8 +32,8 @@ function extLabel(key: string): string {
  * 存储基座 S3：文章页公开附件下载区（四主题共用）。
  *
  * - 数据源：本站公开端点 /api/attachments?slug=（服务端持主站凭据代理，
- *   拼接绝对下载地址；失败/空列表整块渲染 null，普通文章零影响）；
- * - 下载按钮直连主站 /files/{key}（公开代理 + Content-Disposition 原始文件名）；
+ *   优先透传主站下发的绝对下载地址；失败/空列表整块渲染 null，普通文章零影响）；
+ * - 下载按钮用主站下发的绝对 download_url（pan 域）直连；
  * - 与 ArticleProductBuyBar 同判空模式：无数据不占版面；
  *   页面为 ISR 静态，附件列表运行时拉取（上传/删除即时可见）。
  */

@@ -7,7 +7,11 @@
  * - BLOG 站身份 = BLOG_SITE_ID(merchant_services.id),缺失时一律按 legacy 降级;
  * - 图床双轨判定 GET /api/storage/image-backend?site_id= 带 60s 进程内缓存,
  *   任何失败(未配置/超时/非白名单)一律回退 legacy_landcloud——旧链路(兰空)保持可用,
- *   宁可停在旧链也不落到未配置的新链(与主站 lib/storage/quota.ts 同语义)。
+ *   宁可停在旧链也不落到未配置的新链(与主站 lib/storage/quota.ts 同语义);
+ * - W4-3 附件能力门 fetchSiteImageCapability():与双轨判定同端点同凭据(60s 缓存),
+ *   任何失败/异常一律返回 null(fail-open),调用方按「可用」处理;
+ * - W4-3 download_url 直连:附件列表/上传优先透传主站下发的绝对地址(pan 域),
+ *   缺失/空串时回退旧拼接 `${base}/files/${key}` 兜底。
  */
 
 import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
@@ -83,6 +87,97 @@ export function __resetImageBackendCacheForTest(): void {
 }
 
 // ---------------------------------------------------------------------------
+// W4-3 附件能力门:附件跟随图床基座(与主站 /api/storage/image-backend 同源)
+// ---------------------------------------------------------------------------
+
+export type SiteImageCapability = {
+  backend: SiteImageBackend
+  attachmentsEnabled: boolean
+  maxAttachmentMB: number
+}
+
+/** 主站未下发(或值非法)时的附件单文件上限兜底(与主站当前上限一致) */
+const DEFAULT_MAX_ATTACHMENT_MB = 20
+
+let capabilityMemo: { value: SiteImageCapability; at: number } | null = null
+let capabilityInflight: Promise<SiteImageCapability | null> | null = null
+
+function normalizeMaxAttachmentMB(raw: unknown): number {
+  const n = Math.floor(Number(raw))
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_ATTACHMENT_MB
+}
+
+/**
+ * 当前站点的附件能力(60s 缓存;失败不缓存)。
+ * - 与 resolveSiteImageBackend 同一主站端点/超时/凭据规则;
+ * - 站点身份缺失时按 legacy 语义直接判定附件不可用(确定性状态,不发请求);
+ * - 任何失败/异常一律返回 null(fail-open):调用方按「可用」处理,
+ *   不因主站抖动锁死正常站点的附件功能。
+ */
+export async function fetchSiteImageCapability(): Promise<SiteImageCapability | null> {
+  const siteId = getBlogSiteIdOrNull()
+  if (!siteId) {
+    return {
+      backend: 'legacy_landcloud',
+      attachmentsEnabled: false,
+      maxAttachmentMB: DEFAULT_MAX_ATTACHMENT_MB,
+    }
+  }
+
+  if (capabilityMemo && Date.now() - capabilityMemo.at < IMAGE_BACKEND_CACHE_MS) {
+    return capabilityMemo.value
+  }
+  if (capabilityInflight) return capabilityInflight
+
+  capabilityInflight = (async (): Promise<SiteImageCapability | null> => {
+    try {
+      const res = await fetch(
+        `${resolveMainStorageBase()}/api/storage/image-backend?site_id=${siteId}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            ...(mainApiToken() ? { Authorization: `Bearer ${mainApiToken()}` } : {}),
+          },
+          signal: AbortSignal.timeout(MAIN_FETCH_TIMEOUT_MS),
+          cache: 'no-store',
+        }
+      )
+      if (!res.ok) return null
+      const payload = (await res.json()) as {
+        backend?: unknown
+        attachmentsEnabled?: unknown
+        maxAttachmentMB?: unknown
+      }
+      const backend: SiteImageBackend =
+        payload?.backend === 'storage_base' ? 'storage_base' : 'legacy_landcloud'
+      const value: SiteImageCapability = {
+        backend,
+        attachmentsEnabled:
+          typeof payload?.attachmentsEnabled === 'boolean'
+            ? payload.attachmentsEnabled
+            : backend === 'storage_base',
+        maxAttachmentMB: normalizeMaxAttachmentMB(payload?.maxAttachmentMB),
+      }
+      capabilityMemo = { value, at: Date.now() }
+      return value
+    } catch {
+      // 查询失败按 fail-open 返回 null 且不缓存(短暂故障后自动恢复)
+      return null
+    } finally {
+      capabilityInflight = null
+    }
+  })()
+
+  return capabilityInflight
+}
+
+/** 测试辅助:清空附件能力缓存 */
+export function __resetSiteImageCapabilityCacheForTest(): void {
+  capabilityMemo = null
+  capabilityInflight = null
+}
+
+// ---------------------------------------------------------------------------
 // 附件(attachment)主站代理原语:列表 / 上传 / 删除
 // ---------------------------------------------------------------------------
 
@@ -92,7 +187,7 @@ export type MainSiteAttachment = {
   size: number
   mime: string | null
   created_at: string
-  /** 模板侧拼接的绝对下载地址(`${base}/files/${key}`) */
+  /** 绝对下载地址:优先主站下发(pan 域);缺失/空串回退 `${base}/files/${key}` 拼接 */
   download_url: string
 }
 
@@ -138,7 +233,8 @@ async function mainFetchJson<T>(
   }
 }
 
-/** 读取某文章 slug 的附件列表(主站返回白名单字段 + 模板拼绝对下载地址)。 */
+/** 读取某文章 slug 的附件列表(主站返回白名单字段;download_url 优先透传主站
+ *  下发的绝对地址(pan 域),缺失/空串回退旧拼接 `${base}/files/${key}` 兜底)。 */
 export async function listMainSiteAttachments(postKey: string): Promise<MainCallResult<{ items: MainSiteAttachment[] }>> {
   const siteId = getBlogSiteIdOrNull()
   const slug = (postKey || '').trim()
@@ -146,7 +242,9 @@ export async function listMainSiteAttachments(postKey: string): Promise<MainCall
   if (!isValidAttachmentPostKey(slug)) return { ok: false, status: 400, error: '文章 slug 格式不合法' }
 
   const base = resolveMainStorageBase()
-  const result = await mainFetchJson<{ items: Array<Omit<MainSiteAttachment, 'download_url'>> }>(
+  const result = await mainFetchJson<{
+    items: Array<Omit<MainSiteAttachment, 'download_url'> & { download_url?: string | null }>
+  }>(
     `${base}/api/storage/attachments?site_id=${siteId}&post_key=${encodeURIComponent(slug)}`,
     { method: 'GET' }
   )
@@ -157,19 +255,20 @@ export async function listMainSiteAttachments(postKey: string): Promise<MainCall
     data: {
       items: (result.data.items || []).map((item) => ({
         ...item,
-        download_url: `${base}/files/${item.key}`,
+        download_url: (item.download_url || '').trim() || `${base}/files/${item.key}`,
       })),
     },
   }
 }
 
-/** 上传附件(type=attachment + post_key;buffer 来自模板服务端读流,不经浏览器)。 */
+/** 上传附件(type=attachment + post_key;buffer 来自模板服务端读流,不经浏览器)。
+ *  回执 download_url 为主站下发的绝对地址(pan 域),可能缺失。 */
 export async function uploadMainSiteAttachment(input: {
   buffer: Buffer
   filename: string
   contentType: string
   postKey: string
-}): Promise<MainCallResult<{ key: string; url: string; size: number }>> {
+}): Promise<MainCallResult<{ key: string; url: string; size: number; download_url?: string | null }>> {
   const siteId = getBlogSiteIdOrNull()
   const slug = (input.postKey || '').trim()
   if (!siteId) return { ok: false, status: 500, error: '站点身份尚未配置(BLOG_SITE_ID)' }

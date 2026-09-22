@@ -10,13 +10,23 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // - 删除=主站软删（幂等）；列表自动刷新；
 // - 视觉对齐 BLOG 后台暗色系（无 emoji 灰阶）；
 // - BLOG-UI-FIX：按用户要求移除「空间容量」用量条与「暂无附件」「附件与本文绑定」
-//   说明文案，格式提示只留「单文件 ≤ 50MB」；usage 查询保留（仅用于冻结/满载
+//   说明文案，格式提示只留单文件上限一行；usage 查询保留（仅用于冻结/满载
 //   上传前置预检，不再渲染容量 UI）；
 // - BLOG-UI-FIX：上传改 XHR（upload.onprogress），转圈改为百分比进度条（0-100%）。
+// - W4-3：附件能力门——挂载时取 /api/admin/attachment-capability，
+//   attachmentsEnabled=false 整块灰显不可用（文案「当前图床基座不支持附件」），
+//   请求失败按可用渲染（fail-open）；单文件上限随能力值动态显示（默认 20MB）。
 // ============================================================
 
 const ATTACHMENT_EXT_RE = /\.(pdf|zip|rar|7z|doc|docx|xls|xlsx|txt)$/i
-const MAX_UPLOAD_MB = 50
+// W4-3：附件单文件上限 50MB → 20MB（能力接口未返回上限时的兜底常量）
+export const MAX_UPLOAD_MB = 20
+
+// W4-3：附件能力门纯判定（null/未知 = fail-open 按可用；仅显式 false 判不可用）
+export function resolveAttachmentAvailability(capability) {
+  if (!capability) return true
+  return capability.attachmentsEnabled !== false
+}
 
 function formatBytes(bytes) {
   const n = Math.max(0, Number(bytes) || 0)
@@ -91,7 +101,32 @@ export function AttachmentManager({ postSlug }) {
   // S3FIX：创作者存储用量（null=加载中或查询失败，降级显示「—」不阻断）
   // S4-3：quotaBytes 透传（无值时存 null，展示回退「—」）；frozen 透传冻结态
   const [usage, setUsage] = useState(null)
+  // W4-3：附件能力门（null=加载中或查询失败 → fail-open 按可用渲染）
+  const [capability, setCapability] = useState(null)
   const fileInputRef = useRef(null)
+
+  // W4-3：挂载时取附件能力（附件跟随图床基座）；失败按可用（fail-open）
+  const loadCapability = useCallback(async () => {
+    try {
+      const r = await fetch('/api/admin/attachment-capability', { credentials: 'same-origin' })
+      const d = await r.json().catch(() => null)
+      if (r.ok && d && d.success && typeof d.attachmentsEnabled === 'boolean') {
+        const mb = Math.floor(Number(d.maxAttachmentMB))
+        setCapability({
+          attachmentsEnabled: d.attachmentsEnabled,
+          maxAttachmentMB: Number.isFinite(mb) && mb > 0 ? mb : MAX_UPLOAD_MB,
+        })
+      } else {
+        setCapability(null)
+      }
+    } catch {
+      setCapability(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadCapability()
+  }, [loadCapability])
 
   const loadUsage = useCallback(async () => {
     try {
@@ -150,6 +185,10 @@ export function AttachmentManager({ postSlug }) {
     const files = Array.from(event.target.files || [])
     event.target.value = ''
     if (files.length === 0) return
+    if (!attachmentsAvailable) {
+      setError('当前图床基座不支持附件')
+      return
+    }
     if (!slug) {
       setError('文章尚未初始化，请先填写标题后再上传附件')
       return
@@ -165,9 +204,10 @@ export function AttachmentManager({ postSlug }) {
       setError(`不支持的附件格式：${invalid.name}（仅 pdf / zip / rar / 7z / doc / docx / xls / xlsx / txt）`)
       return
     }
-    const tooLarge = files.find((f) => f.size > MAX_UPLOAD_MB * 1024 * 1024)
+    // W4-3：上限随能力值（默认 20MB）
+    const tooLarge = files.find((f) => f.size > maxUploadMb * 1024 * 1024)
     if (tooLarge) {
-      setError(`附件过大：${tooLarge.name}（单文件上限 ${MAX_UPLOAD_MB}MB）`)
+      setError(`附件过大：${tooLarge.name}（单文件上限 ${maxUploadMb}MB）`)
       return
     }
     // 乐观预检：已满即提示（后端配额仍强制，此处仅前端双保险；
@@ -238,10 +278,16 @@ export function AttachmentManager({ postSlug }) {
 
   // S4-3：冻结态派生（usage 为 null=查询失败/加载中时按未冻结，后端 403 兜底）
   const frozen = !!(usage && usage.frozen)
-  const uploadDisabled = uploading || !slug || frozen
+  // W4-3：附件能力门派生（capability=null → fail-open 按可用）
+  const attachmentsAvailable = resolveAttachmentAvailability(capability)
+  const maxUploadMb =
+    capability && Number(capability.maxAttachmentMB) > 0
+      ? Math.floor(Number(capability.maxAttachmentMB))
+      : MAX_UPLOAD_MB
+  const uploadDisabled = uploading || !slug || frozen || !attachmentsAvailable
 
   return (
-    <div>
+    <div style={{ opacity: attachmentsAvailable ? 1 : 0.55 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
         <button
           type="button"
@@ -263,11 +309,13 @@ export function AttachmentManager({ postSlug }) {
           上传附件
         </button>
         <span style={{ fontSize: '11px', color: frozen ? '#ff6b6b' : '#777', lineHeight: 1.5 }}>
-          {frozen
-            ? '空间已冻结，请联系平台'
-            : uploading
-              ? `正在上传 ${uploadProgress.percent}%…`
-              : '单文件 ≤ 50MB'}
+          {!attachmentsAvailable
+            ? '当前图床基座不支持附件'
+            : frozen
+              ? '空间已冻结，请联系平台'
+              : uploading
+                ? `正在上传 ${uploadProgress.percent}%…`
+                : `单文件 ≤ ${maxUploadMb}MB`}
         </span>
         <input
           ref={fileInputRef}
@@ -345,7 +393,8 @@ export function AttachmentManager({ postSlug }) {
         </p>
       ) : null}
 
-      {loading ? (
+      {/* W4-3：能力不可用时列表区不渲染（整块灰显不可用态） */}
+      {!attachmentsAvailable ? null : loading ? (
         <p style={{ fontSize: '11px', color: '#777', margin: '0 0 8px' }}>附件列表加载中…</p>
       ) : items.length === 0 ? null : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
