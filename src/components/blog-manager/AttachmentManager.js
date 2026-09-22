@@ -16,6 +16,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // - W4-3：附件能力门——挂载时取 /api/admin/attachment-capability，
 //   attachmentsEnabled=false 整块灰显不可用（文案「当前图床基座不支持附件」），
 //   请求失败按可用渲染（fail-open）；单文件上限随能力值动态显示（默认 20MB）。
+// - W4-4b：直传优先——能力允许（storage_base + presignEnabled）时
+//   ticket → XHR PUT（带进度）→ commit；失败 ≤4MB 无感回退代理通道，
+//   >4MB 明确报错；错误文案走同一 error 状态，既有 UI 语义不变。
 // ============================================================
 
 const ATTACHMENT_EXT_RE = /\.(pdf|zip|rar|7z|doc|docx|xls|xlsx|txt)$/i
@@ -27,6 +30,9 @@ export function resolveAttachmentAvailability(capability) {
   if (!capability) return true
   return capability.attachmentsEnabled !== false
 }
+
+// W4-4b：直传失败时允许回退代理通道的文件体积上限（超过则回退无意义，直接报错）
+const DIRECT_FALLBACK_SAFE_BYTES = 4 * 1024 * 1024
 
 function formatBytes(bytes) {
   const n = Math.max(0, Number(bytes) || 0)
@@ -53,7 +59,8 @@ function formatTime(iso) {
 }
 
 // BLOG-UI-FIX：fetch 无法获取上传进度，改用 XHR（upload.onprogress 回调 0-100）
-function uploadAttachmentWithProgress({ file, slug, onPercent }) {
+// W4-4b：原代理实现保留为 uploadAttachmentViaProxy（回退通道，逻辑不变）
+function uploadAttachmentViaProxy({ file, slug, onPercent }) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open(
@@ -89,6 +96,116 @@ function uploadAttachmentWithProgress({ file, slug, onPercent }) {
   })
 }
 
+// W4-4b 直传（presign）：ticket → XHR PUT（带进度）→ commit
+function requestDirectTicket(params) {
+  return fetch('/api/admin/storage-ticket', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(params),
+  }).then(async (r) => {
+    const d = await r.json().catch(() => null)
+    if (!r.ok || !d || d.success === false) {
+      const error = new Error((d && d.message) || `直传请求失败：HTTP ${r.status}`)
+      error.code = (d && d.error) || ''
+      throw error
+    }
+    return d
+  })
+}
+
+function commitDirectUpload(commitToken) {
+  return fetch('/api/admin/storage-commit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ commitToken }),
+  }).then(async (r) => {
+    const d = await r.json().catch(() => null)
+    if (!r.ok || !d || d.success === false) {
+      const error = new Error((d && d.message) || `登记请求失败：HTTP ${r.status}`)
+      error.code = (d && d.error) || ''
+      throw error
+    }
+    return d
+  })
+}
+
+function xhrPutFileToPresignedUrl(putUrl, file, headers, onPercent) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', putUrl, true)
+    const entries = Object.entries(headers || {})
+    for (const [name, value] of entries) {
+      xhr.setRequestHeader(name, value)
+    }
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        onPercent(Math.min(100, Math.round((e.loaded / e.total) * 100)))
+      }
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve()
+      else reject(new Error(`直传写入失败：HTTP ${xhr.status}`))
+    }
+    xhr.onerror = () => reject(new Error('直传写入失败（网络错误）'))
+    xhr.onabort = () => reject(new Error('直传写入已取消'))
+    xhr.ontimeout = () => reject(new Error('直传写入超时'))
+    xhr.send(file)
+  })
+}
+
+async function uploadAttachmentDirect({ file, slug, onPercent }) {
+  let everPutOk = false
+  let lastError = null
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const ticket = await requestDirectTicket({
+        type: 'attachment',
+        postKey: slug,
+        filename: file.name || 'attachment',
+        contentType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+      })
+      if (!ticket.putUrl || !ticket.commitToken) {
+        throw new Error('直传凭据不完整')
+      }
+      await xhrPutFileToPresignedUrl(ticket.putUrl, file, ticket.requiredHeaders, onPercent)
+      everPutOk = true
+      await commitDirectUpload(ticket.commitToken)
+      return
+    } catch (e) {
+      lastError = e
+    }
+  }
+
+  if (everPutOk) {
+    // 文件已写入但登记两次都失败：不得静默成功，也不得换道重传
+    const error = new Error('文件已上传但未保存成功，请重试')
+    error.commitFailedNoFallback = true
+    throw error
+  }
+  throw lastError
+}
+
+// W4-4b：直传优先 + 自动回退（能力关闭/读取失败/非 storage_base → 代理，零行为变化；
+// 直传失败 ≤4MB 无感回退 /api/admin/attachments；>4MB 明确报错）
+export async function uploadAttachmentWithProgress({ file, slug, onPercent, directEnabled }) {
+  if (directEnabled) {
+    try {
+      return await uploadAttachmentDirect({ file, slug, onPercent })
+    } catch (e) {
+      if (e && e.commitFailedNoFallback) throw e
+      if (file.size > DIRECT_FALLBACK_SAFE_BYTES) {
+        throw new Error('上传失败，请检查网络后重试')
+      }
+      // ≤4MB：回退既有代理通道（无感）
+    }
+  }
+  return uploadAttachmentViaProxy({ file, slug, onPercent })
+}
+
 export function AttachmentManager({ postSlug }) {
   const slug = (postSlug || '').trim()
 
@@ -106,6 +223,7 @@ export function AttachmentManager({ postSlug }) {
   const fileInputRef = useRef(null)
 
   // W4-3：挂载时取附件能力（附件跟随图床基座）；失败按可用（fail-open）
+  // W4-4b：同时透传 backend/presignEnabled 供直传判定
   const loadCapability = useCallback(async () => {
     try {
       const r = await fetch('/api/admin/attachment-capability', { credentials: 'same-origin' })
@@ -115,6 +233,8 @@ export function AttachmentManager({ postSlug }) {
         setCapability({
           attachmentsEnabled: d.attachmentsEnabled,
           maxAttachmentMB: Number.isFinite(mb) && mb > 0 ? mb : MAX_UPLOAD_MB,
+          backend: typeof d.backend === 'string' ? d.backend : '',
+          presignEnabled: d.presignEnabled === true,
         })
       } else {
         setCapability(null)
@@ -221,6 +341,12 @@ export function AttachmentManager({ postSlug }) {
     setUploading(true)
     setError('')
     setUploadProgress({ done: 0, total: files.length, percent: 0 })
+    // W4-4b：直传能力派生（backend=storage_base 且 presignEnabled；能力未知=按代理）
+    const directEnabled = !!(
+      capability &&
+      capability.backend === 'storage_base' &&
+      capability.presignEnabled === true
+    )
     try {
       for (let i = 0; i < files.length; i += 1) {
         const file = files[i]
@@ -235,6 +361,7 @@ export function AttachmentManager({ postSlug }) {
             )
             setUploadProgress({ done: i, total: files.length, percent: overall })
           },
+          directEnabled,
         })
         setUploadProgress({
           done: i + 1,

@@ -11,7 +11,9 @@
  * - W4-3 附件能力门 fetchSiteImageCapability():与双轨判定同端点同凭据(60s 缓存),
  *   任何失败/异常一律返回 null(fail-open),调用方按「可用」处理;
  * - W4-3 download_url 直连:附件列表/上传优先透传主站下发的绝对地址(pan 域),
- *   缺失/空串时回退旧拼接 `${base}/files/${key}` 兜底。
+ *   缺失/空串时回退旧拼接 `${base}/files/${key}` 兜底;
+ * - W4-4b 直传(presign):能力字段 presignEnabled fail-closed;ticket/commit 原语
+ *   不抛异常、错误码原样取自主站;forwardMainStorageJsonPost 供代理路由原始透传。
  */
 
 import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
@@ -94,6 +96,8 @@ export type SiteImageCapability = {
   backend: SiteImageBackend
   attachmentsEnabled: boolean
   maxAttachmentMB: number
+  /** W4-4b：主站直传(presign)开关（fail-closed：缺字段/读取失败一律 false） */
+  presignEnabled: boolean
 }
 
 /** 主站未下发(或值非法)时的附件单文件上限兜底(与主站当前上限一致) */
@@ -121,6 +125,7 @@ export async function fetchSiteImageCapability(): Promise<SiteImageCapability | 
       backend: 'legacy_landcloud',
       attachmentsEnabled: false,
       maxAttachmentMB: DEFAULT_MAX_ATTACHMENT_MB,
+      presignEnabled: false,
     }
   }
 
@@ -147,6 +152,7 @@ export async function fetchSiteImageCapability(): Promise<SiteImageCapability | 
         backend?: unknown
         attachmentsEnabled?: unknown
         maxAttachmentMB?: unknown
+        presignEnabled?: unknown
       }
       const backend: SiteImageBackend =
         payload?.backend === 'storage_base' ? 'storage_base' : 'legacy_landcloud'
@@ -157,6 +163,8 @@ export async function fetchSiteImageCapability(): Promise<SiteImageCapability | 
             ? payload.attachmentsEnabled
             : backend === 'storage_base',
         maxAttachmentMB: normalizeMaxAttachmentMB(payload?.maxAttachmentMB),
+        // W4-4b：直传开关 fail-closed——主站缺字段/值非 true 一律按关
+        presignEnabled: payload?.presignEnabled === true,
       }
       capabilityMemo = { value, at: Date.now() }
       return value
@@ -341,4 +349,140 @@ export async function fetchMainSiteUsage(): Promise<MainCallResult<MainSiteUsage
     `${resolveMainStorageBase()}/api/storage/usage?site_id=${siteId}`,
     { method: 'GET' }
   )
+}
+
+// ---------------------------------------------------------------------------
+// W4-4b 直传(presign)原语:ticket / commit + 代理路由用的原始转发
+// ---------------------------------------------------------------------------
+
+/**
+ * 直传调用统一结果:成功透传主站白名单字段;失败携带主站错误码
+ * (主站未下发错误码时按 HTTP 状态派生 http_<status> 兜底)。
+ * 任何网络异常/超时都不抛出,按 upstream_unreachable 返回。
+ */
+export type StorageDirectCall<T> =
+  | { ok: true; data: T }
+  | { ok: false; code: string; status: number; message: string }
+
+export type StorageUploadTicket = {
+  key: string
+  stagingKey?: string | null
+  putUrl: string
+  requiredHeaders?: Record<string, string> | null
+  commitToken: string
+  url: string
+  downloadUrl?: string | null
+  expiresAt?: string | null
+}
+
+export type StorageCommitInfo = {
+  key: string
+  url: string
+  downloadUrl?: string | null
+  size?: number | null
+  already_committed?: boolean
+}
+
+async function storageDirectPost<T>(
+  path: string,
+  body: Record<string, unknown>
+): Promise<StorageDirectCall<T>> {
+  const siteId = getBlogSiteIdOrNull()
+  if (!siteId) {
+    return {
+      ok: false,
+      code: 'site_unconfigured',
+      status: 500,
+      message: '站点身份尚未配置(BLOG_SITE_ID)',
+    }
+  }
+  try {
+    const res = await fetch(`${resolveMainStorageBase()}${path}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(mainApiToken() ? { Authorization: `Bearer ${mainApiToken()}` } : {}),
+      },
+      body: JSON.stringify({ ...body, site_id: siteId }),
+      signal: AbortSignal.timeout(MAIN_FETCH_TIMEOUT_MS),
+      cache: 'no-store',
+    })
+    const payload = (await res.json().catch(() => null)) as
+      | (Record<string, unknown> & { success?: unknown; error?: unknown; message?: unknown })
+      | null
+    if (!res.ok || !payload || payload.success === false) {
+      const code =
+        typeof payload?.error === 'string' && payload.error.trim()
+          ? payload.error.trim()
+          : `http_${res.status}`
+      const message =
+        typeof payload?.message === 'string' && payload.message.trim()
+          ? payload.message
+          : `主站接口返回 HTTP ${res.status}`
+      return { ok: false, code, status: res.status, message }
+    }
+    return { ok: true, data: payload as T }
+  } catch {
+    return { ok: false, code: 'upstream_unreachable', status: 502, message: '主站接口请求失败' }
+  }
+}
+
+/** 申请直传 ticket(不抛异常;错误码原样取自主站,如 presign_disabled/rate_limited)。 */
+export async function requestUploadTicket(input: {
+  type: string
+  postKey: string
+  filename: string
+  contentType: string
+  sizeBytes: number
+}): Promise<StorageDirectCall<StorageUploadTicket>> {
+  return storageDirectPost<StorageUploadTicket>('/api/storage/upload-ticket', {
+    type: input.type,
+    postKey: input.postKey,
+    filename: input.filename,
+    contentType: input.contentType,
+    sizeBytes: input.sizeBytes,
+  })
+}
+
+/** 登记(commit)直传结果(不抛异常;错误码原样取自主站,如 invalid_commit_token/staging_missing)。 */
+export async function commitUpload(
+  commitToken: string
+): Promise<StorageDirectCall<StorageCommitInfo>> {
+  return storageDirectPost<StorageCommitInfo>('/api/storage/upload-commit', {
+    commitToken: (commitToken || '').trim(),
+  })
+}
+
+/**
+ * 原始转发主站 JSON POST(供 /api/admin/storage-ticket|storage-commit 代理路由):
+ * - 站点身份由服务端注入:浏览器传入的 site_id 一律剔除后覆盖为 BLOG_SITE_ID;
+ * - 成功 → {ok:true, status, text}:主站原始状态码与响应体字符串原样带回(不改写);
+ * - 网络异常/超时 → {ok:false}:路由统一回 502 upstream_unreachable。
+ */
+export async function forwardMainStorageJsonPost(
+  path: string,
+  clientParams: Record<string, unknown>
+): Promise<{ ok: true; status: number; text: string } | { ok: false }> {
+  const params: Record<string, unknown> = { ...(clientParams || {}) }
+  delete params.site_id
+  const siteId = getBlogSiteIdOrNull()
+  if (siteId) params.site_id = siteId
+  try {
+    const res = await fetch(`${resolveMainStorageBase()}${path}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(mainApiToken() ? { Authorization: `Bearer ${mainApiToken()}` } : {}),
+      },
+      body: JSON.stringify(params),
+      signal: AbortSignal.timeout(MAIN_FETCH_TIMEOUT_MS),
+      cache: 'no-store',
+    })
+    const text = await res.text()
+    return { ok: true, status: res.status, text }
+  } catch {
+    return { ok: false }
+  }
 }

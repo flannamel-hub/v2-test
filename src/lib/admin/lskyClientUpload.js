@@ -4,6 +4,20 @@ const PROXY_SAFE_BYTES = 3.5 * 1024 * 1024
 
 
 
+/** 直传失败时允许回退代理通道的文件体积上限（超过则回退无意义，直接报错） */
+
+const DIRECT_FALLBACK_SAFE_BYTES = 4 * 1024 * 1024
+
+
+
+/** 直传能力客户端缓存（与服务端能力缓存同节奏，失败不缓存） */
+
+const PRESIGN_CAPABILITY_CACHE_MS = 60_000
+
+let presignCapabilityMemo = null
+
+
+
 /** 图库 / 图片块：长边上限与目标体积（典型输出约 300–500KB JPEG） */
 
 const GALLERY_MAX_DIM = 1920
@@ -412,8 +426,6 @@ export async function compressImageForGallery(file) {
 
 }
 
-
-
 async function uploadViaProxy(file) {
 
   const res = await fetch('/api/admin/upload', {
@@ -443,6 +455,302 @@ async function uploadViaProxy(file) {
   }
 
   return json.url
+
+}
+
+
+
+// ============================================================
+
+// W4-4b 直传（presign）：能力允许时 ticket → PUT → commit，
+
+// 任一步失败重试 1 次（重新 ticket）；仍失败按体积回退代理或明确报错。
+
+// 兰空/压缩链路零改动：直传只在 prepareFileForUpload 之后的调用点分流。
+
+// ============================================================
+
+function requestDirectTicket(params) {
+
+  return fetch('/api/admin/storage-ticket', {
+
+    method: 'POST',
+
+    headers: { 'Content-Type': 'application/json' },
+
+    credentials: 'same-origin',
+
+    body: JSON.stringify(params),
+
+  }).then(async (res) => {
+
+    const data = await res.json().catch(() => null)
+
+    if (!res.ok || !data || data.success === false) {
+
+      const error = new Error((data && data.message) || `直传请求失败：HTTP ${res.status}`)
+
+      error.code = (data && data.error) || ''
+
+      throw error
+
+    }
+
+    return data
+
+  })
+
+}
+
+
+
+function commitDirectUpload(commitToken) {
+
+  return fetch('/api/admin/storage-commit', {
+
+    method: 'POST',
+
+    headers: { 'Content-Type': 'application/json' },
+
+    credentials: 'same-origin',
+
+    body: JSON.stringify({ commitToken }),
+
+  }).then(async (res) => {
+
+    const data = await res.json().catch(() => null)
+
+    if (!res.ok || !data || data.success === false) {
+
+      const error = new Error((data && data.message) || `登记请求失败：HTTP ${res.status}`)
+
+      error.code = (data && data.error) || ''
+
+      throw error
+
+    }
+
+    return data
+
+  })
+
+}
+
+
+
+function xhrPutToPresignedUrl(putUrl, file, headers, onProgress) {
+
+  return new Promise((resolve, reject) => {
+
+    const xhr = new XMLHttpRequest()
+
+    xhr.open('PUT', putUrl, true)
+
+    const entries = Object.entries(headers || {})
+
+    for (const [name, value] of entries) {
+
+      xhr.setRequestHeader(name, value)
+
+    }
+
+    if (onProgress && xhr.upload) {
+
+      xhr.upload.onprogress = (e) => {
+
+        if (e.lengthComputable && e.total > 0) {
+
+          onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)))
+
+        }
+
+      }
+
+    }
+
+    xhr.onload = () => {
+
+      if (xhr.status >= 200 && xhr.status < 300) resolve()
+
+      else reject(new Error(`直传写入失败：HTTP ${xhr.status}`))
+
+    }
+
+    xhr.onerror = () => reject(new Error('直传写入失败（网络错误）'))
+
+    xhr.onabort = () => reject(new Error('直传写入已取消'))
+
+    xhr.ontimeout = () => reject(new Error('直传写入超时'))
+
+    xhr.send(file)
+
+  })
+
+}
+
+
+
+async function resolvePresignCapability() {
+
+  if (presignCapabilityMemo && Date.now() - presignCapabilityMemo.at < PRESIGN_CAPABILITY_CACHE_MS) {
+
+    return presignCapabilityMemo.enabled
+
+  }
+
+  try {
+
+    const res = await fetch('/api/admin/attachment-capability', { credentials: 'same-origin' })
+
+    const data = await res.json().catch(() => null)
+
+    const enabled = !!(
+
+      res.ok &&
+
+      data &&
+
+      data.success &&
+
+      data.backend === 'storage_base' &&
+
+      data.presignEnabled === true
+
+    )
+
+    if (enabled) presignCapabilityMemo = { enabled: true, at: Date.now() }
+
+    return enabled
+
+  } catch {
+
+    return false
+
+  }
+
+}
+
+
+
+/** 测试辅助：清空直传能力客户端缓存 */
+
+export function __resetPresignCapabilityCacheForTest() {
+
+  presignCapabilityMemo = null
+
+}
+
+
+
+async function uploadViaDirect(file, { onProgress } = {}) {
+
+  let everPutOk = false
+
+  let lastError = null
+
+
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+
+    try {
+
+      const ticket = await requestDirectTicket({
+
+        type: 'image',
+
+        postKey: '',
+
+        filename: file.name || 'image.png',
+
+        contentType: file.type || 'application/octet-stream',
+
+        sizeBytes: file.size,
+
+      })
+
+      if (!ticket.putUrl || !ticket.commitToken) {
+
+        throw new Error('直传凭据不完整')
+
+      }
+
+      await xhrPutToPresignedUrl(ticket.putUrl, file, ticket.requiredHeaders, onProgress)
+
+      everPutOk = true
+
+      const committed = await commitDirectUpload(ticket.commitToken)
+
+      const url = String(committed.url || ticket.url || '').trim()
+
+      if (!/^https?:\/\//i.test(url)) {
+
+        throw new Error('直传未返回有效图片地址')
+
+      }
+
+      return url
+
+    } catch (e) {
+
+      lastError = e
+
+    }
+
+  }
+
+
+
+  if (everPutOk) {
+
+    // 文件已写入但登记两次都失败：不得静默成功，也不得换道重传
+
+    const error = new Error('文件已上传但未保存成功，请重试')
+
+    error.commitFailedNoFallback = true
+
+    throw error
+
+  }
+
+  throw lastError
+
+}
+
+
+
+/**
+
+ * 直传优先 + 自动回退：能力不可用走原代理（零行为变化）；
+
+ * 直传失败且 ≤4MB 回退代理（无感），>4MB 明确报错。
+
+ */
+
+export async function uploadDirectOrProxy(file, { onProgress } = {}) {
+
+  const directEnabled = await resolvePresignCapability()
+
+  if (!directEnabled) return uploadViaProxy(file)
+
+
+
+  try {
+
+    return await uploadViaDirect(file, { onProgress })
+
+  } catch (e) {
+
+    if (e && e.commitFailedNoFallback) throw e
+
+    if (file.size > DIRECT_FALLBACK_SAFE_BYTES) {
+
+      throw new Error('上传失败，请检查网络后重试')
+
+    }
+
+    return uploadViaProxy(file)
+
+  }
 
 }
 
@@ -516,7 +824,7 @@ export async function uploadImageToLsky(file) {
 
     try {
 
-      return await uploadViaProxy(prepared)
+      return await uploadDirectOrProxy(prepared)
 
     } catch (e) {
 
@@ -532,7 +840,7 @@ export async function uploadImageToLsky(file) {
 
         })
 
-        return uploadViaProxy(prepared)
+        return uploadDirectOrProxy(prepared)
 
       }
 
@@ -556,7 +864,7 @@ export async function uploadGalleryImageToLsky(file) {
 
     const prepared = await compressImageForGallery(file)
 
-    const url = await uploadViaProxy(prepared)
+    const url = await uploadDirectOrProxy(prepared)
 
     return { url, fileSize: prepared.size }
 
