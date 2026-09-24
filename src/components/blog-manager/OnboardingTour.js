@@ -14,14 +14,18 @@
  * R18X（阶段化编排重做，视觉层-only；步骤文案/锚点/close reason 契约零改动）：
  *   - 每步五阶段：①全亮（遮罩 opacity 0、框隐藏；动作先行=onStepChange+瞬时 scrollIntoView）
  *     → ②等待布局 ~500ms（手风琴展开 ~0.32s+余量，setTimeout 静置）→ ③缓缓变暗+聚焦
- *     （全屏均匀遮罩 opacity 0→0.5 + 描边框 2px 白描边/圆角 10/轻微外发光，transform
+ *     （遮罩 opacity 0→0.5 + 描边框 2px 白描边/圆角 10/轻微外发光，transform
  *     translate+scale 自目标中心 1.12 收拢至 1，~480ms；气泡同步淡入，位置按此刻 rect）
  *     → ④holding（此阶段才显示并启用 上一步/下一步/完成；resize/scroll 重测仅此阶段生效、
  *     即时更新不加过渡）→ ⑤点击下一步：框淡出+画面变亮 ~350ms → 进入下一聚焦（上一步同机制）。
  *     不再使用 box-shadow 挖孔；禁止 width/height/left/top 过渡（仅 transform/opacity）。
+ * R19F（聚焦显示修复，视觉层-only）：均匀遮罩改「evenodd clip-path 圆角挖孔」——被聚焦目标
+ *   区域保持全亮，其余屏幕 0.5 变暗；挖孔几何**瞬时更新、不参与任何过渡**（切步/滚屏重测时遮罩
+ *   opacity=0 或正在淡入，无位移 smear），R18X 全部编排/防抖动特性保留；非交互步在挖孔区补
+ *   透明捕获层防误触（交互步不渲染，保留点击穿透）。
  *   - prefers-reduced-motion：所有过渡时长=0（直接显示变暗后/定位后视图）。
  *   - 交互步：holding 阶段沿用「点击穿透+捕获层+呼吸光晕+涟漪+点目标按钮即完成」机制；
- *     不同处仅底色遮罩变均匀半透明、聚焦框样式统一（描边+光晕）。
+ *     不同处仅底色遮罩带挖孔半透明（聚焦区全亮）、聚焦框样式统一（描边+光晕）。
  *   - 退出机制（§二）：左下角「退出新手指引」文字按钮 / Esc（含交互步，旧屏蔽行为取消）/
  *     工具条「跳过」三条路径统一先弹页内确认窗（引导层级内 z 最高）：「确认退出」=close('skip')、
  *     「继续引导」/点遮罩/Esc=关窗继续；确认窗打开期间 上一步/下一步/完成 不可用。 */
@@ -459,6 +463,21 @@ const OnboardingTour = ({ open, onClose, onStepChange, steps }) => {
     frameHeight = targetRect.height + HIGHLIGHT_PAD * 2
   }
   const frameRendered = !!targetRect && frameState !== 'hidden'
+  // R19F：遮罩挖孔（evenodd 圆角矩形孔；几何瞬时更新，不进 transition）——孔=聚焦框矩形
+  let maskClipPath = 'none'
+  if (targetRect) {
+    const x1 = frameLeft
+    const y1 = frameTop
+    const x2 = frameLeft + frameWidth
+    const y2 = frameTop + frameHeight
+    const rr = Math.max(0, Math.min(FOCUS_RADIUS, frameWidth / 2, frameHeight / 2))
+    maskClipPath =
+      `path(evenodd, "M 0 0 H ${vw} V ${vh} H 0 Z ` +
+      `M ${x1 + rr} ${y1} H ${x2 - rr} A ${rr} ${rr} 0 0 1 ${x2} ${y1 + rr} ` +
+      `V ${y2 - rr} A ${rr} ${rr} 0 0 1 ${x2 - rr} ${y2} H ${x1 + rr} ` +
+      `A ${rr} ${rr} 0 0 1 ${x1} ${y2 - rr} V ${y1 + rr} ` +
+      `A ${rr} ${rr} 0 0 1 ${x1 + rr} ${y1} Z")`
+  }
   // R18X：框过渡——enter: 1.12 倍+透明 → shown: 收拢至 1+不透明（480ms）；leave: 淡出（350ms）
   let frameTransform = 'scale(1)'
   let frameOpacity = 1
@@ -588,7 +607,7 @@ const OnboardingTour = ({ open, onClose, onStepChange, steps }) => {
       style={{ position: 'fixed', inset: 0, zIndex: OVERLAY_Z_INDEX, ...(isInteractive ? { pointerEvents: 'none' } : null) }}
       onClick={(e) => e.preventDefault()}
     >
-      {/* R18X：全屏均匀半透明遮罩（无挖孔；交互步不拦截点击，被聚焦目标在遮罩下仍可见） */}
+      {/* R19F：全屏半透明遮罩 + evenodd 圆角挖孔（聚焦区域全亮；挖孔几何瞬时更新、不加过渡） */}
       <div
         aria-hidden="true"
         style={{
@@ -597,9 +616,27 @@ const OnboardingTour = ({ open, onClose, onStepChange, steps }) => {
           background: '#000',
           opacity: maskOpacity,
           transition: maskTransition,
+          clipPath: maskClipPath,
+          WebkitClipPath: maskClipPath,
           pointerEvents: isInteractive ? 'none' : 'auto',
         }}
       />
+      {/* R19F：非交互步——挖孔区透明捕获层（挖孔后遮罩不再覆盖该区，防误触目标；交互步不渲染，保留点击穿透） */}
+      {frameRendered && !isInteractive ? (
+        <div
+          aria-hidden="true"
+          onClick={blockClick}
+          style={{
+            position: 'fixed',
+            left: frameLeft,
+            top: frameTop,
+            width: frameWidth,
+            height: frameHeight,
+            borderRadius: FOCUS_RADIUS,
+            pointerEvents: 'auto',
+          }}
+        />
+      ) : null}
       {/* R18X：聚焦框——仅描边（2px 白描边+圆角 10+轻微外发光），transform 收拢动画（禁止 left/top/width/height 过渡） */}
       {frameRendered ? (
         <div
