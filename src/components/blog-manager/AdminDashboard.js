@@ -51,7 +51,7 @@ import EditorTourDoneModal from './EditorTourDoneModal';
 import WelcomeTourModal from './WelcomeTourModal';
 // 派工单 B3:后台「数据统计」面板(独立文件,AdminDashboard 只做引入与视图接线)
 import StatsPanel from './StatsPanel';
-import { FiBarChart2 } from 'react-icons/fi';
+import { FiBarChart2, FiTool } from 'react-icons/fi';
 import {
   createEditorBlock,
   getEditorBlockLockPwd,
@@ -796,11 +796,13 @@ const editorTourStepToExpanded = (index) => {
   return null;
 };
 
-const StepAccordion = ({ step, title, isOpen, onToggle, children }) => (
+// 图库基座手术批2:displayStep=可见编号步骤的次序(1..N);图库 step 传 null(无编号特殊步骤)。
+// 仅影响标题渲染;isOpen/expandedStep/data-editor-step/data-tour 一律继续用稳定 step 值(评审 C2 红线)。
+const StepAccordion = ({ step, title, isOpen, onToggle, children, displayStep }) => (
   <div data-editor-step={step} data-tour={`editor-step-${step}`}>
     <div className="acc-btn" onClick={onToggle}>
       <div className="acc-btn-title">
-        <span style={{color:'greenyellow'}}>Step {step}</span>
+        {displayStep != null ? <span style={{color:'greenyellow'}}>Step {displayStep}</span> : null}
         <span>{title}</span>
       </div>
       <div className="acc-btn-chevron" style={{transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition:'0.3s'}}><Icons.ChevronDown /></div>
@@ -810,6 +812,38 @@ const StepAccordion = ({ step, title, isOpen, onToggle, children }) => (
     </div>
   </div>
 );
+
+// 图库基座手术批2(拍板 4A/5A):按稳定 step 值 1..6 枚举「可见集合」并依次编号(跳过 step4 图库)。
+// 可见性判定与各步骤 JSX 既有条件逐字对应:
+// step1 恒可见;step2/3 !editingSimplePage;step4 !editingSimplePage && galleryFeatureEnabled;
+// step5 !editingSimplePage && form.type !== 'Widget';step6 !editingSimplePage && galleryFeatureEnabled。
+// 返回 { [step]: 显示编号 | null }(null=该步骤不渲染或无编号)。
+const computeEditorStepDisplayMap = ({ editingSimplePage, formType, galleryFeatureEnabled }) => {
+  const visible = (step) => {
+    if (step === 1) return true;
+    if (step === 2 || step === 3) return !editingSimplePage;
+    if (step === 4) return !editingSimplePage && galleryFeatureEnabled === true;
+    if (step === 5) return !editingSimplePage && formType !== 'Widget';
+    if (step === 6) return !editingSimplePage && galleryFeatureEnabled === true;
+    return false;
+  };
+  const map = {};
+  let counter = 0;
+  for (let step = 1; step <= 6; step += 1) {
+    if (!visible(step)) {
+      map[step] = null;
+      continue;
+    }
+    if (step === 4) {
+      // 图库=无编号特殊步骤(保留「可选」chip,不显示 Step N)
+      map[step] = null;
+      continue;
+    }
+    counter += 1;
+    map[step] = counter;
+  }
+  return map;
+};
 
 const AnimatedBtn = ({ text, onClick, style }) => (
   <button className="animated-button" onClick={onClick} style={style}>
@@ -2630,7 +2664,7 @@ const AdminGearMenu = ({
   );
 };
 
-/** 爬虫管理维护密码弹窗 */
+/** 爬虫管理维护密码弹窗（图库基座手术批2:可选 props title/desc/titleId/confirmLabel 供版本修复页复用,缺省=爬虫文案逐字不变） */
 const CrawlerIngestUnlockModal = ({
   open,
   closing,
@@ -2638,6 +2672,10 @@ const CrawlerIngestUnlockModal = ({
   passwordError,
   onConfirm,
   onCancel,
+  title = '解锁爬虫管理',
+  desc = '爬虫入库会批量更新文章与图库，请输入维护密码后继续。',
+  titleId = 'crawler-unlock-modal-title',
+  confirmLabel = '解锁',
 }) => {
   const [visible, setVisible] = useState(false);
   const [password, setPassword] = useState('');
@@ -2671,13 +2709,13 @@ const CrawlerIngestUnlockModal = ({
         className="cover-modal-panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="crawler-unlock-modal-title"
+        aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="cover-modal-icon" aria-hidden>🔐</div>
-        <h3 id="crawler-unlock-modal-title" className="cover-modal-title">解锁爬虫管理</h3>
+        <h3 id={titleId} className="cover-modal-title">{title}</h3>
         <p className="cover-modal-desc">
-          爬虫入库会批量更新文章与图库，请输入维护密码后继续。
+          {desc}
         </p>
         <input
           type="password"
@@ -2724,7 +2762,7 @@ const CrawlerIngestUnlockModal = ({
               boxShadow: busy ? 'none' : '0 4px 14px rgba(154,109,215,0.35)',
             }}
           >
-            {busy ? '验证中…' : '解锁'}
+            {busy ? '验证中…' : confirmLabel}
           </button>
         </div>
       </div>
@@ -4764,6 +4802,18 @@ const [mounted, setMounted] = useState(false);
   // BLOG 分层 P4-FIX:站点会员计划(读取失败按免费版安全缺省);广告位为专业版权益
   const [sitePlan, setSitePlan] = useState(null); // null=尚未确认(loading),确认后为 'free' | 'pro'
   const adsLocked = sitePlan !== 'pro';
+  // 图库基座手术批2:站点级图库功能开关(启动经 /api/admin/version-repair?state=1 拉取;
+  // 失败/未拉取一律 false=隐藏图库步骤/下载链接步骤/容量条/主题下拉 gallery 项,fail-closed)
+  const [galleryFeatureEnabled, setGalleryFeatureEnabled] = useState(false);
+  const [galleryFeatureLoaded, setGalleryFeatureLoaded] = useState(false);
+  // 【版本修复】页:解锁弹窗与页内保存状态
+  const [versionRepairUnlockOpen, setVersionRepairUnlockOpen] = useState(false);
+  const [versionRepairUnlockClosing, setVersionRepairUnlockClosing] = useState(false);
+  const [versionRepairUnlockBusy, setVersionRepairUnlockBusy] = useState(false);
+  const [versionRepairUnlockError, setVersionRepairUnlockError] = useState('');
+  const versionRepairUnlockTimerRef = useRef(null);
+  const [versionRepairFeatureSaving, setVersionRepairFeatureSaving] = useState(false);
+  const [versionRepairFeatureError, setVersionRepairFeatureError] = useState('');
   // BLOG 分层 P8:贩售机组件为专业版权益(免费版灰态+点击弹提示;渲染仍按平台默认)
   const vendingLocked = sitePlan !== 'pro';
   // BLOG 分层 P8:去除平台角标开关(专业版权益;共用库 blog_quota_state.brand_clean)
@@ -5427,6 +5477,21 @@ const [mounted, setMounted] = useState(false);
     }
   };
 
+  // 图库基座手术批2:读取站点图库功能开关(只读 state;失败保持 false fail-closed,与 sitePlan 互不影响)
+  const loadGalleryFeatureState = async () => {
+    try {
+      const r = await fetch('/api/admin/version-repair?state=1', { cache: 'no-store' });
+      const d = await r.json();
+      if (d && d.success) {
+        setGalleryFeatureEnabled(Boolean(d.galleryFeatureEnabled));
+      }
+    } catch {
+      // 忽略:按未开启(fail-closed)处理
+    } finally {
+      setGalleryFeatureLoaded(true);
+    }
+  };
+
   // 🟢 4. 数据拉取函数 (提前定义)
   async function fetchPosts({ silent = false } = {}) {
     // P11-C4: 已有 in-flight 请求则复用，避免并发重复全量拉取
@@ -6015,11 +6080,13 @@ const [mounted, setMounted] = useState(false);
     if (!mounted) return;
     fetchCrawlerIngestStatus();
     loadSitePlan();
+    loadGalleryFeatureState();
   }, [mounted]);
   useEffect(() => { if (mounted) fetchPosts(); }, [mounted]);
   useEffect(() => {
-    if (mounted && view === 'list') loadGalleryStorage();
-  }, [mounted, view]);
+    // 图库开关关闭:不发起 gallery-storage 拉取;依赖含 galleryFeatureEnabled,开关翻 true 后补拉一次
+    if (mounted && view === 'list' && galleryFeatureEnabled) loadGalleryStorage();
+  }, [mounted, view, galleryFeatureEnabled]);
 
   useEffect(() => {
     if (view === 'edit') {
@@ -6576,6 +6643,79 @@ const [mounted, setMounted] = useState(false);
       } else alert('保存失败：' + (d.error || '未知错误'));
     } catch (e) { alert('保存失败：' + e.message); }
     finally { setContentProtectSaving(false); }
+  };
+
+  // === 图库基座手术批2:【版本修复】页(维护密码解锁;图库功能开关 + Gallery 主题切换) ===
+  const closeVersionRepairUnlockModal = () => {
+    if (versionRepairUnlockTimerRef.current) clearTimeout(versionRepairUnlockTimerRef.current);
+    setVersionRepairUnlockError('');
+    setVersionRepairUnlockClosing(true);
+    versionRepairUnlockTimerRef.current = setTimeout(() => {
+      setVersionRepairUnlockOpen(false);
+      setVersionRepairUnlockClosing(false);
+    }, 240);
+  };
+
+  const openVersionRepair = () => {
+    setVersionRepairUnlockError('');
+    setVersionRepairUnlockClosing(false);
+    setVersionRepairUnlockOpen(true);
+  };
+
+  // 解锁校验:POST action:'get'(后台会话+维护密码);成功才进入页面并同步图库开关状态
+  const confirmVersionRepairUnlock = async (password) => {
+    if (versionRepairUnlockBusy) return;
+    if (!password) {
+      setVersionRepairUnlockError('请输入维护密码');
+      return;
+    }
+    setVersionRepairUnlockBusy(true);
+    setVersionRepairUnlockError('');
+    try {
+      const r = await fetch('/api/admin/version-repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get', password }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.success) {
+        setGalleryFeatureEnabled(Boolean(d.galleryFeatureEnabled));
+        closeVersionRepairUnlockModal();
+        setView('version-repair');
+      } else {
+        setVersionRepairUnlockError(d.error || '解锁失败');
+      }
+    } catch (e) {
+      setVersionRepairUnlockError('解锁失败：' + e.message);
+    } finally {
+      setVersionRepairUnlockBusy(false);
+    }
+  };
+
+  // 图库功能开关:纯开关即点即存(页内无二次确认);失败页内红字展示接口 error(含列缺失提示原文)
+  const toggleGalleryFeature = async () => {
+    if (versionRepairFeatureSaving) return;
+    setVersionRepairFeatureSaving(true);
+    setVersionRepairFeatureError('');
+    try {
+      const r = await fetch('/api/admin/version-repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_gallery_feature', enabled: !galleryFeatureEnabled }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.success) {
+        setGalleryFeatureEnabled(Boolean(d.galleryFeatureEnabled));
+        setVersionRepairFeatureError('');
+        showAdminToast(d.galleryFeatureEnabled ? '图库功能已开启' : '图库功能已关闭');
+      } else {
+        setVersionRepairFeatureError(d.error || '保存失败');
+      }
+    } catch (e) {
+      setVersionRepairFeatureError('保存失败：' + e.message);
+    } finally {
+      setVersionRepairFeatureSaving(false);
+    }
   };
 
   const loadAnnouncementPopup = async () => {
@@ -7379,11 +7519,11 @@ const [mounted, setMounted] = useState(false);
       stalled: false,
     });
     fetchPosts({ silent: true });
-    loadGalleryStorage();
+    if (galleryFeatureEnabled) loadGalleryStorage();
     showAdminToast('已标记完成，将继续处理队列中其余任务');
     setTimeout(() => dismissJob(id), 4000);
     setTimeout(() => setPublishQueue((q) => [...q]), 0);
-  }, [updateJob, dismissJob]);
+  }, [updateJob, dismissJob, galleryFeatureEnabled]);
 
   // 实际执行一条发布任务：完全基于任务快照 payload，不依赖当前编辑器状态
   const runPublishJob = useCallback(async (job) => {
@@ -7693,7 +7833,7 @@ const [mounted, setMounted] = useState(false);
       maybeClearSnapshotAfterSave(payload);
       // 后台静默刷新列表，完成的文章无感知出现在内容列表中
       fetchPosts({ silent: true });
-      loadGalleryStorage();
+      if (galleryFeatureEnabled) loadGalleryStorage();
 
       // 成功项稍后自动移除，保持队列整洁
       setTimeout(() => dismissJob(job.id), 6000);
@@ -7731,7 +7871,7 @@ const [mounted, setMounted] = useState(false);
       // 任务结束（成功/失败/取消）清理中间产物引用
       delete jobProgressRef.current[job.id];
     }
-  }, [updateJob, dismissJob, registerPendingPostSync, clearDirty, maybeClearSnapshotAfterSave]);
+  }, [updateJob, dismissJob, registerPendingPostSync, clearDirty, maybeClearSnapshotAfterSave, galleryFeatureEnabled]);
 
   // 检测长时间无进度心跳的任务（图库大批量上传可持续数分钟，不误判）
   useEffect(() => {
@@ -8292,6 +8432,13 @@ const [mounted, setMounted] = useState(false);
   const handleNavClick = (idx) => { setNavIdx(idx); const modes = ['folder','covered','text','gallery']; setViewMode(modes[idx]); setSelectedFolder(null); };
 
   const editingSimplePage = isSimpleCustomPage(form?.slug);
+
+  // 图库基座手术批2:编辑器步骤动态连续编号(四态矩阵见方案 §3.4);仅用于标题渲染
+  const editorStepDisplayMap = computeEditorStepDisplayMap({
+    editingSimplePage,
+    formType: form?.type,
+    galleryFeatureEnabled,
+  });
 
   const sortAdminPosts = (list) => {
     return [...list].sort((a, b) => {
@@ -9216,6 +9363,18 @@ const [mounted, setMounted] = useState(false);
         onConfirm={confirmCrawlerIngestUnlock}
         onCancel={closeCrawlerIngestUnlockModal}
       />
+      {/* 图库基座手术批2:版本修复解锁弹窗(复用爬虫解锁弹窗结构与交互,仅换文案) */}
+      <CrawlerIngestUnlockModal
+        open={versionRepairUnlockOpen}
+        closing={versionRepairUnlockClosing}
+        busy={versionRepairUnlockBusy}
+        passwordError={versionRepairUnlockError}
+        onConfirm={confirmVersionRepairUnlock}
+        onCancel={closeVersionRepairUnlockModal}
+        title="解锁版本修复"
+        desc="该页面为系统修复与内部维护功能，请输入维护密码后继续。"
+        titleId="version-repair-unlock-title"
+      />
       <VendingAddressUnlockModal
         open={vendingAddressUnlockOpen}
         closing={vendingAddressUnlockClosing}
@@ -9357,6 +9516,8 @@ const [mounted, setMounted] = useState(false);
 
 {view === 'list' ? (
           <main>
+            {/* 图库基座手术批2(拍板1A):图库开关关闭的站,列表页顶部容量横条整条隐藏(不留占位/错误框);锚点随渲染消失→首页引导自动跳步 */}
+            {galleryFeatureEnabled ? (
             <div data-tour="gallery-bar">
               <GalleryStorageBar
                 stats={galleryStorageStats}
@@ -9364,6 +9525,7 @@ const [mounted, setMounted] = useState(false);
                 error={galleryStorageError}
               />
             </div>
+            ) : null}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '12px' }}>
               <div className="admin-list-head-left">
                 {/* 1. 分类标签组 */}
@@ -9444,7 +9606,8 @@ const [mounted, setMounted] = useState(false);
                         <div style={{ fontSize: '10px', color: themeSwitchQuota.blocked ? '#f97316' : '#777', padding: '6px 10px 8px', letterSpacing: '0.5px' }}>
                           {formatThemeSwitchQuotaHint(themeSwitchQuota) || '选择主题'}
                         </div>
-                        {ADMIN_THEMES.map(t => {
+                        {/* 图库基座手术批2:图库开关关闭时菜单隐藏 gallery 项;特例(评审C9)——当前主题已是 gallery 时保留当前项与「生效中」标记;触发按钮标签仍按全量 currentTheme 计算 */}
+                        {ADMIN_THEMES.filter(t => galleryFeatureEnabled || t.id !== 'gallery' || currentActiveTheme === 'gallery').map(t => {
                           const active = currentActiveTheme === t.id;
                           const switchBlocked = !active && themeSwitchQuota.blocked;
                           const blockedHint = switchBlocked
@@ -9706,6 +9869,17 @@ const [mounted, setMounted] = useState(false);
                     <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>站点头像、标题与简介</div>
                   </div>
                   <div style={{ color: 'greenyellow', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                </div>
+              )}
+              {/* 图库基座手术批2:【版本修复】入口卡片(组件页签末尾;中性配色;无 emoji;点击弹维护密码解锁) */}
+              {activeTab === 'Widget' && viewMode !== 'folder' && (
+                <div onClick={openVersionRepair} className="card-item" data-tour="version-repair-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #8a8f98', cursor: 'pointer' }}>
+                  <div style={{ width: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FiTool size={22} color="#8a8f98" /></div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>版本修复</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>系统修复与内部维护（需维护密码）</div>
+                  </div>
+                  <div style={{ color: '#8a8f98', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
               )}
               {viewMode === 'folder' && (activeTab === 'Post' || activeTab === 'Favourites') && categoryFolderList.map(cat => (
@@ -10211,6 +10385,89 @@ const [mounted, setMounted] = useState(false);
                 </button>
               </div>
             )}
+          </div>
+        ) : view === 'version-repair' ? (
+          /* 图库基座手术批2:【版本修复】页(维护密码解锁后可见;照内容保护页排版,深灰体系) */
+          <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>版本修复</div>
+              <div style={{fontSize:'12px', color:'#888'}}>系统修复与内部维护</div>
+            </div>
+
+            {/* 1. 图库功能开关(纯开关即点即存) */}
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'16px'}}>
+              <div>
+                <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>图库功能</div>
+                <div style={{fontSize:'12px', color:'#999', lineHeight:1.7}}>
+                  当前状态：{galleryFeatureEnabled ? '已开启' : '未开启'}。开启后编辑器显示图库步骤；关闭后隐藏相关入口。
+                </div>
+                {versionRepairFeatureError ? (
+                  <div style={{fontSize:'12px', color:'#ff7875', marginTop:'8px', lineHeight:1.6}}>{versionRepairFeatureError}</div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                disabled={versionRepairFeatureSaving}
+                onClick={toggleGalleryFeature}
+                data-testid="version-repair-toggle"
+                style={{
+                  minWidth: '104px',
+                  padding: '12px 20px',
+                  border: 'none',
+                  borderRadius: '999px',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  cursor: versionRepairFeatureSaving ? 'wait' : 'pointer',
+                  background: versionRepairFeatureSaving ? '#5a4a6e' : '#9a6dd7',
+                  color: '#fff',
+                  opacity: versionRepairFeatureSaving ? 0.6 : 1,
+                  flexShrink: 0,
+                }}
+              >
+                {versionRepairFeatureSaving ? '保存中…' : (galleryFeatureEnabled ? '关闭图库' : '开启图库')}
+              </button>
+            </div>
+
+            {/* 2. Gallery 主题切换(复用既有 handleThemeChange 配额与双写链) */}
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'16px'}}>
+              <div>
+                <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>当前主题：{currentTheme.label}</div>
+                <div style={{fontSize:'12px', color:'#999', lineHeight:1.7}}>
+                  {currentTheme.id === 'gallery'
+                    ? '当前已使用 Gallery 主题。'
+                    : galleryFeatureEnabled
+                      ? '切换后前台以图库风格展示，沿用 24 小时切换配额。'
+                      : '开启图库功能后可切换到 Gallery 主题。'}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={!(galleryFeatureEnabled && currentTheme.id !== 'gallery') || isThemeLoading}
+                onClick={() => handleThemeChange('gallery')}
+                data-testid="version-repair-theme-btn"
+                style={{
+                  minWidth: '150px',
+                  padding: '12px 20px',
+                  border: 'none',
+                  borderRadius: '999px',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  cursor: (isThemeLoading || !(galleryFeatureEnabled && currentTheme.id !== 'gallery')) ? 'not-allowed' : 'pointer',
+                  background: isThemeLoading ? '#5a4a6e' : '#9a6dd7',
+                  color: '#fff',
+                  opacity: (galleryFeatureEnabled && currentTheme.id !== 'gallery') ? (isThemeLoading ? 0.6 : 1) : 0.45,
+                  flexShrink: 0,
+                }}
+              >
+                {isThemeLoading ? '切换中…' : '切换到 Gallery 主题'}
+              </button>
+            </div>
+
+            {/* 3. 说明文案 */}
+            <div style={{padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555'}}>
+              <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>关于本页</div>
+              <div style={{fontSize:'12px', color:'#999', lineHeight:1.7}}>图库为内部功能：开启后，编辑器显示图库步骤，可切换 Gallery 主题；关闭后上述入口隐藏，不影响已发布内容。修改即时生效。</div>
+            </div>
           </div>
         ) : view === 'shop-banner' ? (
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
@@ -10883,7 +11140,7 @@ const [mounted, setMounted] = useState(false);
             ) : null}
             {/* R18：编辑器引导锚点——纯包裹 div（包住 Step1~6 + 商品按钮块，不改布局） */}
             <div data-tour="editor-steps-region">
-            <StepAccordion step={1} title="基础信息" isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
+            <StepAccordion step={1} displayStep={editorStepDisplayMap[1]} title="基础信息" isOpen={expandedStep === 1} onToggle={()=>setExpandedStep(expandedStep===1?0:1)}>
                <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
                  <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>
                  <div className="editor-date-field" style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>发布日期 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" type="date" value={form.date} onChange={e=>setFormDirty({...form, date:e.target.value})} /></div>
@@ -10907,7 +11164,7 @@ const [mounted, setMounted] = useState(false);
                  ) : null}
               </StepAccordion>
             {!editingSimplePage ? (
-            <StepAccordion step={2} title="分类和标签" isOpen={expandedStep === 2} onToggle={()=>setExpandedStep(expandedStep===2?0:2)}>
+            <StepAccordion step={2} displayStep={editorStepDisplayMap[2]} title="分类和标签" isOpen={expandedStep === 2} onToggle={()=>setExpandedStep(expandedStep===2?0:2)}>
                   <div style={{marginBottom:'15px'}}>
                     <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>分类 <span style={{color: '#ff4d4f'}}>*</span></label>
                    <CategoryPicker
@@ -10981,13 +11238,14 @@ const [mounted, setMounted] = useState(false);
             ) : null}
 
             {!editingSimplePage ? (
-            <StepAccordion step={3} title="文章封面" isOpen={expandedStep === 3} onToggle={()=>setExpandedStep(expandedStep===3?0:3)}>
+            <StepAccordion step={3} displayStep={editorStepDisplayMap[3]} title="文章封面" isOpen={expandedStep === 3} onToggle={()=>setExpandedStep(expandedStep===3?0:3)}>
               <div className="block-cover-hint"><b style={{ color: 'greenyellow' }}>封面说明</b>：可手动将图库中的图片或正文图片块设定为封面，未手动设定封面则自动采取正文首图或图库首图作为封面。</div>
             </StepAccordion>
             ) : null}
 
-            {!editingSimplePage ? (
-            <StepAccordion step={4} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>图库<span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="添加图库后会在文章内页添加图库展示区域并展示添加的图片内容，不添加则不显示" /></span>} isOpen={expandedStep === 4} onToggle={()=>setExpandedStep(expandedStep===4?0:4)}>
+            {/* 图库基座手术批2:图库步骤随站点图库开关隐藏;保留稳定锚点 step=4(引导自动跳步) */}
+            {!editingSimplePage && galleryFeatureEnabled ? (
+            <StepAccordion step={4} displayStep={editorStepDisplayMap[4]} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>图库<span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="添加图库后会在文章内页添加图库展示区域并展示添加的图片内容，不添加则不显示" /></span>} isOpen={expandedStep === 4} onToggle={()=>setExpandedStep(expandedStep===4?0:4)}>
               <GalleryManager
                 postSlug={form.slug}
                 postTitle={form.title}
@@ -11005,14 +11263,17 @@ const [mounted, setMounted] = useState(false);
 
             {/* R17G: 附件回归 StepAccordion step=5（说明文本 + AttachmentManager 零改动） */}
             {!editingSimplePage && form.type !== 'Widget' ? (
-            <StepAccordion step={5} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>附件<span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="上传附件后将在本篇文章页面中提供下载入口，未添加附件则不显示" /></span>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
+            <StepAccordion step={5} displayStep={editorStepDisplayMap[5]} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>附件<span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="上传附件后将在本篇文章页面中提供下载入口，未添加附件则不显示" /></span>} isOpen={expandedStep === 5} onToggle={()=>setExpandedStep(expandedStep===5?0:5)}>
               <AttachmentManager postSlug={form.slug} />
             </StepAccordion>
             ) : null}
 
+            {/* 图库基座手术批2:下载链接步骤(Gallery 专用标记)随站点图库开关隐藏;锚点 step=6 保持稳定。
+                商品按钮块(editor-product-btn)在同一 Fragment 内,只按既有条件渲染,不受图库开关影响 */}
             {!editingSimplePage ? (
             <>
-            <StepAccordion step={6} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>下载链接 <GalleryOnlyTag /><span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="gallery主题会默认开启下载链接分享按钮，非gallery主题无需填写。" /></span>} isOpen={expandedStep === 6} onToggle={()=>setExpandedStep(expandedStep===6?0:6)}>
+            {galleryFeatureEnabled ? (
+            <StepAccordion step={6} displayStep={editorStepDisplayMap[6]} title={<span style={{display:'inline-flex', alignItems:'center', gap:'8px'}}>下载链接 <GalleryOnlyTag /><span style={{fontSize:'10px', color:'#999', border:'1px solid #555', background:'#333', borderRadius:'4px', padding:'1px 6px', fontWeight:'bold'}}>可选</span><HintBubble text="gallery主题会默认开启下载链接分享按钮，非gallery主题无需填写。" /></span>} isOpen={expandedStep === 6} onToggle={()=>setExpandedStep(expandedStep===6?0:6)}>
                <div>
                  <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>下载链接 <GalleryOnlyTag /></label>
                  <p style={{fontSize:'11px', color:'#777', margin:'0 0 8px', lineHeight:1.5}}>Gallery 主题下载弹窗中展示的链接内容，留空则显示「暂无下载」。</p>
@@ -11028,10 +11289,11 @@ const [mounted, setMounted] = useState(false);
                     <p style={{fontSize:'11px', color:'#777', margin:'6px 0 0', lineHeight:1.5}}>填写后显示在下载页标题栏右侧，留空则不显示。</p>
                   </div>
                 </div>
-             </StepAccordion>
-               {form.type !== 'Widget' ? (
-               <div style={{marginTop:'12px'}}>
-                 {form.linked_product_sku ? (
+              </StepAccordion>
+            ) : null}
+                {form.type !== 'Widget' ? (
+                <div style={{marginTop:'12px'}}>
+                  {form.linked_product_sku ? (
                 <div style={{marginBottom:'10px', padding:'12px 14px', borderRadius:'10px', border:'1px solid rgba(59,130,246,0.35)', background:'rgba(59,130,246,0.06)'}}>
                   <label style={{display:'block', fontSize:'11px', color:'#93c5fd', marginBottom:'6px'}}>已关联商品</label>
                   <p style={{fontSize:'12px', color:'#e5e5e5', margin:'0 0 8px', lineHeight:1.5, wordBreak:'break-all'}}>商品码：{form.linked_product_sku}</p>

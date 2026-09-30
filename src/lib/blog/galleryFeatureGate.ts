@@ -70,6 +70,50 @@ export async function getGalleryFeatureEnabled(): Promise<boolean> {
   }
 }
 
+/**
+ * 图库功能开关写入口（批2【版本修复】页专用）。
+ * update→upsert 范式（照 vendingSettings.syncLegacyVendingEnabled）：
+ * 先按 site_id update；update 报错或无行（返回行数 0）时 upsert 兜底
+ * （onConflict:'site_id'，仅写 site_id / gallery_feature_enabled / updated_at，
+ * 不触碰其它列）。成功后立即刷新模块 TTL 缓存，保证本实例后续读取拿到新值。
+ * 失败 throw（由 API 层归类 500「数据库尚未升级…」/503 文案）。
+ */
+export async function setGalleryFeatureEnabled(enabled: boolean): Promise<void> {
+  const siteId = getBlogSiteIdOrNull()
+  const supabase = getSupabaseAdmin()
+  if (!siteId || !supabase) {
+    throw new Error('站点配置不可用')
+  }
+
+  const now = new Date().toISOString()
+  const { data: updatedRows, error: updateError } = await supabase
+    .from(TABLE)
+    .update({ gallery_feature_enabled: enabled, updated_at: now })
+    .eq('site_id', siteId)
+    .select('site_id')
+
+  if (updateError || !updatedRows || updatedRows.length === 0) {
+    const { error: upsertError } = await supabase
+      .from(TABLE)
+      .upsert(
+        {
+          site_id: siteId,
+          gallery_feature_enabled: enabled,
+          updated_at: now,
+        },
+        { onConflict: 'site_id' }
+      )
+    if (upsertError) {
+      throw new Error(upsertError.message)
+    }
+  }
+
+  cache = {
+    value: enabled,
+    expiresAt: Date.now() + (cacheTtlMsForTest ?? DEFAULT_CACHE_TTL_MS),
+  }
+}
+
 /** 测试辅助:重置 TTL 缓存;可选覆盖 TTL 毫秒数(不传/非法值恢复默认) */
 export function __resetGalleryFeatureGateCacheForTest(ttlMs?: number): void {
   cache = null
