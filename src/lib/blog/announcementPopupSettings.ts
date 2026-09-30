@@ -258,10 +258,12 @@ export async function updateAnnouncementPopupConfig(
   const dbProps = db.properties || {}
   const properties = buildAnnouncementPopupProperties(dbProps, next)
 
+  let existing: Awaited<ReturnType<typeof findAnnouncementPopupWidget>> = null
+
   const release = await acquireUpdateTurn()
   try {
     // P11-C5: 查重在串行临界区内进行——并发双击时后到请求能查到先建页，转 update 不再 create
-    const existing = await findAnnouncementPopupWidget()
+    existing = await findAnnouncementPopupWidget()
     if (existing) {
       await notion.pages.update({
         page_id: existing.id,
