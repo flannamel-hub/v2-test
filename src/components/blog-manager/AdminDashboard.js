@@ -4814,6 +4814,8 @@ const [mounted, setMounted] = useState(false);
   const versionRepairUnlockTimerRef = useRef(null);
   const [versionRepairFeatureSaving, setVersionRepairFeatureSaving] = useState(false);
   const [versionRepairFeatureError, setVersionRepairFeatureError] = useState('');
+  // B2 FIX1:缓存解锁成功的维护密码,供页内「开启图库」开关 POST 透传
+  const versionRepairPasswordRef = useRef('');
   // BLOG 分层 P8:贩售机组件为专业版权益(免费版灰态+点击弹提示;渲染仍按平台默认)
   const vendingLocked = sitePlan !== 'pro';
   // BLOG 分层 P8:去除平台角标开关(专业版权益;共用库 blog_quota_state.brand_clean)
@@ -6679,6 +6681,7 @@ const [mounted, setMounted] = useState(false);
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.success) {
+        versionRepairPasswordRef.current = password;
         setGalleryFeatureEnabled(Boolean(d.galleryFeatureEnabled));
         closeVersionRepairUnlockModal();
         setView('version-repair');
@@ -6695,13 +6698,18 @@ const [mounted, setMounted] = useState(false);
   // 图库功能开关:纯开关即点即存(页内无二次确认);失败页内红字展示接口 error(含列缺失提示原文)
   const toggleGalleryFeature = async () => {
     if (versionRepairFeatureSaving) return;
+    const password = versionRepairPasswordRef.current;
+    if (!password) {
+      setVersionRepairFeatureError('请重新解锁后再操作');
+      return;
+    }
     setVersionRepairFeatureSaving(true);
     setVersionRepairFeatureError('');
     try {
       const r = await fetch('/api/admin/version-repair', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set_gallery_feature', enabled: !galleryFeatureEnabled }),
+        body: JSON.stringify({ action: 'set_gallery_feature', enabled: !galleryFeatureEnabled, password }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.success) {
