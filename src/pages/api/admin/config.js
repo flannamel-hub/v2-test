@@ -1,5 +1,6 @@
 import { Client } from '@notionhq/client';
 import { getSiteTitleQuota, recordSiteTitleChange } from '@/src/lib/blog/siteTitleQuota';
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -32,6 +33,10 @@ function joinNotionTitlePlain(titleItems) {
 }
 
 export default async function handler(req, res) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' });
+  }
+
   const notion = new Client({ auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN });
   const databaseId = process.env.NOTION_DATABASE_ID || process.env.NOTION_PAGE_ID;
 

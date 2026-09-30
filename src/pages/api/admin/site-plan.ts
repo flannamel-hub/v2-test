@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 /** BLOG 分层 P4-FIX:站点会员计划只读端点。
  * 仅 BLOG 后台浏览器调用(广告位管理灰态判定);只返回 plan,不含用量明细。 */
@@ -13,6 +14,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<SitePlanResponse>
 ) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
+  }
+
   try {
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET')

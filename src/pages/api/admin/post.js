@@ -16,6 +16,7 @@ import { getGalleryFeatureEnabled } from '@/src/lib/blog/galleryFeatureGate';
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue';
 import { collectPostRevalidatePaths } from '@/src/lib/blog/contentRevalidation';
 import { slugify } from '@/src/lib/util';
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest';
 
 const notion = new Client({
   auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN,
@@ -660,6 +661,10 @@ async function unpinAllExcept(notion, databaseId, exceptId, pinKey) {
 }
 
 export default async function handler(req, res) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' });
+  }
+
   await getImageHostConfig();
   const { id: queryId } = req.query;
   const databaseId = process.env.NOTION_DATABASE_ID || process.env.NOTION_PAGE_ID;

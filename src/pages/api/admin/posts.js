@@ -6,8 +6,13 @@ import { loadGalleryFeedCovers } from '@/src/lib/gallery/galleryFeedPreviews';
 import { resolveAdminListCoverSrc } from '@/src/lib/admin/resolveAdminListCover';
 import { isPostIndexedBySlug } from '@/src/lib/notion/getBlogData';
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest';
 
 export default async function handler(req, res) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' });
+  }
+
   await getImageHostConfig();
   const notion = new Client({ auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN });
   const databaseId = process.env.NOTION_DATABASE_ID || process.env.NOTION_PAGE_ID;

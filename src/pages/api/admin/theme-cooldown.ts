@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getThemeSwitchQuotaStatus } from '@/src/lib/blog/themeSwitchQuota'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 type ThemeCooldownResponse = {
   success: boolean
@@ -19,6 +20,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ThemeCooldownResponse>
 ) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }

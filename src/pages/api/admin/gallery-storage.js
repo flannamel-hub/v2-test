@@ -7,8 +7,13 @@ import {
   getGalleryStorageStats,
 } from '@/src/lib/gallery/galleryStorage'
 import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 export default async function handler(req, res) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
+  }
+
   if (!isGalleryTenantConfigured()) {
     return res.status(503).json({
       success: false,

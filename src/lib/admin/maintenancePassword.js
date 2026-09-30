@@ -1,11 +1,15 @@
 const DEFAULT_MAINTENANCE_PASSWORD = '123456.'
 
 export function getAdminMaintenancePassword() {
-  return (
+  const fromEnv =
     process.env.ADMIN_MAINTENANCE_PASSWORD?.trim() ||
     process.env.ADMIN_FULL_REDEPLOY_PASSWORD?.trim() ||
-    DEFAULT_MAINTENANCE_PASSWORD
-  )
+    ''
+  if (fromEnv) return fromEnv
+  // 2026-09-30 图库手术批 3a：生产环境不再回退默认值（fail-closed）；
+  // dev 保留默认值便于本地开发。
+  if (process.env.NODE_ENV === 'production') return null
+  return DEFAULT_MAINTENANCE_PASSWORD
 }
 
 export function readAdminMaintenancePassword(req, body = req?.body) {
@@ -23,5 +27,7 @@ export function readAdminMaintenancePassword(req, body = req?.body) {
 }
 
 export function verifyAdminMaintenancePassword(req, body) {
-  return readAdminMaintenancePassword(req, body) === getAdminMaintenancePassword()
+  const expected = getAdminMaintenancePassword()
+  if (!expected) return false
+  return readAdminMaintenancePassword(req, body) === expected
 }

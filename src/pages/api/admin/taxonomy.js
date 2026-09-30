@@ -4,6 +4,7 @@ import {
   deleteTagFromNotion,
   renameCategoryFromNotion,
 } from '@/src/lib/blog/deleteTaxonomy';
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest';
 
 const PROTECTED_CATEGORIES = new Set(['网站信息', '系统组件', '站长通知', '未分类']);
 
@@ -31,6 +32,10 @@ const withRetry = async (fn, retries = 4) => {
 };
 
 export default async function handler(req, res) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' });
+  }
+
   const notion = new Client({ auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN });
   const databaseId = process.env.NOTION_DATABASE_ID || process.env.NOTION_PAGE_ID;
 

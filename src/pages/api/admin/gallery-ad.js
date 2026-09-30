@@ -4,6 +4,7 @@ import {
   getRuntimeImageHostConfig,
   rewriteManagedAssetUrl,
 } from '@/src/lib/media/rewriteManagedAssetUrl';
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest';
 
 const notion = new Client({
   auth: process.env.NOTION_KEY || process.env.NOTION_TOKEN,
@@ -119,6 +120,10 @@ async function buildProperties(dbProps, { url, promoText, cover, enabled }) {
 }
 
 export default async function handler(req, res) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' });
+  }
+
   await getImageHostConfig();
   try {
     if (req.method === 'GET') {
