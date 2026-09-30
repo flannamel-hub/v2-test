@@ -4571,6 +4571,11 @@ const [mounted, setMounted] = useState(false);
   });
 
   const [view, setView] = useState('list');
+  // GAL-B4-FIX1: 最新 view ref(异步回调应用状态前校验用户是否仍在本页,丢弃晚到结果)
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
   const [viewMode, setViewMode] = useState('covered');
   const [options, setOptions] = useState({ categories: [], tags: [] });
   const [activeTab, setActiveTab] = useState('Post');
@@ -4782,6 +4787,8 @@ const [mounted, setMounted] = useState(false);
   const [versionRepairFeatureError, setVersionRepairFeatureError] = useState('');
   // B2 FIX1:缓存解锁成功的维护密码,供页内「开启图库」开关 POST 透传
   const versionRepairPasswordRef = useRef('');
+  // GAL-B4-FIX1:「进入入库管理」加载态(防重复点击+可见反馈)
+  const [versionRepairCrawlerOpening, setVersionRepairCrawlerOpening] = useState(false);
   // BLOG 分层 P8:贩售机组件为专业版权益(免费版灰态+点击弹提示;渲染仍按平台默认)
   const vendingLocked = sitePlan !== 'pro';
   // BLOG 分层 P8:去除平台角标开关(专业版权益;共用库 blog_quota_state.brand_clean)
@@ -6018,19 +6025,30 @@ const [mounted, setMounted] = useState(false);
   };
 
   // GAL-B4(1A):版本修复页进入爬虫管理(免二次维护密码;复用版本修复解锁密码校验 pending,失败/无密码走既有解锁弹窗兜底)
+  // GAL-B4-FIX1:加载态防重复点击;viewRef 守卫丢弃晚到结果(用户已离开版本修复页不再拽入);非 403 失败 toast(403 由 fetch 内解锁框兜底,两者并存可接受)
   const openCrawlerIngestFromRepair = async () => {
-    const pw = versionRepairPasswordRef.current;
-    if (!pw) {
-      openCrawlerIngestView();
-      return;
+    if (versionRepairCrawlerOpening) return;
+    setVersionRepairCrawlerOpening(true);
+    try {
+      const pw = versionRepairPasswordRef.current;
+      if (!pw) {
+        openCrawlerIngestView();
+        return;
+      }
+      const data = await fetchCrawlerIngestTab('pending', pw);
+      if (viewRef.current !== 'version-repair') return;
+      if (!data) {
+        showAdminToast('读取爬虫队列失败，请重试');
+        return;
+      }
+      setCrawlerIngestPassword(pw);
+      setCrawlerIngestReturnView('version-repair');
+      setView('crawler-ingest');
+      setCrawlerIngestTab('pending');
+      setCrawlerIngestSelectedIds([]);
+    } finally {
+      setVersionRepairCrawlerOpening(false);
     }
-    const data = await fetchCrawlerIngestTab('pending', pw);
-    if (!data) return;
-    setCrawlerIngestPassword(pw);
-    setCrawlerIngestReturnView('version-repair');
-    setView('crawler-ingest');
-    setCrawlerIngestTab('pending');
-    setCrawlerIngestSelectedIds([]);
   };
 
   const leaveCrawlerIngestView = () => {
@@ -10456,7 +10474,7 @@ const [mounted, setMounted] = useState(false);
               </div>
               <button
                 type="button"
-                disabled={!crawlerIngestConfigured}
+                disabled={!crawlerIngestConfigured || versionRepairCrawlerOpening}
                 onClick={openCrawlerIngestFromRepair}
                 data-testid="version-repair-crawler-btn"
                 style={{
@@ -10466,14 +10484,14 @@ const [mounted, setMounted] = useState(false);
                   borderRadius: '999px',
                   fontWeight: 'bold',
                   fontSize: '14px',
-                  cursor: !crawlerIngestConfigured ? 'not-allowed' : 'pointer',
+                  cursor: !crawlerIngestConfigured || versionRepairCrawlerOpening ? 'not-allowed' : 'pointer',
                   background: '#9a6dd7',
                   color: '#fff',
-                  opacity: crawlerIngestConfigured ? 1 : 0.45,
+                  opacity: !crawlerIngestConfigured || versionRepairCrawlerOpening ? 0.45 : 1,
                   flexShrink: 0,
                 }}
               >
-                进入入库管理
+                {versionRepairCrawlerOpening ? '进入中…' : '进入入库管理'}
               </button>
             </div>
 
