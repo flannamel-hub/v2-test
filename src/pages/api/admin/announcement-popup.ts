@@ -3,6 +3,7 @@ import {
   getAnnouncementPopupConfig,
   updateAnnouncementPopupConfig,
 } from '@/src/lib/blog/announcementPopupSettings'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 type AnnouncementPopupResponse = {
   success: boolean
@@ -14,6 +15,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<AnnouncementPopupResponse>
 ) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
+  }
+
   try {
     if (req.method === 'GET') {
       const popup = await getAnnouncementPopupConfig()

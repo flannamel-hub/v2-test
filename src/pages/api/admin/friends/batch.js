@@ -2,12 +2,17 @@ import {
   clearFriendsDbCache,
   upsertFriend,
 } from '@/src/lib/admin/friendsNotion'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 export const config = {
   maxDuration: 300,
 }
 
 export default async function handler(req, res) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   }

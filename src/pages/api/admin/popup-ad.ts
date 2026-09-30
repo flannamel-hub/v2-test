@@ -3,6 +3,7 @@ import {
   getPopupAdConfig,
   updatePopupAdConfig,
 } from '@/src/lib/blog/popupAdSettings'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 type PopupAdResponse = {
   success: boolean
@@ -14,6 +15,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<PopupAdResponse>
 ) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
+  }
+
   try {
     if (req.method === 'GET') {
       const popupAd = await getPopupAdConfig()

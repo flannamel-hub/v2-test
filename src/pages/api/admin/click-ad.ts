@@ -3,6 +3,7 @@ import {
   getClickAdConfig,
   updateClickAdConfig,
 } from '@/src/lib/blog/clickAdSettings'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 type ClickAdResponse = {
   success: boolean
@@ -14,6 +15,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ClickAdResponse>
 ) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
+  }
+
   try {
     if (req.method === 'GET') {
       const clickAd = await getClickAdConfig()

@@ -28,6 +28,7 @@ import {
 import { isPostIndexedBySlug } from '@/src/lib/notion/getBlogData'
 import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
 import { getSupabaseAdmin } from '@/src/lib/supabase/admin'
+import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 
 export const config = {
   maxDuration: 300,
@@ -215,6 +216,10 @@ function resolveTagIds(tagsString) {
 }
 
 export default async function handler(req, res) {
+  if (!verifyAdminRequest(req)) {
+    return res.status(401).json({ success: false, error: '未授权' })
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' })
   }
