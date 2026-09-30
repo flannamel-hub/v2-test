@@ -1,4 +1,5 @@
 import { isGalleryTenantConfigured } from '@/src/lib/gallery/blogSite'
+import { getGalleryFeatureEnabled } from '@/src/lib/blog/galleryFeatureGate'
 import {
   listAllGalleryImagesForAdmin,
   syncGalleryImages,
@@ -11,6 +12,14 @@ export default async function handler(req, res) {
       error:
         '图库服务暂未启用，请联系管理员。',
     })
+  }
+
+  // 图库基座手术 批1:站点级图库开关(fail-closed)关闭时本管理 API 整体 503;
+  // 公开读 /api/gallery/[slug] 与 /api/gallery/post-stats 不设此门控
+  // (按方案 §3.7:公开读零回归)
+  const galleryEnabled = await getGalleryFeatureEnabled()
+  if (!galleryEnabled) {
+    return res.status(503).json({ success: false, error: '图库功能未启用' })
   }
 
   try {

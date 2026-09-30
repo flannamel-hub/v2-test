@@ -5,6 +5,7 @@ import {
   readSlugFromNotionPage,
 } from '@/src/lib/blog/generateAdminPostSlug'
 import { syncGalleryImages } from '@/src/lib/gallery/galleryDb'
+import { getGalleryFeatureEnabled } from '@/src/lib/blog/galleryFeatureGate'
 import {
   findNotionPropertyKey,
   normalizeMediaUrl,
@@ -312,17 +313,26 @@ export async function processCrawlerGalleryRow(
     action = 'created'
   }
 
-  const galleryResult = await syncGalleryImages({
-    postSlug,
-    postNotionId: pageId,
-    title: row.title,
-    images: imageUrls.map((url) => ({ url, thumb_url: url })),
-  })
+  // 图库基座手术 批1:站点级图库开关关闭时跳过图库同步(正文/封面 Notion 写入照常);
+  // 关闭态 imageCount 口径=本次图片张数,开启态现状=图库总数(评审 Q7 已接受两态差异)
+  const galleryEnabled = await getGalleryFeatureEnabled()
+  let imageCount: number
+  if (galleryEnabled) {
+    const galleryResult = await syncGalleryImages({
+      postSlug,
+      postNotionId: pageId,
+      title: row.title,
+      images: imageUrls.map((url) => ({ url, thumb_url: url })),
+    })
+    imageCount = galleryResult.imageCount
+  } else {
+    imageCount = imageUrls.length
+  }
 
   return {
     notionPageId: pageId!,
     slug: postSlug,
-    imageCount: galleryResult.imageCount,
+    imageCount,
     action,
   }
 }

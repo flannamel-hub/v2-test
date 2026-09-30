@@ -12,6 +12,7 @@ import { normalizeMediaUrl, readNotionCoverUrl, findNotionPropertyKey, readCover
 import { fetchMerchantProductBySku, isMerchantProductOnSale } from '@/src/lib/shop/merchantProducts';
 import { getStoreUrl, buildProductUrl } from '@/src/lib/shop/shopCart';
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
+import { getGalleryFeatureEnabled } from '@/src/lib/blog/galleryFeatureGate';
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue';
 import { collectPostRevalidatePaths } from '@/src/lib/blog/contentRevalidation';
 import { slugify } from '@/src/lib/util';
@@ -1003,6 +1004,15 @@ export default async function handler(req, res) {
         if (slug === 'theme-config' && excerpt !== undefined) {
           previousThemeCode = await getSiteThemeCode();
           const nextThemeCode = String(excerpt).trim();
+          // 图库基座手术 批1:Gallery 主题为内部站专属——站点级图库开关
+          // (blog_site_settings.gallery_feature_enabled)未开启时拒绝;
+          // 在配额校验之前判定(方案 §3.5:保存链守卫=全仓唯一主题写入口)
+          if (nextThemeCode === 'gallery') {
+            const galleryEnabled = await getGalleryFeatureEnabled();
+            if (!galleryEnabled) {
+              return res.status(403).json({ success: false, error: '该主题当前不可用' });
+            }
+          }
           try {
             await assertThemeSwitchAllowed(previousThemeCode, nextThemeCode);
           } catch (themeQuotaErr) {
