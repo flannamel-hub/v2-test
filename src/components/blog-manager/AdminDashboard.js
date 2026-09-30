@@ -2577,27 +2577,16 @@ const AdminRefreshButton = ({
   );
 };
 
-/** 标题右侧齿轮下拉菜单：爬虫设置 + 新手引导（占位入口） */
+/** 标题右侧齿轮下拉菜单(GAL-B4:两项=新手引导、版本修复;爬虫入库并入版本修复页) */
 const AdminGearMenu = ({
   wrapRef,
   open,
   onToggle,
   onClose,
   isThemeLoading,
-  crawlerIngestBusy,
-  crawlerIngestProgress,
-  crawlerIngestConfigured,
-  crawlerIngestSummary,
-  onOpenIngestList,
+  onOpenVersionRepair,
   onShowOnboarding,
 }) => {
-  const crawlerIngestDisabled = isThemeLoading || !crawlerIngestConfigured;
-  const crawlerSessionDone =
-    crawlerIngestProgress
-      ? (crawlerIngestProgress.sessionSucceeded ?? 0) +
-        (crawlerIngestProgress.sessionFailed ?? 0)
-      : 0;
-
   const runAndClose = (fn) => {
     onClose();
     fn();
@@ -2621,42 +2610,17 @@ const AdminGearMenu = ({
             type="button"
             role="menuitem"
             className="header-actions-menu-item"
-            disabled={crawlerIngestDisabled}
-            onClick={() => runAndClose(onOpenIngestList)}
-            title={
-              !crawlerIngestConfigured
-                ? '入库服务尚未配置，请联系管理'
-                : '爬虫入库管理：待入库、处理中、失败与入库记录'
-            }
+            onClick={() => runAndClose(onShowOnboarding)}
           >
-            {crawlerIngestBusy && crawlerIngestProgress ? (
-              <>
-                入库中
-                <span className="header-actions-menu-item__hint">
-                  本次 {crawlerSessionDone} / {crawlerIngestProgress.initialPending}
-                  {crawlerIngestProgress.currentTitle
-                    ? ` · ${crawlerIngestProgress.currentTitle}`
-                    : ''}
-                </span>
-              </>
-            ) : (
-              '爬虫设置'
-            )}
-            {crawlerIngestConfigured && crawlerIngestSummary && !crawlerIngestBusy ? (
-              <span className="header-actions-menu-item__hint">
-                待入库 {crawlerIngestSummary.pending ?? 0} · 处理中{' '}
-                {crawlerIngestSummary.processing ?? 0} · 失败{' '}
-                {crawlerIngestSummary.failed ?? 0}
-              </span>
-            ) : null}
+            新手引导
           </button>
           <button
             type="button"
             role="menuitem"
             className="header-actions-menu-item"
-            onClick={() => runAndClose(onShowOnboarding)}
+            onClick={() => runAndClose(onOpenVersionRepair)}
           >
-            新手引导
+            版本修复
           </button>
         </div>
       ) : null}
@@ -4749,6 +4713,8 @@ const [mounted, setMounted] = useState(false);
   const [crawlerIngestTab, setCrawlerIngestTab] = useState('pending');
   const [crawlerIngestSelectedIds, setCrawlerIngestSelectedIds] = useState([]);
   const [crawlerIngestProgress, setCrawlerIngestProgress] = useState(null);
+  // GAL-B4(1A):爬虫管理返回去向(从版本修复页进入则返回版本修复页,默认回列表)
+  const [crawlerIngestReturnView, setCrawlerIngestReturnView] = useState('list');
   const crawlerIngestPollRef = useRef(null);
   const crawlerIngestCancelRef = useRef(false);
   const [listSelectMode, setListSelectMode] = useState(false);
@@ -6021,6 +5987,7 @@ const [mounted, setMounted] = useState(false);
       setCrawlerIngestUnlockOpen(true);
       return;
     }
+    setCrawlerIngestReturnView('list');
     setView('crawler-ingest');
     setCrawlerIngestTab('pending');
     setCrawlerIngestSelectedIds([]);
@@ -6041,6 +6008,7 @@ const [mounted, setMounted] = useState(false);
       if (!data) return;
       setCrawlerIngestPassword(password);
       closeCrawlerIngestUnlockModal();
+      setCrawlerIngestReturnView('list');
       setView('crawler-ingest');
       setCrawlerIngestTab('pending');
       setCrawlerIngestSelectedIds([]);
@@ -6049,12 +6017,28 @@ const [mounted, setMounted] = useState(false);
     }
   };
 
+  // GAL-B4(1A):版本修复页进入爬虫管理(免二次维护密码;复用版本修复解锁密码校验 pending,失败/无密码走既有解锁弹窗兜底)
+  const openCrawlerIngestFromRepair = async () => {
+    const pw = versionRepairPasswordRef.current;
+    if (!pw) {
+      openCrawlerIngestView();
+      return;
+    }
+    const data = await fetchCrawlerIngestTab('pending', pw);
+    if (!data) return;
+    setCrawlerIngestPassword(pw);
+    setCrawlerIngestReturnView('version-repair');
+    setView('crawler-ingest');
+    setCrawlerIngestTab('pending');
+    setCrawlerIngestSelectedIds([]);
+  };
+
   const leaveCrawlerIngestView = () => {
     if (crawlerIngestPollRef.current) {
       clearInterval(crawlerIngestPollRef.current);
       crawlerIngestPollRef.current = null;
     }
-    setView('list');
+    setView(crawlerIngestReturnView);
     setCrawlerIngestSelectedIds([]);
   };
 
@@ -6089,6 +6073,10 @@ const [mounted, setMounted] = useState(false);
     // 图库开关关闭:不发起 gallery-storage 拉取;依赖含 galleryFeatureEnabled,开关翻 true 后补拉一次
     if (mounted && view === 'list' && galleryFeatureEnabled) loadGalleryStorage();
   }, [mounted, view, galleryFeatureEnabled]);
+  // GAL-B4(1A):进入版本修复页时刷新一次爬虫摘要(摘要行新鲜度;勿轮询)
+  useEffect(() => {
+    if (view === 'version-repair') fetchCrawlerIngestStatus();
+  }, [view]);
 
   useEffect(() => {
     if (view === 'edit') {
@@ -9466,19 +9454,15 @@ const [mounted, setMounted] = useState(false);
                      ) : sitePlan === 'free' ? (
                        <span style={{fontSize:'10.5px', padding:'2px 8px', borderRadius:'999px', background:'rgba(173,255,47,0.10)', color:'#9acd32', border:'1px solid rgba(173,255,47,0.4)', fontWeight:'normal', whiteSpace:'nowrap'}}>免费版</span>
                      ) : null}
-                     <AdminGearMenu
-                       wrapRef={headerActionsMenuRef}
-                       open={headerActionsMenuOpen}
-                       onToggle={() => setHeaderActionsMenuOpen((v) => !v)}
-                       onClose={() => setHeaderActionsMenuOpen(false)}
-                       isThemeLoading={isThemeLoading}
-                       crawlerIngestBusy={crawlerIngestBusy}
-                       crawlerIngestProgress={crawlerIngestProgress}
-                       crawlerIngestConfigured={crawlerIngestConfigured}
-                       crawlerIngestSummary={crawlerIngestSummary}
-                       onOpenIngestList={openCrawlerIngestView}
+                      <AdminGearMenu
+                        wrapRef={headerActionsMenuRef}
+                        open={headerActionsMenuOpen}
+                        onToggle={() => setHeaderActionsMenuOpen((v) => !v)}
+                        onClose={() => setHeaderActionsMenuOpen(false)}
+                        isThemeLoading={isThemeLoading}
+                        onOpenVersionRepair={openVersionRepair}
                         onShowOnboarding={() => setTourOpen(true)}
-                     />
+                      />
                   </div>
              </div>
            </div>
@@ -9877,17 +9861,6 @@ const [mounted, setMounted] = useState(false);
                     <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>站点头像、标题与简介</div>
                   </div>
                   <div style={{ color: 'greenyellow', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
-                </div>
-              )}
-              {/* 图库基座手术批2:【版本修复】入口卡片(组件页签末尾;中性配色;无 emoji;点击弹维护密码解锁) */}
-              {activeTab === 'Widget' && viewMode !== 'folder' && (
-                <div onClick={openVersionRepair} className="card-item" data-tour="version-repair-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #8a8f98', cursor: 'pointer' }}>
-                  <div style={{ width: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FiTool size={22} color="#8a8f98" /></div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>版本修复</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>系统修复与内部维护（需维护密码）</div>
-                  </div>
-                  <div style={{ color: '#8a8f98', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
               )}
               {viewMode === 'folder' && (activeTab === 'Post' || activeTab === 'Favourites') && categoryFolderList.map(cat => (
@@ -10471,7 +10444,40 @@ const [mounted, setMounted] = useState(false);
               </button>
             </div>
 
-            {/* 3. 说明文案 */}
+            {/* 3. 爬虫入库(GAL-B4 1A:摘要行 + 进入管理;免二次维护密码;未配置禁用) */}
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'16px'}}>
+              <div>
+                <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>爬虫入库</div>
+                <div style={{fontSize:'12px', color:'#999', lineHeight:1.7}}>
+                  {crawlerIngestConfigured
+                    ? `待入库 ${crawlerIngestSummary?.pending ?? 0} · 处理中 ${crawlerIngestSummary?.processing ?? 0} · 失败 ${crawlerIngestSummary?.failed ?? 0}`
+                    : '入库服务尚未配置，请联系管理'}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={!crawlerIngestConfigured}
+                onClick={openCrawlerIngestFromRepair}
+                data-testid="version-repair-crawler-btn"
+                style={{
+                  minWidth: '150px',
+                  padding: '12px 20px',
+                  border: 'none',
+                  borderRadius: '999px',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  cursor: !crawlerIngestConfigured ? 'not-allowed' : 'pointer',
+                  background: '#9a6dd7',
+                  color: '#fff',
+                  opacity: crawlerIngestConfigured ? 1 : 0.45,
+                  flexShrink: 0,
+                }}
+              >
+                进入入库管理
+              </button>
+            </div>
+
+            {/* 4. 说明文案 */}
             <div style={{padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555'}}>
               <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>关于本页</div>
               <div style={{fontSize:'12px', color:'#999', lineHeight:1.7}}>图库为内部功能：开启后，编辑器显示图库步骤，可切换 Gallery 主题；关闭后上述入口隐藏，不影响已发布内容。修改即时生效。</div>
