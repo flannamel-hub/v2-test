@@ -107,7 +107,7 @@ const isFallbackCategory = (name) =>
 const isSystemReservedCategory = (name) =>
   isProtectedCategory(name) || isFallbackCategory(name);
 
-const SPECIAL_PAGE_SLUGS = new Set(['announcement', 'about', 'download', 'theme-config', 'social-links']);
+const SPECIAL_PAGE_SLUGS = new Set(['announcement', 'about', 'download', 'theme-config', 'social-links', 'members']);
 const SHOW_VENDING_ADDRESS_ADMIN = true;
 const SOCIAL_LINK_PLATFORMS = [
   { platform: 'weibo', label: '微博', placeholder: 'https://weibo.com/...' },

@@ -39,6 +39,7 @@ const systemPageSlugs = new Set([
   'click-ad',
   'social-links',
   'banner',
+  'members',
 ])
 
 export const getStaticPaths = async () => {

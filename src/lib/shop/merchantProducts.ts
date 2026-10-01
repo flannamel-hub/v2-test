@@ -74,12 +74,18 @@ function extractProductsArray(payload: unknown): unknown {
   return null
 }
 
-/** 服务端读取主站商品列表(8s 超时;任何失败均降级 available:false) */
-export async function fetchMerchantProducts(): Promise<MerchantProductsResult> {
-  // P18MIGRATEENV: BASE 未配置时回退主站默认地址(多站统一连主站;env 丢失不阻断查询,TOKEN 独立兜底)
-  const base =
+/** 站点会员 B1:主站网关 base 解析(MERCHANT_API_BASE 未配置时回退主站默认地址)。
+ * 全仓唯一落点;memberCenterClient 等复用,不新增硬编码域(默认回退为既有豁免)。 */
+export function resolveMerchantApiBase(): string {
+  return (
     (process.env.MERCHANT_API_BASE || '').trim().replace(/\/+$/, '') ||
     'https://creator.proplus.onl'
+  )
+}
+
+/** 服务端读取主站商品列表(8s 超时;任何失败均降级 available:false) */
+export async function fetchMerchantProducts(): Promise<MerchantProductsResult> {
+  const base = resolveMerchantApiBase()
   const path = (
     process.env.MERCHANT_PRODUCTS_PATH || '/api/merchant/products-public'
   ).trim()
@@ -157,9 +163,7 @@ export async function fetchMerchantProductBySku(
     return { available: false, product: null, error: '商品码为空,无法查询系统商品' }
   }
   // P18MIGRATEENV: BASE 未配置时回退主站默认地址(多站统一连主站;env 丢失不阻断查询,TOKEN 独立兜底)
-  const base =
-    (process.env.MERCHANT_API_BASE || '').trim().replace(/\/+$/, '') ||
-    'https://creator.proplus.onl'
+  const base = resolveMerchantApiBase()
   const path = (
     process.env.MERCHANT_PRODUCTS_PATH || '/api/merchant/products-public'
   ).trim()

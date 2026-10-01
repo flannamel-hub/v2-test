@@ -7,6 +7,7 @@ import { getPopupAdConfig } from '@/src/lib/blog/popupAdSettings'
 import { getVendingConfig } from '@/src/lib/blog/vendingSettings'
 import { DEFAULT_VENDING_URL } from '@/src/lib/blog/vendingDefaults'
 import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
+import { getMembershipConfig } from '@/src/lib/blog/membershipGate'
 import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
 import { getCachedNavFooter } from '../notion/getCachedMem'
 import { getWidgetPages } from '../notion/getDatabase'
@@ -24,14 +25,22 @@ async function buildSharedProps(
   logo: SharedNavFooterStaticProps['props']['logo'],
   widgetPages: PageObjectResponse[]
 ): Promise<SharedNavFooterStaticProps['props']> {
-  const [activeTheme, vendingConfig, announcementPopup, popupAdRaw, clickAdRaw, quotaState] =
-    await Promise.all([
+  const [
+    activeTheme,
+    vendingConfig,
+    announcementPopup,
+    popupAdRaw,
+    clickAdRaw,
+    quotaState,
+    membershipRaw,
+  ] = await Promise.all([
       resolveActiveTheme(),
       getVendingConfig(widgetPages),
       getAnnouncementPopupConfig(widgetPages),
       getPopupAdConfig(widgetPages),
       getClickAdConfig(widgetPages),
       getSiteQuotaState(),
+      getMembershipConfig(),
     ])
 
   // BLOG 分层 P4:免费版贩售机强制平台默认地址;专业版保留商户自定义
@@ -44,6 +53,9 @@ async function buildSharedProps(
   // 读者端不渲染。管理后台仍可见配置界面(灰态),由 AdminDashboard 自行判定。
   const popupAd = quotaState.plan === 'pro' ? popupAdRaw : null
   const clickAd = quotaState.plan === 'pro' ? clickAdRaw : null
+
+  // 站点会员 B1:双门收敛(镜像 popupAd 体例);免费版/未开通站点读者端一律不下发(null)
+  const membershipConfig = quotaState.plan === 'pro' ? membershipRaw : null
 
   // BLOG 分层 P8:去除平台角标(双条件:brand_clean 且专业版;免费版强制显示角标)
   const siteBrandClean = quotaState.plan === 'pro' && quotaState.brandClean === true
@@ -63,6 +75,7 @@ async function buildSharedProps(
     announcementPopup,
     popupAd,
     clickAd,
+    membershipConfig,
   }
 }
 

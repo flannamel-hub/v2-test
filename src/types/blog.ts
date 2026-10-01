@@ -11,6 +11,7 @@ import type { AnnouncementPopupConfig } from '@/src/lib/blog/announcementPopupDe
 import type { ClickAdConfig } from '@/src/lib/blog/clickAdDefaults'
 import type { PopupAdConfig } from '@/src/lib/blog/popupAdDefaults'
 import type { SocialLinksWidgetType } from '@/src/lib/blog/format/widget/socialLinks'
+import type { SiteMembershipConfig } from '@/src/lib/blog/membershipGate'
 import { ApiColor, BlockResponse } from './notion'
 
 export type FixedLengthArray<N extends number, T> = N extends N
@@ -176,6 +177,8 @@ export type SharedNavFooterStaticProps = {
     popupAd?: PopupAdConfig | null
     /** 首页遮罩广告（Notion Widget: slug=click-ad） */
     clickAd?: ClickAdConfig | null
+    /** 站点会员 B1:会员功能配置（服务端双门收敛:plan=pro 且 enabled;免费版/未开通读者端一律 null） */
+    membershipConfig?: SiteMembershipConfig | null
     socialLinks?: SocialLinksWidgetType | null
   }
   // revalidate: number
