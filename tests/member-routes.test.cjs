@@ -490,7 +490,7 @@ test('session 本地有效(iat 新鲜)→ active 且零中心调用 + touch 同�
 
   assert.equal(res.statusCode, 200)
   assert.equal(res.body.status, 'active')
-  assert.equal(res.body.member_no, 'member-001')
+  assert.equal(res.body.member_no, null)
   assert.equal(typeof res.body.expires_at, 'string')
   assert.equal(
     res.headers['set-cookie'],
@@ -564,7 +564,7 @@ test('session mexp<=now 且中心回 expired → status=expired 且无 Set-Cooki
   assert.equal(res.headers['set-cookie'], undefined)
 })
 
-test('session 中心 revoked → 清除 cookie + status=revoked(member 字段尽力从 claims 取)', async () => {
+test('session 中心 revoked → 清除 cookie + status=revoked(member_no 未知→null)', async () => {
   enableMembership()
   const now = Math.floor(Date.now() / 1000)
   const passport = makePassport({ iat: now - 25 * 3600 })
@@ -579,7 +579,7 @@ test('session 中心 revoked → 清除 cookie + status=revoked(member 字段尽
 
   assert.equal(res.statusCode, 200)
   assert.equal(res.body.status, 'revoked')
-  assert.equal(res.body.member_no, 'member-001')
+  assert.equal(res.body.member_no, null)
   assert.equal(
     res.headers['set-cookie'],
     'sm_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'

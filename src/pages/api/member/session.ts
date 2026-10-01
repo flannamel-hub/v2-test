@@ -24,9 +24,10 @@ import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
  *   (心跳条件③对到期会员每次都会打到中心)。
  */
 
-function memberNoFromClaims(claims: MemberPassportClaims): string | null {
-  // claims 冻结契约无 member_no 字段;sub(会员 id)作尽力来源
-  return claims.sub || null
+function memberNoFromClaims(_claims: MemberPassportClaims): null {
+  // claims 冻结契约无 member_no 字段;纯本地路径 member_no 未知→null;
+  // 权威值以 login/refresh 的中心返回为准
+  return null
 }
 
 function expiresAtFromClaims(claims: MemberPassportClaims): string | null {
