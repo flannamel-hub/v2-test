@@ -176,7 +176,9 @@ test('malformed:typ 非 JWT / kid 缺失 / "=" 填充段 / 段数错误', async 
 test('bad_signature:签名段被篡改', async () => {
   const valid = signJwt(baseHeader(), baseClaims())
   const [h, p, s] = valid.split('.')
-  const flipped = s.endsWith('A') ? `${s.slice(0, -1)}B` : `${s.slice(0, -1)}A`
+  // 末字符仅承载末字节低 2 位,改末字符有 1/4 概率解码字节不变→验签假通过;
+  // 首字符承载首字节高 6 位,A/B 对调必然改变解码字节,确定性破坏
+  const flipped = s.startsWith('A') ? `B${s.slice(1)}` : `A${s.slice(1)}`
   const result = await verify(`${h}.${p}.${flipped}`)
   assert.deepEqual(result, { ok: false, reason: 'bad_signature' })
 })
