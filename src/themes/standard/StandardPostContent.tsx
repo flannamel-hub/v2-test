@@ -1,6 +1,6 @@
 'use client'
 
-import { BlockRender } from '@/src/components/blocks/BlockRender'
+import { MemberAwareBlockRender, useMemberContent } from '@/src/components/post/MemberAwareBlockRender'
 import { BlockResponse } from '@/src/types/notion'
 import {
   filterGalleryBodyBlocks,
@@ -25,6 +25,9 @@ export function StandardPostContent({
 
   const bodyBlocks = filterGalleryBodyBlocks(blocks, hasGallery)
   const showBody = hasGalleryBodyContent(blocks, hasGallery)
+  // 站点会员 B2:纯会员文(marker 在首块,公开区为空)时正文区仍需渲染(gate 占位正文位)
+  const memberEnabled = !!useMemberContent()?.enabled
+  const showBodyArea = showBody || memberEnabled
 
   return (
     <MathJaxContext>
@@ -36,13 +39,13 @@ export function StandardPostContent({
           </>
         ) : null}
 
-        {ready && showBody ? (
+        {ready && showBodyArea ? (
           <div className={hasGallery ? 'standard-post-content__body' : ''}>
-            <BlockRender blocks={bodyBlocks} variant="default" />
+            <MemberAwareBlockRender blocks={bodyBlocks} variant="default" postSlug={postSlug} />
           </div>
         ) : null}
 
-        {ready && !hasGallery && !showBody ? (
+        {ready && !hasGallery && !showBody && !memberEnabled ? (
           <p className="py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
             暂无内容
           </p>

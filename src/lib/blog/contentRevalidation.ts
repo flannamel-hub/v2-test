@@ -19,6 +19,7 @@ import {
   setRevalidateFreshTheme,
 } from '@/src/lib/notion/getBlogData'
 import { clearImageHostConfigCache } from '@/src/lib/media/imageHostConfig'
+import { clearMemberContentCache } from '@/src/lib/blog/memberContentCache'
 import { ApiScope } from '@/src/types/notion'
 
 const { CATEGORY, TAG, ARCHIVE } = CONFIG.DEFAULT_SPECIAL_PAGES
@@ -50,6 +51,8 @@ export function clearContentBuildCaches(): void {
   clearGalleryAdBannerCache()
   clearArchiveNavCache()
   clearGalleryPostsCache()
+  // 站点会员 B2:会员区内容缓存一并清空
+  clearMemberContentCache()
 }
 
 function normalizePath(path: string): string {

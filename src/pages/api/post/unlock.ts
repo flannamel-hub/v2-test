@@ -4,6 +4,7 @@ import {
   readStoredArticlePassword,
   verifyArticleUnlockTokenForPage,
 } from '@/src/lib/blog/articlePasswordToken'
+import { splitBlocksOnMemberMarker } from '@/src/lib/blog/memberContent'
 import { getPostBySlug } from '@/src/lib/notion/getBlogData'
 import { getAllBlocks } from '@/src/lib/notion/getBlocks'
 import { ApiScope } from '@/src/types/notion'
@@ -52,12 +53,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const blocks = await loadPostBlocks(rawPost.id)
+    // 站点会员 B2(P0):全篇密码通道不得泄露会员区——返回前切分,只返回公开区
+    const { publicBlocks } = splitBlocksOnMemberMarker(blocks)
     const unlockToken = mintArticleUnlockToken(slug, storedPassword)
 
     return res.status(200).json({
       success: true,
       token: unlockToken,
-      blocks,
+      blocks: publicBlocks,
     })
   } catch (error) {
     console.error('[api/post/unlock]', error)

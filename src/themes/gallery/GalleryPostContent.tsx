@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { BlockRender } from '@/src/components/blocks/BlockRender'
+import { MemberAwareBlockRender, useMemberContent } from '@/src/components/post/MemberAwareBlockRender'
 import { BlockResponse } from '@/src/types/notion'
 import { MathJaxContext } from 'better-react-mathjax'
 import { GalleryImageGrid } from './GalleryImageGrid'
@@ -26,6 +26,9 @@ export function GalleryPostContent({ postSlug, blocks }: GalleryPostContentProps
   })
   const bodyBlocks = filterGalleryBodyBlocks(blocks, hasGallery)
   const showBody = hasGalleryBodyContent(blocks, hasGallery)
+  // 站点会员 B2:纯会员文(marker 在首块,公开区为空)时正文区仍需渲染(gate 占位正文位)
+  const memberEnabled = !!useMemberContent()?.enabled
+  const showBodyArea = showBody || memberEnabled
 
   return (
     <MathJaxContext>
@@ -35,15 +38,15 @@ export function GalleryPostContent({ postSlug, blocks }: GalleryPostContentProps
           onStatusChange={setGalleryStatus}
         />
 
-        {ready && showBody ? (
+        {ready && showBodyArea ? (
           <div className={hasGallery ? 'mt-8' : ''}>
             <div className={hasGallery ? proseBorderedClass : galleryProseClass}>
-              <BlockRender blocks={bodyBlocks} variant="gallery" />
+              <MemberAwareBlockRender blocks={bodyBlocks} variant="gallery" postSlug={postSlug} />
             </div>
           </div>
         ) : null}
 
-        {ready && !hasGallery && !showBody ? (
+        {ready && !hasGallery && !showBody && !memberEnabled ? (
           <p className="py-6 text-center text-[13px] text-neutral-400">
             暂无内容
           </p>

@@ -15,6 +15,7 @@ import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
 import { getGalleryFeatureEnabled } from '@/src/lib/blog/galleryFeatureGate';
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue';
 import { collectPostRevalidatePaths } from '@/src/lib/blog/contentRevalidation';
+import { invalidateMemberContentCache } from '@/src/lib/blog/memberContentCache';
 import { slugify } from '@/src/lib/util';
 import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest';
 
@@ -1063,7 +1064,19 @@ export default async function handler(req, res) {
       } else {
         const newBlocks = useStructured ? structuredToBlocks(blocksData) : mdToBlocks(content || "");
         const page = await withRetry(() => notion.pages.create({ parent: { database_id: databaseId }, properties: props, children: newBlocks.slice(0, 100) }));
+        // 站点会员 B2:正文保存后失效会员区内容缓存(best-effort;slug 缺省=全清兜底)
+        try {
+          invalidateMemberContentCache(String(slug || '').trim() || undefined);
+        } catch (memberCacheErr) {
+          console.warn('invalidate member content cache failed:', memberCacheErr);
+        }
         return res.status(200).json({ success: true, id: page.id, ...(linkedProductFetchError ? { linkedProductFetchError } : {}), ...(linkedProductSaved ? { linkedProduct: linkedProductSaved } : {}) });
+      }
+      // 站点会员 B2:正文保存后失效会员区内容缓存(best-effort;slug 缺省=全清兜底)
+      try {
+        invalidateMemberContentCache(String(slug || '').trim() || undefined);
+      } catch (memberCacheErr) {
+        console.warn('invalidate member content cache failed:', memberCacheErr);
       }
       return res.status(200).json({ success: true, id: targetPageId, ...(linkedProductFetchError ? { linkedProductFetchError } : {}), ...(linkedProductSaved ? { linkedProduct: linkedProductSaved } : {}) });
     }

@@ -8,6 +8,7 @@ import { StandardPostHeader } from '@/src/themes/standard/StandardPostHeader'
 import { StandardAdBanner } from '@/src/themes/standard/StandardAdBanner'
 import { StandardGalleryPreviewProvider } from '@/src/themes/standard/StandardGalleryPreviewContext'
 import { ArticlePasswordGate } from '../../components/post/ArticlePasswordGate'
+import { MemberContentProvider } from '../../components/post/MemberAwareBlockRender'
 import PostMessage from '../../components/post/PostMessage'
 import PostNavigation from '../../components/post/PostNavigation'
 import { PostAttachments } from '../../components/post/PostAttachments'
@@ -55,6 +56,7 @@ import {
 } from '../../lib/blog/postLimits'
 import { getPostBySlug, getPosts } from '../../lib/notion/getBlogData'
 import { isTransientNotionError } from '../../lib/notion/transientErrors'
+import { splitBlocksOnMemberMarker } from '../../lib/blog/memberContent'
 import { addSubTitle } from '../../lib/util'
 import { buildPostPageSeo } from '@/src/lib/seo/lightSeo'
 import { NextPageWithLayout, Page, PartialPost, Post, SharedNavFooterStaticProps } from '../../types/blog'
@@ -145,6 +147,10 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
       const blocks = await getAllBlocks(postForPage.id)
       const formattedBlocks = await formatBlocks(blocks)
 
+      // 站点会员 B2:服务端在 props 前把会员区整段剥离(memberBlocks 绝不进 __NEXT_DATA__)
+      const { publicBlocks, hasMemberContent } =
+        splitBlocksOnMemberMarker(formattedBlocks)
+
       // 内页广告：全主题文章页均加载（关闭状态由 loadGalleryAdBanner 按 Notion status 过滤）
       clearGalleryAdBannerCache()
       const galleryAdBanner = await loadGalleryAdBanner(
@@ -163,7 +169,8 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
       const safeData = JSON.parse(JSON.stringify({
         ...sharedPageStaticProps.props,
         post: postForPage,
-        blocks: formattedBlocks,
+        blocks: publicBlocks,
+        ...(hasMemberContent ? { hasMemberContent: true } : {}),
         navigation: {
             previousPost: previousPost || null,
             nextPost: nextPost || null,
@@ -220,6 +227,8 @@ const PostPage: NextPage<{
   siteTitle?: SharedNavFooterStaticProps['props']['siteTitle']
   widgets?: Record<string, unknown>
   vendingConfig?: SharedNavFooterStaticProps['props']['vendingConfig']
+  membershipConfig?: SharedNavFooterStaticProps['props']['membershipConfig']
+  hasMemberContent?: boolean
 }> = ({
   post,
   blocks,
@@ -234,77 +243,91 @@ const PostPage: NextPage<{
   widgets,
   vendingConfig,
   vendingEnabled,
+  membershipConfig,
+  hasMemberContent,
 }) => {
   if (!post) return <Section404 />
 
+  const renderThemeTree = (resolvedBlocks: BlockResponse[]) => {
+    if (activeTheme === 'gallery') {
+      return (
+        <GalleryPost
+          post={post}
+          blocks={resolvedBlocks}
+          sidebarRecommendations={sidebarRecommendations}
+          bottomRecommendations={bottomRecommendations}
+          postStats={postStats}
+          galleryAdBanner={galleryAdBanner}
+          navPages={navPages}
+        />
+      )
+    }
+
+    // P18-C4-7:shop 系(shop / shop-v2)内页一律复用 ShopPostPage
+    if (isShopTheme(activeTheme)) {
+      return (
+        <ShopPostPage
+          post={post}
+          blocks={resolvedBlocks}
+          navigation={navigation}
+          galleryAdBanner={galleryAdBanner}
+        />
+      )
+    }
+
+    if (isTweetTheme(activeTheme)) {
+      const shellWidgets = pickTweetShellWidgets(widgets)
+      return (
+        <TweetShell
+          siteTitle={siteTitle}
+          profile={shellWidgets.profile}
+          vendingConfig={vendingConfig}
+          vendingEnabled={vendingEnabled !== false}
+        >
+          <TweetPostPage
+            post={post}
+            blocks={resolvedBlocks}
+            navigation={navigation}
+            galleryAdBanner={galleryAdBanner}
+          />
+        </TweetShell>
+      )
+    }
+
+    return (
+      <StandardGalleryPreviewProvider postSlug={post.slug}>
+        <StandardPostHeader post={post} blocks={resolvedBlocks} />
+        <ContentLayout>
+          <ArticleProductBuyBar post={post} variant="standard" />
+          <PostMessage post={post} />
+          <StandardPostContent
+            postSlug={post.slug}
+            blocks={resolvedBlocks}
+          />
+          {/* 存储基座 S3：文章附件下载区（空数据渲染 null，普通文章零影响） */}
+          <PostAttachments postSlug={post.slug} />
+          {galleryAdBanner ? <StandardAdBanner banner={galleryAdBanner} /> : null}
+          <PostFooter post={post} />
+          <PostNavigation navigation={navigation} />
+          {CONFIG.ENABLE_COMMENT && <CommentSection />}
+        </ContentLayout>
+      </StandardGalleryPreviewProvider>
+    )
+  }
+
   return (
     <ArticlePasswordGate post={post} initialBlocks={blocks}>
-      {(resolvedBlocks) => {
-        if (activeTheme === 'gallery') {
-          return (
-            <GalleryPost
-              post={post}
-              blocks={resolvedBlocks}
-              sidebarRecommendations={sidebarRecommendations}
-              bottomRecommendations={bottomRecommendations}
-              postStats={postStats}
-              galleryAdBanner={galleryAdBanner}
-              navPages={navPages}
-            />
-          )
-        }
-
-        // P18-C4-7:shop 系(shop / shop-v2)内页一律复用 ShopPostPage
-        if (isShopTheme(activeTheme)) {
-          return (
-            <ShopPostPage
-              post={post}
-              blocks={resolvedBlocks}
-              navigation={navigation}
-              galleryAdBanner={galleryAdBanner}
-            />
-          )
-        }
-
-        if (isTweetTheme(activeTheme)) {
-          const shellWidgets = pickTweetShellWidgets(widgets)
-          return (
-            <TweetShell
-              siteTitle={siteTitle}
-              profile={shellWidgets.profile}
-              vendingConfig={vendingConfig}
-              vendingEnabled={vendingEnabled !== false}
-            >
-              <TweetPostPage
-                post={post}
-                blocks={resolvedBlocks}
-                navigation={navigation}
-                galleryAdBanner={galleryAdBanner}
-              />
-            </TweetShell>
-          )
-        }
-
-        return (
-          <StandardGalleryPreviewProvider postSlug={post.slug}>
-            <StandardPostHeader post={post} blocks={resolvedBlocks} />
-            <ContentLayout>
-              <ArticleProductBuyBar post={post} variant="standard" />
-              <PostMessage post={post} />
-              <StandardPostContent
-                postSlug={post.slug}
-                blocks={resolvedBlocks}
-              />
-              {/* 存储基座 S3：文章附件下载区（空数据渲染 null，普通文章零影响） */}
-              <PostAttachments postSlug={post.slug} />
-              {galleryAdBanner ? <StandardAdBanner banner={galleryAdBanner} /> : null}
-              <PostFooter post={post} />
-              <PostNavigation navigation={navigation} />
-              {CONFIG.ENABLE_COMMENT && <CommentSection />}
-            </ContentLayout>
-          </StandardGalleryPreviewProvider>
-        )
-      }}
+      {(resolvedBlocks) => (
+        <MemberContentProvider
+          value={{
+            enabled: !!hasMemberContent,
+            slug: post.slug,
+            config: membershipConfig ?? null,
+          }}
+        >
+          {renderThemeTree(resolvedBlocks)}
+        </MemberContentProvider>
+      )}
     </ArticlePasswordGate>
   )
 }
