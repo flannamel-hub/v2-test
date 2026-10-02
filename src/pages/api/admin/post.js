@@ -16,6 +16,7 @@ import { getGalleryFeatureEnabled } from '@/src/lib/blog/galleryFeatureGate';
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue';
 import { collectPostRevalidatePaths } from '@/src/lib/blog/contentRevalidation';
 import { invalidateMemberContentCache } from '@/src/lib/blog/memberContentCache';
+import { MEMBER_MARKER_TEXT } from '@/src/lib/blog/memberContent';
 import { slugify } from '@/src/lib/util';
 import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest';
 
@@ -153,6 +154,7 @@ function mdToBlocks(markdown) {
     else { mergedChunks.push(t); }
   }
   if (buffer) mergedChunks.push(buffer);
+  let memberEmitted = false;
   for (let content of mergedChunks) {
     if (content.startsWith(':::lock')) {
         const firstLineEnd = content.indexOf('\n');
@@ -160,6 +162,9 @@ function mdToBlocks(markdown) {
         let pwd = header.replace(':::lock', '').replace(/[>*\s🔒]/g, '').trim(); 
         const body = content.replace(/^:::lock.*?\n/, '').replace(/\n:::$/, '').trim();
         blocks.push({ object: 'block', type: 'callout', callout: { rich_text: [{ text: { content: `LOCK:${pwd}` }, annotations: { bold: true } }], icon: { type: "emoji", emoji: "🔒" }, color: "gray_background", children: [ { object: 'block', type: 'divider', divider: {} }, ...parseLinesToChildren(body) ] } });
+    } else if (content.trim() === ':::member') {
+        // 站点会员 B3:md 导入路径的 member 分隔线(与 blocksToMarkdown 导出对称;收敛仅保留第一条)
+        if (!memberEmitted) { blocks.push(makeMemberCallout()); memberEmitted = true; }
     } else { blocks.push(...parseLinesToChildren(content)); }
   }
   return blocks;
@@ -281,6 +286,19 @@ function makeLockCallout(pwd, innerChildren) {
   }
 }
 
+// 站点会员 B3:会员分隔线写侧标准形态(B2 附录 B 协议:单段 MEMBER: 纯文本,无注解无 children)
+function makeMemberCallout() {
+  return {
+    object: 'block',
+    type: 'callout',
+    callout: {
+      rich_text: [{ text: { content: MEMBER_MARKER_TEXT } }],
+      icon: { type: 'emoji', emoji: '🔒' },
+      color: 'gray_background',
+    },
+  }
+}
+
 /** 单个编辑器块 → Notion 子块（不含 callout 外壳） */
 function editorBlockToNotionInner(b) {
   const type = b.type
@@ -379,7 +397,13 @@ function editorBlockToNotionInner(b) {
 
 function structuredToBlocks(blocks) {
   const out = []
+  let memberEmitted = false;
   for (const b of (blocks || [])) {
+    // 站点会员 B3:member 分隔线仅保留第一条(文档顺序最上);即使带 locked 也不走 LOCK 外壳
+    if (b.type === 'member') {
+      if (!memberEmitted) { out.push(makeMemberCallout()); memberEmitted = true; }
+      continue;
+    }
     const inner = editorBlockToNotionInner(b)
     if (!inner.length) continue
     if (b.type === 'lock' || b.locked) {
@@ -538,6 +562,9 @@ async function notionToEditorBlocks(blocks) {
         let kids = [];
         try { const r = await withRetry(() => notion.blocks.children.list({ block_id: blk.id })); kids = r.results; } catch (e) {}
         out.push(lockCalloutToEditorBlock(kids, pwd));
+      } else if (txt.trim() === MEMBER_MARKER_TEXT) {
+        // 站点会员 B3:会员分隔线标记 → 还原为 member 块(多条均还原,保存时收敛;参见 structuredToBlocks)
+        out.push({ type: 'member' });
       } else {
         out.push({ type: 'text', content: txt, ...annFrom(rt[0]) });
       }
@@ -686,8 +713,18 @@ export default async function handler(req, res) {
             const pwd = pwdMatch ? pwdMatch[1].trim() : '';
             const parts = b.parent.split('---');
             let body = parts.length > 1 ? parts.slice(1).join('---') : parts[0].replace(/LOCK:.*\n?/, '');
-            body = body.replace(/^>[ \t]*/gm, '').trim(); 
-            b.parent = `:::lock ${pwd}\n\n${body}\n\n:::`; 
+            body = body.replace(/^>[ \t]*/gm, '').trim();
+            b.parent = `:::lock ${pwd}\n\n${body}\n\n:::`;
+          }
+        });
+        // 站点会员 B3:n2m 把 callout 渲为 `> {emoji} {text}`(注解渲成 **/`/_/~~),
+        // 归一化剥离注解标记后单段严格匹配 MEMBER: → `:::member`(md 兜底路径不丢标记);
+        // 多段(含 children 文本)不转换——权威导入路径(notionToEditorBlocks)识别,此处保守。
+        mdblocks.forEach(b => {
+          if (b.type === 'callout' && b.parent) {
+            const stripped = String(b.parent).replace(/^>[ \t]*/, '').replace(/[*`~_]/g, '').trim();
+            // 标准形态:可带行首图标/注解标记(非词字符,可有多个)+ 'MEMBER:';多段(含 children 文本)不转换
+            if (/^[^\w\s]*\s*MEMBER:$/.test(stripped)) b.parent = ':::member';
           }
         });
         cleanContent = n2m.toMarkdownString(mdblocks).parent.trim();

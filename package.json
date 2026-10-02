@@ -27,6 +27,7 @@
     "test:membership-gate": "node --test tests/membership-gate.test.cjs",
     "test:member-routes": "node --test tests/member-routes.test.cjs",
     "test:member-content": "node --test tests/member-content.test.cjs tests/member-content-api.test.cjs tests/member-unlock-split.test.cjs",
+    "test:member-editor": "node --test tests/member-editor-lib.test.cjs tests/member-editor-roundtrip.test.cjs tests/membership-state-api.test.cjs",
     "analyze": "cross-env ANALYZE=true next build",
     "analyze:server": "cross-env BUNDLE_ANALYZE=server next build",
     "analyze:browser": "cross-env BUNDLE_ANALYZE=browser next build"

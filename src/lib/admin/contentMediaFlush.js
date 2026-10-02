@@ -92,12 +92,19 @@ export function serializeBlocksForSave(blocks) {
 }
 
 export function blocksToMarkdown(blocks) {
+  // 站点会员 B3:member 分隔线导出为 :::member(仅第一条,其余返回 '' 被下方 filter 过滤)
+  let memberEmitted = false;
   return (blocks || [])
     .map((raw) => {
       // toggle 的 content 为行数组：先归一化为多行字符串，保证下方各分支（含加密分支）统一按字符串处理
       const b = raw && raw.type === 'toggle' && Array.isArray(raw.content)
         ? { ...raw, content: raw.content.join('\n') }
         : raw;
+      if (b.type === 'member') {
+        if (memberEmitted) return '';
+        memberEmitted = true;
+        return ':::member';
+      }
       if (b.type === 'h1') return `# ${b.content}`
       if (b.type === 'note') return `\`${b.content}\``
       if (b.type === 'quote') {

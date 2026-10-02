@@ -400,6 +400,20 @@ const GlobalStyle = () => (
     .block-cover-hint { margin-bottom: 16px; font-size: 12px; color: #999; background: #202024; border-radius: 8px; padding: 12px 14px; line-height: 1.7; border: 1px solid #333; }
     .block-card-wrap.is-file-drop-before .block-card { border-color: greenyellow; box-shadow: inset 0 4px 0 0 greenyellow, 0 0 18px rgba(173, 255, 47, 0.4); }
     .block-card-wrap.is-file-drop-after .block-card { border-color: greenyellow; box-shadow: inset 0 -4px 0 0 greenyellow, 0 0 18px rgba(173, 255, 47, 0.4); }
+    /* 站点会员 B3:member 分隔线卡片与「会员专属」分区(灰阶;细实线+内微光+柔和投影) */
+    .block-card-wrap.is-member-marker .block-card { border-color:#45454d; background:#26262a; }
+    .block-card-wrap.is-member-marker:hover .block-card { border-color:#55555e; }
+    .block-card-wrap.in-member-zone .block-card { border-color:#3a3a42; background:#26262a; box-shadow: inset 3px 0 0 rgba(255,255,255,0.10); }
+    .block-card-wrap.in-member-zone:hover .block-card { border-color:#4a4a52; }
+    .member-marker-box { padding: 2px 0; }
+    .member-marker-line { display:flex; align-items:center; gap:12px; color:#d6d6db; font-size:13px; font-weight:600; letter-spacing:0.5px; }
+    .member-marker-line::before, .member-marker-line::after { content:''; flex:1; height:1px; background:#3d3d44; }
+    .member-marker-caption { margin-top:8px; font-size:12px; color:#8a8a92; text-align:center; }
+    .member-marker-warn { margin-top:6px; font-size:12px; color:#fbbf24; text-align:center; }
+    .block-add-toolbar .neo-btn.is-disabled { opacity:.45; cursor:not-allowed; }
+    .block-add-toolbar .neo-btn.is-disabled:hover { transform:none; box-shadow:none; background:var(--bg); color:#fff; border-color:var(--bg); }
+    .block-minimap-item.is-member-marker { border-color:#5a5a64; }
+    .block-minimap-item.in-member-zone { box-shadow: inset 3px 0 0 rgba(255,255,255,0.10); }
     .block-minimap.is-file-drop-empty { border-color: greenyellow; box-shadow: 0 0 0 2px rgba(173, 255, 47, 0.35), inset 0 0 40px rgba(173, 255, 47, 0.06); }
     .block-view-toolbar { display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
     .block-view-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
@@ -3038,6 +3052,7 @@ const BLOCK_TYPE_SHORT = {
   ul: '无序',
   todo: '待办',
   toggle: '折叠',
+  member: '会员',
 };
 
 // R19: 纯展示卡片（序号徽标/类型行/锁标/封面标/缩略图/预览文本），供排序列表项与 DragOverlay 幽灵卡共用；
@@ -3046,6 +3061,8 @@ const BlockMinimapCard = ({
   block,
   index,
   isCover,
+  isMemberMarker = false,
+  inMemberZone = false,
   isDraggingItem = false,
   isDropBefore = false,
   isDropAfter = false,
@@ -3068,6 +3085,7 @@ const BlockMinimapCard = ({
     ).trim();
     if (block.type === 'link') return raw || block.url || '';
     if (block.type === 'lock') return raw || (block.images?.length ? `${block.images.length} 张加密图片` : '');
+    if (block.type === 'member') return '下方为会员专属内容';
     return raw;
   })();
   const thumbUrl =
@@ -3089,7 +3107,7 @@ const BlockMinimapCard = ({
     <div
       ref={rootRef}
       {...(rootProps || {})}
-      className={`block-minimap-item ${isDraggingItem ? 'is-dragging' : ''} ${isDropBefore ? 'is-drop-before' : ''} ${isDropAfter ? 'is-drop-after' : ''} ${isCover ? 'is-cover' : ''} ${justMoved ? 'just-moved' : ''} ${selectMode ? 'is-select-mode' : ''} ${isSelected ? 'is-selected' : ''} ${isGhost ? 'is-ghost' : ''}`}
+      className={`block-minimap-item ${isMemberMarker ? 'is-member-marker' : ''} ${inMemberZone ? 'in-member-zone' : ''} ${isDraggingItem ? 'is-dragging' : ''} ${isDropBefore ? 'is-drop-before' : ''} ${isDropAfter ? 'is-drop-after' : ''} ${isCover ? 'is-cover' : ''} ${justMoved ? 'just-moved' : ''} ${selectMode ? 'is-select-mode' : ''} ${isSelected ? 'is-selected' : ''} ${isGhost ? 'is-ghost' : ''}`}
       style={rootStyle}
       onClick={onClick ? (e) => {
         if (e.target.closest('.block-minimap-del')) return;
@@ -3137,6 +3155,8 @@ const BlockMinimapSortableItem = ({
   block,
   index,
   isCover,
+  isMemberMarker,
+  inMemberZone,
   justMoved,
   selectMode,
   isSelected,
@@ -3160,6 +3180,8 @@ const BlockMinimapSortableItem = ({
       block={block}
       index={index}
       isCover={isCover}
+      isMemberMarker={isMemberMarker}
+      inMemberZone={inMemberZone}
       isDraggingItem={isDragging}
       isDropBefore={isDropBefore}
       isDropAfter={isDropAfter}
@@ -3207,6 +3229,7 @@ const BLOCK_TYPE_OPTIONS = [
   { type: 'link', label: '🔗 超链文字' },
   { type: 'note', label: '💬 注释' },
   { type: 'lock', label: '🔒 加密盒子' },
+  { type: 'member', label: '会员内容分隔线' },
   { type: 'ol', label: '🔢 有序列表' },
   { type: 'ul', label: '• 无序列表' },
   { type: 'toggle', label: '▶ 折叠内容' },
@@ -3264,6 +3287,7 @@ const BlockBuilder = ({
   onSetBodyCover,
   onClearBodyCover,
   onToast,
+  memberGate = { loaded: false, canAdd: false, menuSuffix: '', hint: '' },
 }) => {
   const [movingId, setMovingId] = useState(null);
   const [blockViewMode, setBlockViewMode] = useState('expanded');
@@ -3300,6 +3324,11 @@ const BlockBuilder = ({
   };
 
   const addBlock = (type) => {
+    // 站点会员 B3:member 分隔线单条约束——门控未开通拒绝新增;已存在一条拒绝再增
+    if (type === 'member') {
+      if (!memberGate.canAdd) { onToast(memberGate.hint || '站点会员未开通，暂不可添加会员分隔线'); return; }
+      if (blocks.some((b) => b.type === 'member')) { onToast('已存在会员内容分隔线（仅允许一条）'); return; }
+    }
     const newBlock = createEditorBlock(type);
     setBlocks([...blocks, newBlock]);
     setBlockViewMode('expanded');
@@ -3348,6 +3377,11 @@ const BlockBuilder = ({
 
   // 在指定下标之后插入新块；index 传 -1 表示插到最前
   const addBlockAfter = (index, type, options = {}) => {
+    // 站点会员 B3:member 分隔线单条约束(与 addBlock 同款守卫)
+    if (type === 'member') {
+      if (!memberGate.canAdd) { onToast(memberGate.hint || '站点会员未开通，暂不可添加会员分隔线'); return; }
+      if (blocks.some((b) => b.type === 'member')) { onToast('已存在会员内容分隔线（仅允许一条）'); return; }
+    }
     const newBlock = createEditorBlock(type);
     setBlocks([...blocks.slice(0, index + 1), newBlock, ...blocks.slice(index + 1)]);
     closeAddMenu();
@@ -3431,7 +3465,7 @@ const BlockBuilder = ({
               className="bt-item"
               onClick={() => pickBlockType(opt.type)}
             >
-              {opt.label}
+              {opt.type === 'member' && !memberGate.canAdd ? `${opt.label}${memberGate.menuSuffix}` : opt.label}
             </div>
           ))}
         </div>
@@ -3529,6 +3563,8 @@ const BlockBuilder = ({
   };
 
   const openLockModal = (b) => {
+    // 站点会员 B3:member 分隔线不可加密(入口防御;渲染处也不出加密按钮)
+    if (!b || b.type === 'member') return;
     setLockModal({
       blockId: b.id,
       blockType: b.type,
@@ -3955,6 +3991,7 @@ const BlockBuilder = ({
   const getBlockLabel = (type) => {
       if (type === 'h1') return 'H1 标题';
       if (type === 'lock') return '🔒 加密盒子';
+      if (type === 'member') return '会员内容分隔线';
       if (type === 'note') return '💬 注释';
       if (type === 'image') return '🖼️ 图片块';
       if (type === 'quote') return '❝ 引用';
@@ -3970,6 +4007,8 @@ const BlockBuilder = ({
   const lockModalIsDedicated = lockModalBlock?.type === 'lock';
   // R19: DragOverlay 幽灵卡数据源
   const activeSortBlock = activeSortId ? (blocks.find((b) => b.id === activeSortId) || null) : null;
+  // 站点会员 B3:首条 member 分隔线下标(-1=无);其后块属会员专属分区(纯推导,无新增 state)
+  const firstMemberIndex = blocks.findIndex((b) => b.type === 'member');
   return (
     <div className="block-builder-shell" style={{marginTop:'30px'}}>
       {renderFloatingBlockTypeMenu()}
@@ -4071,6 +4110,7 @@ const BlockBuilder = ({
           <div className="neo-btn" onClick={()=>addBlock('image')}>正文图片</div>
           <div className="neo-btn" onClick={()=>addBlock('link')}>超链文字</div>
           <div className="neo-btn" onClick={()=>addBlock('lock')}>🔒 加密盒子</div>
+          <div className={`neo-btn${memberGate.canAdd ? '' : ' is-disabled'}`} onClick={()=>addBlock('member')} title={memberGate.canAdd ? '插入会员内容分隔线：分隔线以下内容仅登录会员可见（仅允许一条）' : memberGate.hint}>会员内容分隔线</div>
           <div className="neo-btn" onClick={()=>addBlock('quote')}>❝ 引用</div>
           <div className="neo-btn" onClick={()=>addBlock('note')}>💬 注释</div>
           <div className="neo-btn" onClick={()=>addBlock('ol')}>🔢 有序列表</div>
@@ -4138,12 +4178,17 @@ const BlockBuilder = ({
               >
                 <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
                   <div className={`block-minimap-list${activeSortId ? ' is-sorting' : ''}`}>
-              {blocks.map((b, index) => (
+              {blocks.map((b, index) => {
+                // 站点会员 B3:minimap 分区标记(member 卡片/会员区卡片)
+                const inMemberZone = firstMemberIndex >= 0 && index > firstMemberIndex;
+                return (
                 <React.Fragment key={b.id}>
                   <BlockMinimapSortableItem
                     block={b}
                     index={index}
                     isCover={b.id === coverImageBlockId}
+                    isMemberMarker={b.type === 'member'}
+                    inMemberZone={inMemberZone}
                     justMoved={movingId === b.id}
                     selectMode={compactMultiSelect}
                     isSelected={compactSelectedIds.includes(b.id)}
@@ -4156,7 +4201,8 @@ const BlockBuilder = ({
                   />
                   {renderMinimapAddBtn(`compact-after-${b.id}`, index)}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </div>
                 </SortableContext>
                 <DragOverlay zIndex={10040} dropAnimation={null}>
@@ -4165,6 +4211,8 @@ const BlockBuilder = ({
                       block={activeSortBlock}
                       index={blocks.findIndex((b) => b.id === activeSortBlock.id)}
                       isCover={activeSortBlock.id === coverImageBlockId}
+                      isMemberMarker={activeSortBlock.type === 'member'}
+                      inMemberZone={firstMemberIndex >= 0 && blocks.findIndex((b) => b.id === activeSortBlock.id) > firstMemberIndex}
                       isGhost
                     />
                   ) : null}
@@ -4195,10 +4243,14 @@ const BlockBuilder = ({
           if (!e.currentTarget.contains(e.relatedTarget)) clearFileDrop();
         }}
       >
-        {blocks.map((b, index) => (
+        {blocks.map((b, index) => {
+          // 站点会员 B3:会员专属分区(分隔线之后的块)与多余分隔线(第 2+ 条)标记
+          const inMemberZone = firstMemberIndex >= 0 && index > firstMemberIndex;
+          const isExtraMember = b.type === 'member' && index > firstMemberIndex;
+          return (
           <div
             key={b.id}
-            className={`block-card-wrap${isBlockDropBefore(index) ? ' is-file-drop-before' : ''}${isBlockDropAfter(index) ? ' is-file-drop-after' : ''}`}
+            className={`block-card-wrap${b.type === 'member' ? ' is-member-marker' : ''}${inMemberZone ? ' in-member-zone' : ''}${isBlockDropBefore(index) ? ' is-file-drop-before' : ''}${isBlockDropAfter(index) ? ' is-file-drop-after' : ''}`}
             onDragOver={(e) => handleExpandedFileDragOver(e, index)}
             onDrop={(e) => handleExpandedFileDrop(e, index)}
           >
@@ -4211,6 +4263,7 @@ const BlockBuilder = ({
             </div>
             <div className="block-label-row">
               <div className="block-label">{getBlockLabel(b.type)}</div>
+              {b.type !== 'member' && (
               <button
                 type="button"
                 className={`block-lock-btn${isEditorBlockLocked(b) ? ' is-active' : ''}`}
@@ -4220,13 +4273,14 @@ const BlockBuilder = ({
               >
                 {isEditorBlockLocked(b) ? '🔒' : '🔓'}
               </button>
+              )}
             </div>
             {isEditorBlockLocked(b) && b.type !== 'lock' ? (
               <div className="block-lock-hint">
                 🔒 已加密 · {getEditorBlockLockPwd(b) ? '前台需密码解锁' : '无密码'} · 正文仍可编辑
               </div>
             ) : null}
-            {b.type !== 'image' && <FormatBar b={b} onChange={(key, val) => updateBlock(b.id, val, key)} onInsertLink={['text','h1','quote','note'].includes(b.type) ? () => insertLinkForBlock(b) : undefined} />}
+            {b.type !== 'image' && b.type !== 'member' && <FormatBar b={b} onChange={(key, val) => updateBlock(b.id, val, key)} onInsertLink={['text','h1','quote','note'].includes(b.type) ? () => insertLinkForBlock(b) : undefined} />}
             {b.type === 'h1' && <input id={'editfield-' + b.id} className="glow-input" placeholder="输入大标题..." value={b.content} onChange={e=>updateBlock(b.id, e.target.value)} style={{fontSize:'20px', ...fmtStyle(b), fontWeight:'bold'}} />}
             {b.type === 'text' && (
               <textarea
@@ -4364,10 +4418,18 @@ const BlockBuilder = ({
                    <input type="file" accept="image/*" multiple style={{display:'none'}} onChange={e => { assignPendingToLock(b.id, e.target.files); e.target.value=''; }} />
                    <div style={{pointerEvents:'none', fontSize:'13px'}}>🔒 拖拽 / 点击 添加加密图片（本地预览，保存后上传）</div>
                  </label>
-                 {b.error && <div className="img-err">⚠ {b.error}</div>}
+                  {b.error && <div className="img-err">⚠ {b.error}</div>}
+                </div>
+             )}
+             {b.type === 'member' && (
+               <div className="member-marker-box">
+                 <div className="member-marker-line"><span>会员专属内容</span></div>
+                 <div className="member-marker-caption">分隔线以下内容仅登录会员可见；不会出现在文章源码中</div>
+                 {memberGate.loaded && !memberGate.canAdd && <div className="member-marker-warn">站点会员当前不可用：分隔线以下内容访客不可见</div>}
+                 {isExtraMember && <div className="member-marker-warn">已有其它分隔线生效：保存后仅保留第一条，此条将被移除</div>}
                </div>
-            )}
-            {b.type === 'image' && (
+             )}
+             {b.type === 'image' && (
                <label
                  className={`img-drop ${b.error ? 'err' : ''}`}
                  onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
@@ -4462,7 +4524,8 @@ const BlockBuilder = ({
             </div>
             <div className="block-del" onClick={()=>removeBlock(b.id)} title="删除此块"><Icons.Trash /></div>
           </div>
-        ))}
+          );
+        })}
         {blocks.length === 0 && (
           <div style={{ position:'relative' }}>
             <div
@@ -4533,6 +4596,7 @@ const NotionView = ({ blocks }) => {
         if(type==='divider') return <hr key={i} style={{border:'none', borderTop:'1px solid #444', margin:'24px 0'}} />;
         if(type==='image') { const url = data?.file?.url || data?.external?.url; if (!url) return null; const isVideo = url.match(/\.(mp4|mov|webm|ogg)(\?|$)/i); if(isVideo) return <div key={i} style={{display:'flex', justifyContent:'center', margin:'20px 0'}}><div style={{width:'100%', maxHeight:'500px', borderRadius:'8px', background:'#000', display:'flex', justifyContent:'center'}}><video src={url} controls preload="metadata" style={{maxWidth:'100%', maxHeight:'100%'}} /></div></div>; return <div key={i} style={{display:'flex', justifyContent:'center', margin:'20px 0'}}><div style={{width: '100%', height: '500px', background: '#000', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden'}}><img src={url} style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain'}} alt="" /></div></div>; }
         if(type==='video' || type==='embed') { let url = data?.file?.url || data?.external?.url || data?.url; if(!url) return null; const isY = url.includes('youtube')||url.includes('youtu.be'); if(isY){if(url.includes('watch?v='))url=url.replace('watch?v=','embed/');if(url.includes('youtu.be/'))url=url.replace('youtu.be/','www.youtube.com/embed/');} return <div key={i} style={{display:'flex', justifyContent:'center', margin:'20px 0'}}>{(type==='embed'||isY)?<iframe src={url} style={{width:'100%',maxWidth:'800px',height:'450px',border:'none',borderRadius:'8px',background:'#000'}} allowFullScreen />:<video src={url} controls style={{width:'100%',maxHeight:'500px',borderRadius:'8px',background:'#000'}}/>}</div>; }
+        if(type==='callout' && (text || '').trim() === 'MEMBER:') return <div key={i} style={{background:'#2d2d30', padding:'20px', borderRadius:'12px', border:'1px solid #3e3e42', margin:'20px 0', color:'#a8a8b0', fontSize:'13px', letterSpacing:'0.5px', textAlign:'center'}}>—— 会员内容分隔线 ——（下方为会员专属内容）</div>;
         if(type==='callout') return <div key={i} style={{background:'#2d2d30', padding:'20px', borderRadius:'12px', border:'1px solid #3e3e42', display:'flex', gap:'15px', margin:'20px 0'}}><div style={{fontSize:'1.4em'}}>{b.callout.icon?.emoji || '🔒'}</div><div style={{flex:1}}><div style={{fontWeight:'bold', color:'greenyellow', marginBottom:'4px'}}>{text}</div><div style={{fontSize:'12px', opacity:0.5}}>[ 加密内容已受保护 ]</div></div></div>;
         return null;
       })}
@@ -4777,6 +4841,8 @@ const [mounted, setMounted] = useState(false);
   // 失败/未拉取一律 false=隐藏图库步骤/下载链接步骤/容量条/主题下拉 gallery 项,fail-closed)
   const [galleryFeatureEnabled, setGalleryFeatureEnabled] = useState(false);
   const [galleryFeatureLoaded, setGalleryFeatureLoaded] = useState(false);
+  // 站点会员 B3:编辑器门控(只读;失败/未加载一律按不可用 fail-closed)
+  const [memberGateState, setMemberGateState] = useState({ loaded: false, plan: null, enabled: false });
   // 【版本修复】页:解锁弹窗与页内保存状态
   const [versionRepairUnlockOpen, setVersionRepairUnlockOpen] = useState(false);
   const [versionRepairUnlockClosing, setVersionRepairUnlockClosing] = useState(false);
@@ -5467,6 +5533,16 @@ const [mounted, setMounted] = useState(false);
     }
   };
 
+  // 站点会员 B3:读取编辑器门控(plan+平台开通态;失败按 free/未开通 fail-closed)
+  const loadMembershipState = async () => {
+    try {
+      const r = await fetch('/api/admin/membership-state', { cache: 'no-store' });
+      const d = await r.json();
+      if (d && d.success) setMemberGateState({ loaded: true, plan: d.plan === 'pro' ? 'pro' : 'free', enabled: !!d.enabled });
+      else setMemberGateState({ loaded: true, plan: 'free', enabled: false });
+    } catch { setMemberGateState({ loaded: true, plan: 'free', enabled: false }); }
+  };
+
   // 🟢 4. 数据拉取函数 (提前定义)
   async function fetchPosts({ silent = false } = {}) {
     // P11-C4: 已有 in-flight 请求则复用，避免并发重复全量拉取
@@ -6085,6 +6161,7 @@ const [mounted, setMounted] = useState(false);
     fetchCrawlerIngestStatus();
     loadSitePlan();
     loadGalleryFeatureState();
+    loadMembershipState();
   }, [mounted]);
   useEffect(() => { if (mounted) fetchPosts(); }, [mounted]);
   useEffect(() => {
@@ -6168,6 +6245,12 @@ const [mounted, setMounted] = useState(false);
       if (!isLocking && trimmed.startsWith(':::lock')) {
         flushBuffer(); isLocking = true; lockMode = 'explicit';
         lockPwd = trimmed.replace(':::lock', '').replace(/[>*\s🔒]/g, '').trim();
+        continue;
+      }
+
+      if (!isLocking && trimmed === ':::member') {
+        // 站点会员 B3:显式 member 分隔线(GET 归一化/导出对称;多条均还原,保存时服务端收敛)
+        flushBuffer(); res.push({ id: Date.now() + Math.random(), type: 'member' });
         continue;
       }
 
@@ -11422,6 +11505,16 @@ const [mounted, setMounted] = useState(false);
               onSetBodyCover={handleSetBodyCover}
               onClearBodyCover={handleClearBodyCover}
               onToast={showAdminToast}
+              memberGate={{
+                loaded: memberGateState.loaded,
+                canAdd: memberGateState.loaded && memberGateState.plan === 'pro' && memberGateState.enabled === true,
+                menuSuffix: !memberGateState.loaded ? '' : memberGateState.plan !== 'pro' ? '（专业版）' : memberGateState.enabled ? '' : '（未开通）',
+                hint: !memberGateState.loaded
+                  ? '站点会员状态读取中，请稍后再试'
+                  : memberGateState.plan !== 'pro'
+                    ? '站点会员为专业版功能，升级专业版后可用'
+                    : memberGateState.enabled ? '' : '站点会员尚未开通，暂不可添加会员分隔线',
+              }}
             />
             </div>
 
