@@ -253,7 +253,9 @@ export async function collectDeleteRevalidatePaths(
   return collectPostRevalidatePaths(slug, options)
 }
 
-/** 壳层列表页：不含单篇文章路径（SaaS 默认刷新范围） */
+/** 壳层列表页：不含单篇文章路径（SaaS 默认刷新范围）
+ *  站点会员 B4-W7:/member(未开通站为 notFound 页)与 /pricing(未开通站为 404)
+ *  纳入 shell 集——开关翻转/plan 变更链自愈;未开通站 revalidate 幂等无害 */
 export function collectShellRevalidatePaths(): string[] {
   return [
     '/',
@@ -261,6 +263,8 @@ export function collectShellRevalidatePaths(): string[] {
     '/friends',
     '/announcement',
     '/download',
+    '/member',
+    '/pricing',
     `/${ARCHIVE}`,
     `/${CATEGORY}`,
     `/${TAG}`,

@@ -3,6 +3,8 @@ import { useRouter } from 'next/router'
 import type { VendingConfig } from '@/src/lib/blog/vendingDefaults'
 import type { SocialLinksWidgetType } from '@/src/lib/blog/format/widget/socialLinks'
 import { SocialLinks } from '@/src/components/widget/SocialLinks'
+import { MemberNavEntries } from '@/src/components/member/MemberNavEntries'
+import { useMemberNavConfig } from '@/src/components/theme/SitePlanContext'
 import {
   GALLERY_LOGIN_URL,
   GALLERY_LOGO_SRC,
@@ -34,6 +36,8 @@ export const GallerySidebar = ({
   const router = useRouter()
   const showVending = vendingConfig?.enabled ?? vendingEnabled
   const vendingUrl = vendingConfig?.url || GALLERY_LOGIN_URL
+  // 站点会员 B4-W2(M3):membership enabled 时底部区恒渲染(否则入口随底部区消失)
+  const memberNavEnabled = useMemberNavConfig() !== null
 
   const isActive = (href: string) => {
     if (href === '/') return router.pathname === '/'
@@ -119,15 +123,17 @@ export const GallerySidebar = ({
         ))}
       </nav>
 
-      {showVending || socialLinks?.links ? (
+      {showVending || socialLinks?.links || memberNavEnabled ? (
       <div className="shrink-0 border-t border-neutral-200 px-4 py-5">
+        {/* 站点会员 B4-W2:「会员」「登录」双入口(仅开通出现) */}
+        <MemberNavEntries variant="gallery" />
         {showVending ? (
           <a
             href={vendingUrl}
             target="_blank"
             rel="noopener noreferrer"
             data-blog-vending="1"
-            className="block w-full rounded-md bg-black py-2 text-center text-[13px] font-normal text-white transition-all hover:bg-neutral-800 active:scale-[0.98] active:bg-neutral-900"
+            className="mt-3 block w-full rounded-md bg-black py-2 text-center text-[13px] font-normal text-white transition-all hover:bg-neutral-800 active:scale-[0.98] active:bg-neutral-900"
           >
             STORE
           </a>
@@ -136,7 +142,7 @@ export const GallerySidebar = ({
           <SocialLinks
             links={socialLinks.links}
             variant="gallery"
-            className={showVending ? 'mt-3' : ''}
+            className={showVending || memberNavEnabled ? 'mt-3' : ''}
           />
         ) : null}
       </div>

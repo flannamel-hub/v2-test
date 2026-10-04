@@ -6,7 +6,7 @@ import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
 import { ShopNavbar } from '@/src/themes/shop/ShopNavbar'
 import { isShopTheme } from '@/src/themes/shop/shopTheme'
 import { ShopSiteProvider, ShopSiteTitleProvider } from '@/src/themes/shop/ShopSiteContext'
-import { SiteBrandProvider, SitePlanProvider } from '@/src/components/theme/SitePlanContext'
+import { SiteBrandProvider, SitePlanProvider, MemberNavProvider } from '@/src/components/theme/SitePlanContext'
 import { Page, SharedNavFooterStaticProps } from '@/src/types/blog'
 
 function resolveSocialLinks(widgets: unknown) {
@@ -39,9 +39,12 @@ export default function withNavFooter(
     // P18-C4-7:shop 系(shop / shop-v2)统一走 ShopNavbar + 购物车 + wide Footer
     const shopThemeActive = isShopTheme(themeId)
     const showShopCart = shopThemeActive
+    // 站点会员 B4-W2(M1):双门收敛后的会员配置(免费/未开通 null)经 Context 下发导航入口
+    const memberNavConfig = props.membershipConfig ?? null
     if (themeId === 'gallery' || isTweetTheme(themeId)) {
       return (
         <SitePlanProvider plan={sitePlan}>
+        <MemberNavProvider config={memberNavConfig}>
         <SiteBrandProvider brandClean={siteBrandClean} siteName={siteName}>
           <ShopSiteProvider siteId={shopSiteId}>
           <ShopSiteTitleProvider siteTitle={siteName}>
@@ -63,6 +66,7 @@ export default function withNavFooter(
           </ShopSiteTitleProvider>
           </ShopSiteProvider>
         </SiteBrandProvider>
+        </MemberNavProvider>
         </SitePlanProvider>
       )
     }
@@ -73,6 +77,7 @@ export default function withNavFooter(
 
     return (
       <SitePlanProvider plan={sitePlan}>
+        <MemberNavProvider config={memberNavConfig}>
         <SiteBrandProvider brandClean={siteBrandClean} siteName={siteName}>
           <ShopSiteProvider siteId={shopSiteId}>
           <ShopSiteTitleProvider siteTitle={siteName}>
@@ -121,6 +126,7 @@ export default function withNavFooter(
           </ShopSiteTitleProvider>
           </ShopSiteProvider>
         </SiteBrandProvider>
+        </MemberNavProvider>
       </SitePlanProvider>
     )
   }

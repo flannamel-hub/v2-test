@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { SiteQuotaPlan } from '@/src/lib/blog/quotaState'
+import type { SiteMembershipConfig } from '@/src/lib/blog/membershipGate'
 
 /** BLOG 分层 P4:站点会员计划上下文。
  * withNavFooter 包裹全部公开页面并注入 getStaticProps 里的 sitePlan;
@@ -63,4 +64,29 @@ export function useSiteBrand(): SiteBrandContextValue {
 /** 去除平台角标生效判定:双条件(brand_clean && plan=pro),任一不满足即展示平台标识 */
 export function useIsBrandCleanSite(): boolean {
   return useSitePlan() === 'pro' && useSiteBrand().brandClean
+}
+
+/** 站点会员 B4-W2(M1):会员导航上下文。
+ * 由 withNavFooter 两分支外层注入(props.membershipConfig ?? null;服务端双门收敛,
+ * 免费/未开通恒 null);导航级自包含组件(MemberNavEntries)自读 context,
+ * 四主题导航文件零 props 改动。缺省 null = fail-closed 不渲染入口。 */
+
+const MemberNavContext = createContext<SiteMembershipConfig | null>(null)
+
+export function MemberNavProvider({
+  config,
+  children,
+}: {
+  config: SiteMembershipConfig | null
+  children: React.ReactNode
+}) {
+  return (
+    <MemberNavContext.Provider value={config}>
+      {children}
+    </MemberNavContext.Provider>
+  )
+}
+
+export function useMemberNavConfig(): SiteMembershipConfig | null {
+  return useContext(MemberNavContext)
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ProfileBioText } from '@/src/components/widget/ProfileBioText'
+import { MemberNavEntries } from '@/src/components/member/MemberNavEntries'
 import type { VendingConfig } from '@/src/lib/blog/vendingDefaults'
 import { ProfileWidgetType } from '@/src/lib/blog/format/widget/profile'
 import { TweetAsideFooter } from './TweetAsideFooter'
@@ -60,6 +61,8 @@ export function TweetMobileProfileCard({
 
         {expanded ? (
           <div className="tweet-mobile-profile-panel">
+            {/* 站点会员 B4-W2(M2/Q1):移动端展开面板双入口(<1024px 可见) */}
+            <MemberNavEntries variant="tweet-mobile" />
             {showVending ? (
               <TweetVendingButton url={vendingConfig?.url} title={vendingConfig?.title} />
             ) : null}

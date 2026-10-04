@@ -15,6 +15,7 @@ import { getPages } from '../lib/notion/getBlogData'
 import { isTransientNotionError } from '../lib/notion/transientErrors'
 import { addSubTitle } from '../lib/util'
 import { buildNavPageSeo } from '@/src/lib/seo/lightSeo'
+import { PricingPageContent } from '@/src/components/member/PricingPageContent'
 import { TweetArticlePage } from '@/src/themes/tweet/TweetArticlePage'
 import { TweetShell } from '@/src/themes/tweet/TweetShell'
 import { isTweetTheme } from '@/src/themes/tweet/tweetTheme'
@@ -28,6 +29,7 @@ import {
 } from '../types/blog'
 import { BlockResponse } from '../types/notion'
 import { onDemandStaticPaths } from '../lib/blog/postLimits'
+import type { SiteMembershipConfig } from '../lib/blog/membershipGate'
 
 const systemPageSlugs = new Set([
   ...Object.values(CONFIG.DEFAULT_SPECIAL_PAGES),
@@ -73,6 +75,12 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
     sharedPageStaticProps: SharedNavFooterStaticProps
   ) => {
     const slug = context.params?.page as string
+    // 站点会员 B4-W6:pricing slug 且 membership enabled(双门已在 sharedProps 收敛)
+    // → 下发 pricingMembership,无 Notion 页也渲染内置默认版(200 兜底)
+    const pricingMembership: SiteMembershipConfig | null =
+      slug === 'pricing'
+        ? sharedPageStaticProps.props.membershipConfig ?? null
+        : null
     if (systemPageSlugs.has(slug)) {
       return {
         props: JSON.parse(
@@ -80,6 +88,7 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
             ...sharedPageStaticProps.props,
             page: null,
             blocks: [],
+            pricingMembership,
           })
         ),
         revalidate: CONFIG.NEXT_REVALIDATE_SECONDS,
@@ -98,6 +107,7 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
             ...sharedPageStaticProps.props,
             page: null,
             blocks: [],
+            pricingMembership,
           })
         ),
         revalidate: CONFIG.NEXT_REVALIDATE_SECONDS,
@@ -117,6 +127,7 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
             blocks: formattedBlocks,
             widgets,
             seo: buildNavPageSeo(page),
+            pricingMembership,
           })
         ),
         revalidate: CONFIG.NEXT_REVALIDATE_SECONDS,
@@ -132,6 +143,7 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
             page: page,
             blocks: [],
             seo: buildNavPageSeo(page),
+            pricingMembership,
           })
         ),
         revalidate: CONFIG.NEXT_REVALIDATE_SECONDS,
@@ -146,7 +158,39 @@ const Page: NextPage<{
   activeTheme?: string
   siteTitle?: SharedNavFooterStaticProps['props']['siteTitle']
   widgets?: Record<string, unknown>
-}> = ({ page, blocks, activeTheme, siteTitle, widgets, vendingConfig, vendingEnabled }) => {
+  pricingMembership?: SiteMembershipConfig | null
+}> = ({ page, blocks, activeTheme, siteTitle, widgets, vendingConfig, vendingEnabled, pricingMembership }) => {
+  // 站点会员 B4-W6:开通站点 pricing 页独立渲染(有页用页正文做页头补充,无页内置默认版);
+  // 未开通(pricingMembership=null)不做特殊渲染,按普通页规则(无页 → 404)
+  if (pricingMembership && (!page || page.slug === 'pricing')) {
+    const pricingBlocks = page ? blocks : []
+    if (isTweetTheme(activeTheme)) {
+      const shellWidgets = pickTweetShellWidgets(widgets)
+      return (
+        <TweetShell
+          siteTitle={siteTitle}
+          profile={shellWidgets.profile}
+          vendingConfig={vendingConfig}
+          vendingEnabled={vendingEnabled !== false}
+        >
+          <article className="prose-tweet overflow-hidden break-words">
+            <PricingPageContent membership={pricingMembership} blocks={pricingBlocks} variant="tweet" />
+          </article>
+        </TweetShell>
+      )
+    }
+    return (
+      <>
+        <ContainerLayout>
+          <LargeTitle className="mb-4" title="会员说明" />
+          <div className="px-8 py-4 break-words bg-white rounded-2xl dark:bg-neutral-900">
+            <PricingPageContent membership={pricingMembership} blocks={pricingBlocks} />
+          </div>
+        </ContainerLayout>
+      </>
+    )
+  }
+
   if (!page) return <Section404 />
 
   const { title } = page

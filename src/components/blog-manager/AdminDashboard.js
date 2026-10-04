@@ -8966,15 +8966,17 @@ const [mounted, setMounted] = useState(false);
      let list = archivingPostIds.length > 0
        ? posts.filter((post) => !archivingPostIds.includes(post.id))
        : posts;
-     if (activeTab === 'Page') {
-        list = list.filter(p =>
-          (p.type === 'Page' && ['about', 'download'].includes(p.slug)) ||
-          (p.type === 'Post' && p.slug === ANNOUNCEMENT_SLUG)
-        );
-        const ann = list.find(p => p.slug === ANNOUNCEMENT_SLUG);
-        const rest = list.filter(p => p.slug !== ANNOUNCEMENT_SLUG);
-        list = ann ? [ann, ...rest] : rest;
-     }
+      if (activeTab === 'Page') {
+         list = list.filter(p =>
+           (p.type === 'Page' && ['about', 'download'].includes(p.slug)) ||
+           (p.type === 'Post' && p.slug === ANNOUNCEMENT_SLUG) ||
+           // 站点会员 B4-W6(§10.1-M4):专业版显示 slug=pricing 真实页(可进编辑);无页自然无条目
+           (sitePlan === 'pro' && p.type === 'Page' && p.slug === 'pricing')
+         );
+         const ann = list.find(p => p.slug === ANNOUNCEMENT_SLUG);
+         const rest = list.filter(p => p.slug !== ANNOUNCEMENT_SLUG);
+         list = ann ? [ann, ...rest] : rest;
+      }
      else if (activeTab === 'Widget' || activeTab === 'Ads') {
         list = [];
      }
@@ -9922,7 +9924,23 @@ const [mounted, setMounted] = useState(false);
                   </React.Fragment>
                  );
                })}
-             </div>
+               {/* 站点会员 B4-W6(§10.1-M4):免费版「会员说明」灰态占位条目(无页也显示;点击提示升级,不提供编辑入口) */}
+               {activeTab === 'Page' && viewMode !== 'folder' && sitePlan !== 'pro' ? (
+                 <div
+                   key="member-pricing-placeholder"
+                   onClick={() => showAdminToast('使用 BLOG 会员功能需升级专业版')}
+                   className="card-item"
+                   style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid rgba(251,191,36,0.35)', cursor: 'pointer', opacity: 0.55 }}
+                 >
+                   <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.5)', padding: '4px 8px', borderRadius: '8px', flexShrink: 0 }}>会员</div>
+                   <div style={{ flex: 1 }}>
+                     <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>会员说明</div>
+                     <div style={{ fontSize: '12px', color: '#aaa', marginTop: '4px' }}>站点会员说明页（/pricing）</div>
+                   </div>
+                   <div style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 'bold' }}>升级专业版</div>
+                 </div>
+               ) : null}
+              </div>
              {cardCatOpenId && (
                <CardCategoryQuickPicker
                  anchorRect={cardCatMenuRect}

@@ -2,20 +2,23 @@
 
 import Link from 'next/link'
 import React, { useCallback, useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { BlockRender } from '@/src/components/blocks/BlockRender'
+import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
 import { useMemberContent } from '@/src/components/post/MemberAwareBlockRender'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetTheme'
 import type { BlockResponse } from '@/src/types/notion'
 
 /**
- * 站点会员 B2:会员区锁区组件(三态面板 + 极简登录弹窗;B4 升级正式弹窗)。
+ * 站点会员 B2/B4:会员区锁区组件(三态面板)。
  * - 页 props membershipConfig 缺失/未启用(经 Context 传入)→ 渲染 null(零可见);
  * - 挂载先拉 /api/member/session,active 时再拉 /api/member/content;
  * - 客户端应用层内存缓存:slug → {etag, blocks},再次挂载带 If-None-Match → 304 复用;
  *   刷新页面不保留(仅内存);不落 localStorage,cookie 由服务端 Set-Cookie;
- * - 弹窗为页内弹窗(禁原生),经 createPortal 挂 body(祖先可能带 transform/backdrop-blur)。
+ * - B4-W1:登录弹窗全局化(MemberLoginDialog,含 QR 上传解码/打开探测轻态);
+ *   弹窗状态所有权已移出本组件,勿再留双份;
+ * - B4-W5:expired 面板「立即续费」直链(消费 B2-E10):调 /api/member/renew-url
+ *   (config.plans[0].days)→ window.open;失败/无档位回落「前往会员中心」。
  */
 
 type MemberContentGateProps = {
@@ -39,13 +42,6 @@ type ContentState =
   | { status: 'error' }
 
 const clientMemberContentCache = new Map<string, { etag: string; blocks: BlockResponse[] }>()
-
-const LOGIN_ERROR_TEXT: Record<string, string> = {
-  invalid: '访问串无效',
-  revoked: '该访问串已停用',
-  rate_limited: '尝试过于频繁，请稍后再试',
-  unavailable: '暂时不可用，请稍后重试',
-}
 
 const CONTENT_ERROR_TEXT = '加载失败，请刷新重试'
 
@@ -77,11 +73,9 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
   const activeTheme = useActiveTheme()
   const [sessionPhase, setSessionPhase] = useState<SessionPhase>('probing')
   const [content, setContent] = useState<ContentState>({ status: 'idle' })
-  const [mounted, setMounted] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [accessKeyInput, setAccessKeyInput] = useState('')
-  const [loginError, setLoginError] = useState('')
-  const [loginSubmitting, setLoginSubmitting] = useState(false)
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false)
+  const [loginAnomalyError, setLoginAnomalyError] = useState('')
+  const [renewPhase, setRenewPhase] = useState<'idle' | 'requesting' | 'failed'>('idle')
 
   const loadContent = useCallback(async () => {
     setContent({ status: 'loading' })
@@ -144,9 +138,9 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
         } else if (status === 'guest') {
           setSessionPhase('guest')
           if (options?.afterLogin) {
-            // 登录成功但会话仍 guest(异常形态):重开弹窗加错误行
-            setModalOpen(true)
-            setLoginError('登录状态异常，请重试')
+            // 登录成功但会话仍 guest(异常形态):重开弹窗注入错误行
+            setLoginAnomalyError('登录状态异常，请重试')
+            setLoginDialogOpen(true)
           }
         } else if (status === 'expired') {
           setSessionPhase('expired')
@@ -164,49 +158,32 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
   )
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
     if (!configEnabled) return
     void runSession()
   }, [configEnabled, runSession])
 
-  const submitLogin = useCallback(async () => {
-    const accessKey = accessKeyInput.trim()
-    if (!accessKey || loginSubmitting) return
-    setLoginSubmitting(true)
-    setLoginError('')
+  // B4-W5:expired 面板「立即续费」直链(plans[0];失败回落「前往会员中心」)
+  const requestRenew = useCallback(async () => {
+    const plan = config?.plans[0]
+    if (!plan || renewPhase === 'requesting') return
+    setRenewPhase('requesting')
     try {
-      const res = await fetch('/api/member/login', {
+      const res = await fetch('/api/member/renew-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_key: accessKey }),
+        body: JSON.stringify({ days: plan.days }),
       })
       const data = await res.json().catch(() => null)
-      if (res.ok && data?.success) {
-        // 关闭弹窗 → 重跑 session+content 流程:
-        // active → 渲染内容;expired → 到期面板(B1 login 对到期会员亦发 cookie)
-        setModalOpen(false)
-        setAccessKeyInput('')
-        await runSession({ afterLogin: true })
+      if (res.ok && data?.success && typeof data.url === 'string' && data.url) {
+        setRenewPhase('idle')
+        window.open(data.url, '_blank', 'noopener')
         return
       }
-      const err = data?.error
-      if (err === 'disabled') {
-        // 关弹窗并重跑 session(session 返回 disabled → 面板消失;
-        // page props 的 membershipConfig 是 ISR 旧值,不可作为消失依据)
-        setModalOpen(false)
-        await runSession()
-        return
-      }
-      setLoginError(LOGIN_ERROR_TEXT[err] ?? LOGIN_ERROR_TEXT.unavailable)
+      setRenewPhase('failed')
     } catch {
-      setLoginError(LOGIN_ERROR_TEXT.unavailable)
-    } finally {
-      setLoginSubmitting(false)
+      setRenewPhase('failed')
     }
-  }, [accessKeyInput, loginSubmitting, runSession])
+  }, [config, renewPhase])
 
   // ---- 面板主题三态(照抄 ArticlePasswordGate 的 panelTheme 逻辑) ----
   const panelTheme =
@@ -239,18 +216,6 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
       : panelTheme === 'light'
         ? 'divide-neutral-200/80'
         : 'divide-neutral-200/80 dark:divide-neutral-700/80'
-  const inputSurfaceCls =
-    panelTheme === 'dark'
-      ? 'bg-neutral-900 text-white'
-      : panelTheme === 'light'
-        ? 'bg-white text-neutral-900'
-        : 'bg-white text-neutral-900 dark:bg-neutral-900 dark:text-white'
-  const inputIdleCls =
-    panelTheme === 'dark'
-      ? 'border-transparent hover:bg-neutral-800 focus:border-blue-500'
-      : panelTheme === 'light'
-        ? 'border-neutral-200 hover:border-neutral-300 focus:border-neutral-900'
-        : 'border-neutral-200 hover:border-neutral-300 focus:border-neutral-900 dark:border-transparent dark:hover:bg-neutral-800 dark:focus:border-blue-500'
   const primaryButtonCls =
     panelTheme === 'dark'
       ? 'bg-blue-600 hover:bg-blue-500'
@@ -298,6 +263,9 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
   }
 
   if (sessionPhase === 'expired') {
+    // B4-W5:有档位且未失败 → 主按钮「立即续费」+ 次级「进入会员中心」;
+    // plans 为空/续费失败 → 回落主按钮「前往会员中心」(§10.3-2)
+    const showRenewPrimary = config.plans.length > 0 && renewPhase !== 'failed'
     return (
       <div
         className={`member-gate-panel my-6 overflow-hidden rounded-xl border shadow-sm ${panelCls}`}
@@ -305,12 +273,31 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
         <div className="flex flex-col items-center gap-3 px-5 py-8 text-center select-none">
           <LockIcon className={`h-5 w-5 ${mutedCls}`} />
           <p className={`text-sm font-medium ${titleCls}`}>会员已到期</p>
-          <Link
-            href="/member"
-            className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
-          >
-            前往会员中心
-          </Link>
+          {showRenewPrimary ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void requestRenew()}
+                disabled={renewPhase === 'requesting'}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${primaryButtonCls}`}
+              >
+                {renewPhase === 'requesting' ? '跳转中…' : '立即续费'}
+              </button>
+              <Link
+                href="/member"
+                className={`text-xs font-medium transition-colors ${mutedCls} hover:underline`}
+              >
+                进入会员中心
+              </Link>
+            </>
+          ) : (
+            <Link
+              href="/member"
+              className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
+            >
+              前往会员中心
+            </Link>
+          )}
         </div>
       </div>
     )
@@ -365,8 +352,8 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
         <button
           type="button"
           onClick={() => {
-            setLoginError('')
-            setModalOpen(true)
+            setLoginAnomalyError('')
+            setLoginDialogOpen(true)
           }}
           className={`w-full max-w-xs rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
         >
@@ -374,75 +361,16 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
         </button>
       </div>
 
-      {mounted && modalOpen
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="member-login-title"
-              onClick={() => {
-                if (!loginSubmitting) setModalOpen(false)
-              }}
-            >
-              <div
-                className={`w-full max-w-[320px] rounded-xl border shadow-xl ${panelCls}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex flex-col gap-3 px-4 py-5 select-none sm:px-5">
-                  <p
-                    id="member-login-title"
-                    className={`text-center text-sm font-medium ${titleCls}`}
-                  >
-                    会员登录
-                  </p>
-                  <input
-                    type="password"
-                    placeholder="访问串"
-                    className={`w-full rounded-lg border-2 px-3 py-2 text-sm outline-none transition-all ${inputSurfaceCls} ${
-                      loginError ? 'border-red-500 focus:border-red-500' : inputIdleCls
-                    }`}
-                    value={accessKeyInput}
-                    onChange={(e) => {
-                      setAccessKeyInput(e.target.value)
-                      if (loginError) setLoginError('')
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && accessKeyInput.trim() && !loginSubmitting) {
-                        void submitLogin()
-                      }
-                    }}
-                    autoFocus
-                  />
-                  {loginError ? (
-                    <p className="text-center text-xs font-medium text-red-500">{loginError}</p>
-                  ) : null}
-                  <div className="flex flex-col gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => void submitLogin()}
-                      disabled={loginSubmitting || !accessKeyInput.trim()}
-                      className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${primaryButtonCls}`}
-                    >
-                      {loginSubmitting ? '登录中…' : '登录'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!loginSubmitting) setModalOpen(false)
-                      }}
-                      disabled={loginSubmitting}
-                      className={`w-full rounded-lg px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${mutedCls} hover:opacity-80`}
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
+      <MemberLoginDialog
+        open={loginDialogOpen}
+        onClose={() => {
+          setLoginDialogOpen(false)
+          setLoginAnomalyError('')
+        }}
+        onSuccess={() => void runSession({ afterLogin: true })}
+        onDisabled={() => void runSession()}
+        initialError={loginAnomalyError}
+      />
     </div>
   )
 }

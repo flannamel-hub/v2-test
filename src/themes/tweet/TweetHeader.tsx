@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import { useEffect, useRef, useState } from 'react'
 import { ProPlusCreateButton } from '@/src/components/nav/ProPlusCreateButton'
+import { MemberNavEntries } from '@/src/components/member/MemberNavEntries'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import { isTweetThemeVariantLocked } from '@/src/themes/tweet/tweetTheme'
 import { useTweetSidebarScrollChain } from '@/src/themes/tweet/useTweetSidebarScrollChain'
@@ -29,6 +30,8 @@ export function TweetHeader({ siteName }: TweetHeaderProps) {
           {siteName}
         </Link>
         <nav className="tweet-header__nav">
+          {/* 站点会员 B4-W2(M2):「会员」Link 天然吃 .tweet-header__nav a;「登录」复用 CSS 变量,零新 CSS */}
+          <MemberNavEntries variant="tweet" />
           {!themeToggleLocked ? (
             <button
               type="button"

@@ -76,7 +76,7 @@ type CenterHttpResult = {
 async function postCenter(
   path: string,
   body: Record<string, unknown>,
-  kind: 'login' | 'refresh'
+  kind: 'login' | 'refresh' | 'renew'
 ): Promise<CenterHttpResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), CENTER_TIMEOUT_MS)
@@ -251,6 +251,110 @@ export async function callCenterRefresh(
       'refresh'
     )
     return mapCenterResponse('refresh', http)
+  } catch {
+    return { ok: false, error: 'unavailable' }
+  }
+}
+
+/** B4-W4(M6):中心 renew-ref 结果(独立形状,禁与 login/refresh 家族混用 mapCenterResponse) */
+export type CenterRenewRefResult =
+  | {
+      ok: true
+      renewRef: string
+      expiresIn: number | null
+      storeUrl: string
+    }
+  | {
+      ok: false
+      error: 'invalid' | 'revoked' | 'rate_limited' | 'unavailable' | 'bad_response'
+      retryAfterSeconds?: number
+    }
+
+/** renew-ref 独立响应 mapper:{ok:true, renew_ref, expires_in, store_url} 形状;
+ * 429/Retry-After 解析镜像 login 家族;错误族同 refresh */
+function mapCenterRenewRefResponse(http: CenterHttpResult): CenterRenewRefResult {
+  if (http.status === 429) {
+    const body =
+      http.payload && typeof http.payload === 'object'
+        ? (http.payload as Record<string, unknown>)
+        : null
+    let retryAfterSeconds: number
+    if (
+      body &&
+      typeof body.retry_after_seconds === 'number' &&
+      Number.isFinite(body.retry_after_seconds) &&
+      body.retry_after_seconds > 0
+    ) {
+      retryAfterSeconds = Math.floor(body.retry_after_seconds)
+    } else {
+      const header = Number(http.retryAfterHeader)
+      retryAfterSeconds =
+        Number.isFinite(header) && header > 0 ? Math.floor(header) : 60
+    }
+    return { ok: false, error: 'rate_limited', retryAfterSeconds }
+  }
+
+  if (!http.payload || typeof http.payload !== 'object') {
+    console.error('[member] center renew failed: unavailable')
+    return { ok: false, error: 'unavailable' }
+  }
+  const record = http.payload as Record<string, unknown>
+
+  if (record.ok === true) {
+    if (typeof record.renew_ref !== 'string' || !record.renew_ref.trim()) {
+      console.error('[member] center renew failed: bad_response')
+      return { ok: false, error: 'bad_response' }
+    }
+    if (typeof record.store_url !== 'string' || !record.store_url.trim()) {
+      console.error('[member] center renew failed: bad_response')
+      return { ok: false, error: 'bad_response' }
+    }
+    const expiresInRaw = record.expires_in
+    if (
+      expiresInRaw !== undefined &&
+      expiresInRaw !== null &&
+      (typeof expiresInRaw !== 'number' || !Number.isFinite(expiresInRaw))
+    ) {
+      console.error('[member] center renew failed: bad_response')
+      return { ok: false, error: 'bad_response' }
+    }
+    return {
+      ok: true,
+      renewRef: record.renew_ref.trim(),
+      expiresIn:
+        typeof expiresInRaw === 'number' ? Math.floor(expiresInRaw) : null,
+      storeUrl: record.store_url.trim(),
+    }
+  }
+
+  if (record.ok === false) {
+    if (
+      record.error === 'invalid' ||
+      record.error === 'revoked' ||
+      record.error === 'unavailable'
+    ) {
+      return { ok: false, error: record.error }
+    }
+    console.error('[member] center renew failed: bad_response')
+    return { ok: false, error: 'bad_response' }
+  }
+
+  console.error('[member] center renew failed: bad_response')
+  return { ok: false, error: 'bad_response' }
+}
+
+/** 中心续费引用:POST {base}/api/public/site-member/renew-ref body {passport}
+ * (BLOG 服务端持 cookie 内 passport 直调;store 域一律以中心返回为准) */
+export async function callCenterRenewRef(
+  passport: string
+): Promise<CenterRenewRefResult> {
+  try {
+    const http = await postCenter(
+      '/api/public/site-member/renew-ref',
+      { passport },
+      'renew'
+    )
+    return mapCenterRenewRefResponse(http)
   } catch {
     return { ok: false, error: 'unavailable' }
   }
