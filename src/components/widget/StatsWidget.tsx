@@ -239,7 +239,7 @@ export const StatsWidget = ({
                   hover:bg-white/20 hover:scale-[1.02] active:scale-95 active:bg-white/5"
               >
                 <span className="text-sm">🚛</span>
-                <span>前往{vendingTitle}</span>
+                <span>{vendingTitle}</span>
               </button>
             </div>
             ) : null}
