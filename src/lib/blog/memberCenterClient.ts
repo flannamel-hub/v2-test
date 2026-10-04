@@ -10,10 +10,9 @@ import { resolveMerchantApiBase } from '@/src/lib/shop/merchantProducts'
 
 const CENTER_TIMEOUT_MS = 8000
 
-/** 访问串规范化(与中心同规则):去空白/全角空格/各类连字符 → 大写 */
-export function normalizeMemberAccessKey(raw: string): string {
-  return (raw || '').replace(/[\s\u3000\-－–—]/g, '').toUpperCase()
-}
+// normalizeMemberAccessKey 已拆至 ./memberAccessKey(客户端安全纯函数模块);
+// 此处 re-export 保持服务端既有引用零改动(B4 验收修正:顶层 node:net 禁入客户端包)
+export { normalizeMemberAccessKey } from './memberAccessKey'
 
 function firstHeaderValue(
   value: string | string[] | undefined

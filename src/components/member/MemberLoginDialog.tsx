@@ -4,7 +4,7 @@ import Link from 'next/link'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
-import { normalizeMemberAccessKey } from '@/src/lib/blog/memberCenterClient'
+import { normalizeMemberAccessKey } from '@/src/lib/blog/memberAccessKey'
 import { decodeMemberQrFromFile } from '@/src/lib/blog/memberQr'
 import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetTheme'
 
