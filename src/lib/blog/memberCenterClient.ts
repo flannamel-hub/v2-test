@@ -75,7 +75,7 @@ type CenterHttpResult = {
 async function postCenter(
   path: string,
   body: Record<string, unknown>,
-  kind: 'login' | 'refresh' | 'renew'
+  kind: 'login' | 'refresh' | 'renew' | 'handoff'
 ): Promise<CenterHttpResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), CENTER_TIMEOUT_MS)
@@ -354,6 +354,128 @@ export async function callCenterRenewRef(
       'renew'
     )
     return mapCenterRenewRefResponse(http)
+  } catch {
+    return { ok: false, error: 'unavailable' }
+  }
+}
+
+/** R1:中心回跳票据消费结果(独立形状,禁与 login/refresh/renew 家族混用既有 mapper——
+ * 错误族含 expired/used,login 家族透传白名单不含) */
+export type CenterHandoffRedeemResult =
+  | {
+      ok: true
+      status: 'active' | 'expired'
+      passport: string
+      expiresAt: string | null
+      memberNo: string | null
+    }
+  | {
+      ok: false
+      error:
+        | 'invalid'
+        | 'expired'
+        | 'used'
+        | 'revoked'
+        | 'rate_limited'
+        | 'unavailable'
+        | 'bad_response'
+      retryAfterSeconds?: number
+    }
+
+/** handoff-redeem 独立响应 mapper:{ok:true, status, passport, expires_at, member_no};
+ * active/expired 两态都必有非空 passport(缺 → bad_response);
+ * 429/Retry-After 解析镜像 login 家族;ok:false 族 {invalid,expired,used,revoked} 透传 */
+function mapCenterHandoffRedeemResponse(
+  http: CenterHttpResult
+): CenterHandoffRedeemResult {
+  if (http.status === 429) {
+    const body =
+      http.payload && typeof http.payload === 'object'
+        ? (http.payload as Record<string, unknown>)
+        : null
+    let retryAfterSeconds: number
+    if (
+      body &&
+      typeof body.retry_after_seconds === 'number' &&
+      Number.isFinite(body.retry_after_seconds) &&
+      body.retry_after_seconds > 0
+    ) {
+      retryAfterSeconds = Math.floor(body.retry_after_seconds)
+    } else {
+      const header = Number(http.retryAfterHeader)
+      retryAfterSeconds =
+        Number.isFinite(header) && header > 0 ? Math.floor(header) : 60
+    }
+    return { ok: false, error: 'rate_limited', retryAfterSeconds }
+  }
+
+  if (!http.payload || typeof http.payload !== 'object') {
+    console.error('[member] center handoff failed: unavailable')
+    return { ok: false, error: 'unavailable' }
+  }
+  const record = http.payload as Record<string, unknown>
+
+  if (record.ok === true) {
+    if (record.status !== 'active' && record.status !== 'expired') {
+      console.error('[member] center handoff failed: bad_response')
+      return { ok: false, error: 'bad_response' }
+    }
+    if (typeof record.passport !== 'string' || record.passport.length === 0) {
+      // 两态(active/expired)都必有非空 passport
+      console.error('[member] center handoff failed: bad_response')
+      return { ok: false, error: 'bad_response' }
+    }
+    const expiresAt = readNullableString(record, 'expires_at')
+    const memberNo = readNullableString(record, 'member_no')
+    if (expiresAt.badType || memberNo.badType) {
+      console.error('[member] center handoff failed: bad_response')
+      return { ok: false, error: 'bad_response' }
+    }
+    return {
+      ok: true,
+      status: record.status === 'active' ? 'active' : 'expired',
+      passport: record.passport,
+      expiresAt: expiresAt.value,
+      memberNo: memberNo.value,
+    }
+  }
+
+  if (record.ok === false) {
+    if (
+      record.error === 'invalid' ||
+      record.error === 'expired' ||
+      record.error === 'used' ||
+      record.error === 'revoked'
+    ) {
+      return { ok: false, error: record.error }
+    }
+    console.error('[member] center handoff failed: bad_response')
+    return { ok: false, error: 'bad_response' }
+  }
+
+  console.error('[member] center handoff failed: bad_response')
+  return { ok: false, error: 'bad_response' }
+}
+
+/** R1:中心回跳票据消费:POST {base}/api/public/site-member/handoff-redeem
+ * body {ticket, host, client_ip?}(票 URL 由中心拼装,BLOG 只做导航;单次消费即鉴权,
+ * BLOG 不做本地票验签) */
+export async function callCenterHandoffRedeem(input: {
+  ticket: string
+  host: string
+  clientIp: string | null
+}): Promise<CenterHandoffRedeemResult> {
+  try {
+    const http = await postCenter(
+      '/api/public/site-member/handoff-redeem',
+      {
+        ticket: input.ticket,
+        host: input.host,
+        ...(input.clientIp ? { client_ip: input.clientIp } : {}),
+      },
+      'handoff'
+    )
+    return mapCenterHandoffRedeemResponse(http)
   } catch {
     return { ok: false, error: 'unavailable' }
   }

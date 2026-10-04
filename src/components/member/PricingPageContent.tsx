@@ -13,7 +13,9 @@ import type { BlockResponse } from '@/src/types/notion'
  * - 页头:标题「会员说明」+ 默认说明段(文案 A);Notion 页存在且有正文块时,
  *   正文块渲染于页头之下(block render 既有管道);
  * - 档位/权益卡组:config.plans 逐档({days} 天 / ¥{price} + 通用权益要点 文案 B);
- * - 主 CTA:guest →「登录后订阅」(开 W1 弹窗);active →「订阅」跳 store 新开链
+ * - 主 CTA:guest →「订阅」直链 ${NEXT_PUBLIC_STORE_URL}/p/{sku}?go=1 同窗
+ *   (R1 直达化;storeUrl 空时 preventDefault 先例照旧;登录转次级入口
+ *   「已有访问串？登录」开 W1 弹窗);active →「订阅」跳 store 新开链
  *   ${NEXT_PUBLIC_STORE_URL}/p/{sku}(Q4:无 renew 场景取环境变量,不取中心 store_url);
  *   expired →「续费」走 /api/member/renew-url;
  * - 保障说明块(文案 C)。挂载即探测一次 session(无双轮询)。
@@ -174,15 +176,26 @@ export function PricingPageContent({
         </a>
       )
     }
-    // guest(含 probing:先引导登录,探测完成自动切换)
+    // guest(含 probing;R1 直达化:主按钮「订阅」直链同窗,登录转次级入口)
     return (
-      <button
-        type="button"
-        onClick={() => setLoginOpen(true)}
-        className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
-      >
-        登录后订阅
-      </button>
+      <div className="flex flex-col gap-2">
+        <a
+          href={storeUrl ? `${storeUrl}/p/${sku}?go=1` : '#'}
+          onClick={(e) => {
+            if (!storeUrl) e.preventDefault()
+          }}
+          className={`block w-full rounded-lg px-4 py-2 text-center text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
+        >
+          订阅
+        </a>
+        <button
+          type="button"
+          onClick={() => setLoginOpen(true)}
+          className={`text-xs font-medium transition-colors hover:underline ${mutedCls}`}
+        >
+          已有访问串？登录
+        </button>
+      </div>
     )
   }
 

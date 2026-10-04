@@ -18,7 +18,8 @@ import type { BlockResponse } from '@/src/types/notion'
  * - B4-W1:登录弹窗全局化(MemberLoginDialog,含 QR 上传解码/打开探测轻态);
  *   弹窗状态所有权已移出本组件,勿再留双份;
  * - B4-W5:expired 面板「立即续费」直链(消费 B2-E10):调 /api/member/renew-url
- *   (config.plans[0].days)→ window.open;失败/无档位回落「前往会员中心」。
+ *   (config.plans[0].days)→ window.open;失败/无档位回落「前往会员中心」;
+ * - R1:guest 订阅链接直达化(${storeUrl}/p/{sku}?go=1 同窗,支付后回跳自动登录)。
  */
 
 type MemberContentGateProps = {
@@ -336,8 +337,7 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
                 </span>
                 {storeUrl ? (
                   <a
-                    href={`${storeUrl}/p/${plan.sku}`}
-                    target="_blank"
+                    href={`${storeUrl}/p/${plan.sku}?go=1`}
                     rel="noopener noreferrer"
                     className={`whitespace-nowrap text-xs font-medium transition-colors ${mutedCls} hover:underline`}
                   >

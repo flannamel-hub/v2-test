@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import React, { useCallback, useEffect, useState } from 'react'
 import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
@@ -14,7 +15,9 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  * - expired:到期提示 + 档位列表(续费主按钮)+ 退出 + 小字;
  * - guest:订阅说明段(文案 A)+ 查看会员说明(/pricing)+ 登录(开弹窗)+ 档位速览;
  * - 续费:POST /api/member/renew-url {days} → window.open(url, '_blank', 'noopener');
- *   错误按 body.error 分支(401→请先登录;unavailable 族→暂时不可用)。
+ *   错误按 body.error 分支(401→请先登录;unavailable 族→暂时不可用);
+ * - R1:guest 订阅链接直达化(${storeUrl}/p/{sku}?go=1 同窗);
+ *   顶部 failed 提示行(?handoff=failed,与三态视图无关,isReady 后即显)。
  */
 
 /** 文案 A(/pricing 默认说明段与 /member guest 说明段同源,§7 单一事实源) */
@@ -32,6 +35,18 @@ export const MEMBER_RENEW_ERROR_TEXT = {
   guest: '请先登录',
   unavailable: '暂时不可用，请稍后重试',
 } as const
+
+/** R1:回跳自动登录失败提示行文案(§7 粗稿,T1 定稿) */
+export const MEMBER_HANDOFF_FAILED_TEXT =
+  '自动登录未完成。若已完成支付，可回到支付页再次点击返回；也可用购买邮件中的访问串登录。'
+
+/** R1:failed 提示行判定(isReady 门控纯函数,供测试断言;与三态视图无关) */
+export function shouldShowHandoffFailedNotice(
+  isReady: boolean,
+  handoffQuery: unknown
+): boolean {
+  return isReady === true && handoffQuery === 'failed'
+}
 
 /** 会话状态 → 会员中心视图(active/expired 直接映射;其余一律 guest) */
 export function resolveMemberCenterView(
@@ -76,6 +91,7 @@ type RenewState =
   | { phase: 'error'; days: number; message: string }
 
 export function MemberCenter({ config }: { config: SiteMembershipConfig }) {
+  const router = useRouter()
   const activeTheme = useActiveTheme()
   const [view, setView] = useState<'probing' | 'active' | 'expired' | 'guest'>(
     'probing'
@@ -235,6 +251,13 @@ export function MemberCenter({ config }: { config: SiteMembershipConfig }) {
 
   return (
     <div className="flex flex-col items-center gap-5 py-4">
+      {shouldShowHandoffFailedNotice(router.isReady, router.query?.handoff) ? (
+        <p
+          className={`w-full max-w-sm rounded-xl border px-4 py-3 text-center text-xs leading-relaxed ${panelCls} ${mutedCls}`}
+        >
+          {MEMBER_HANDOFF_FAILED_TEXT}
+        </p>
+      ) : null}
       {view === 'probing' ? (
         <div className="member-center-skeleton w-full max-w-sm space-y-2.5 select-none" aria-hidden="true">
           <div className="h-5 animate-pulse rounded bg-neutral-200/80 dark:bg-neutral-700/60" />
@@ -308,8 +331,7 @@ export function MemberCenter({ config }: { config: SiteMembershipConfig }) {
                   <span className={`text-sm ${titleCls}`}>{plan.days} 天 · ¥{plan.price}</span>
                   {storeUrl ? (
                     <a
-                      href={`${storeUrl}/p/${plan.sku}`}
-                      target="_blank"
+                      href={`${storeUrl}/p/${plan.sku}?go=1`}
                       rel="noopener noreferrer"
                       className={`whitespace-nowrap text-xs font-medium transition-colors ${mutedCls} hover:underline`}
                     >
