@@ -8,6 +8,10 @@ export type VendingConfig = {
   title: string
   id?: string | null
   source?: 'notion' | 'legacy' | 'default'
+  /** VENDING_MODE2:custom=按钮原文显示；official/缺省=「前往」+名称 */
+  mode?: 'official' | 'custom'
+  /** VENDING_MODE2:购买说明弹窗；缺省 false=直接跳转 */
+  noteModal?: boolean
 }
 
 export function normalizeVendingUrl(raw?: string | null): string {

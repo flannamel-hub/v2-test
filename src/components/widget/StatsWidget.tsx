@@ -24,6 +24,10 @@ export const StatsWidget = ({
   const showVending = vendingConfig?.enabled ?? vendingEnabled
   const vendingUrl = vendingConfig?.url || DEFAULT_VENDING_URL
   const vendingTitle = vendingConfig?.title || DEFAULT_VENDING_TITLE
+  // VENDING_MODE2:official（含列缺失/老数据）→「前往」+名称；custom → 用户名称原文
+  const vendingLabel = vendingConfig?.mode === 'custom' ? vendingTitle : `前往${vendingTitle}`
+  // VENDING_MODE2:购买说明弹窗开关；缺省 false=点击直接新标签跳转
+  const noteModalEnabled = vendingConfig?.noteModal === true
 
   // 1. 数据解析 (保持原样不动)
   const post = data || {};
@@ -224,12 +228,12 @@ export const StatsWidget = ({
             {/* 下半部分：贩售机入口（有按钮时贴底） */}
             {showVending ? (
             <div className="w-full mt-auto pt-4 relative z-20">
-              <button 
+              <button
                 onClick={(e) => {
-                  e.preventDefault(); 
+                  e.preventDefault();
                   e.stopPropagation();
-                  setShowModal(true);
-                }} 
+                  noteModalEnabled ? setShowModal(true) : window.open(vendingUrl, '_blank', 'noopener,noreferrer');
+                }}
                 type="button"
                 data-blog-vending="1"
                 className="w-full h-9 rounded-xl flex items-center justify-center gap-2
@@ -239,7 +243,7 @@ export const StatsWidget = ({
                   hover:bg-white/20 hover:scale-[1.02] active:scale-95 active:bg-white/5"
               >
                 <span className="text-sm">🚛</span>
-                <span>{vendingTitle}</span>
+                <span>{vendingLabel}</span>
               </button>
             </div>
             ) : null}

@@ -74,7 +74,7 @@ const About: NextPage<{
         {/* E1:shop 主题 /about 仅正文,不渲染 standard 首页残留组件(profile/公告入口) */}
         {!isShopTheme(activeTheme) && (
           <div className="mt-6" data-aos="fade-up">
-            {widgets && <WidgetCollection widgets={widgets} />}
+            {widgets && <WidgetCollection widgets={widgets} vendingConfig={vendingConfig} vendingEnabled={vendingEnabled !== false} />}
           </div>
         )}
       </ContainerLayout>

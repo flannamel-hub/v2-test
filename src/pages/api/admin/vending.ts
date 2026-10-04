@@ -18,6 +18,7 @@ type VendingResponse = {
   officialUrl?: string | null
   customTitle?: string | null
   customUrl?: string | null
+  noteModal?: boolean
   id?: string | null
   source?: string
   error?: string
@@ -71,6 +72,15 @@ export default async function handler(
         })
       }
 
+      // VENDING_MODE2:noteModal 非法值 400 拒绝（undefined 忽略；仅商户分支消费）
+      const noteModal = body.noteModal
+      if (noteModal !== undefined && typeof noteModal !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          error: 'noteModal 参数非法',
+        })
+      }
+
       const url = String(body.url || '').trim()
       if (url && !url.startsWith('http')) {
         return res.status(400).json({
@@ -110,6 +120,7 @@ export default async function handler(
             mode: mode === 'official' || mode === 'custom' ? mode : undefined,
             title: typeof body.title === 'string' ? body.title : undefined,
             url: typeof body.url === 'string' ? body.url : undefined,
+            noteModal: typeof noteModal === 'boolean' ? noteModal : undefined,
           })
       // Q10:POST 同样返回完整 state（含新字段）
       return res.status(200).json({ success: true, ...state })

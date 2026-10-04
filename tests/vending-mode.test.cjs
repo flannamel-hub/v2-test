@@ -633,3 +633,84 @@ test('POST 响应返回完整 state（含 enabled/title/url/mode 官方自定义
   assert.equal(res.body.customUrl, 'https://new.example.com')
   assert.equal(res.body.source, 'notion')
 })
+
+// ---------- VENDING_MODE2：noteModal（购买说明弹窗开关） ----------
+test('GET noteModal：无 settings 行 → false；行内 vending_note_modal=true → true（读取透出）', async () => {
+  const none = createResponse()
+  await vendingHandler(createRequest(), none)
+  assert.equal(none.statusCode, 200)
+  assert.equal(none.body.noteModal, false)
+
+  fixture.settingsRow = { vending_note_modal: true }
+  const on = createResponse()
+  await vendingHandler(createRequest(), on)
+  assert.equal(on.statusCode, 200)
+  assert.equal(on.body.noteModal, true)
+})
+
+test('POST {noteModal:true}（登录商户）→ 200 + state.noteModal=true + widget 零写（enabled/mode/title 均不变）', async () => {
+  fixture.quotaRow = { plan: 'pro' }
+  fixture.pages = [makeWidgetPage({ title: '旧标题', url: 'https://old.example.com', status: 'Hidden' })]
+  const res = createResponse()
+  await vendingHandler(createRequest({ method: 'POST', body: { noteModal: true } }), res)
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.success, true)
+  assert.equal(res.body.noteModal, true)
+  assert.equal(fixture.settingsRow.vending_note_modal, true)
+  // widget 零写：不触发任何 widget 写入（严禁落进 Q1 enabled-only 分支）
+  assert.equal(fixture.ops.filter((op) => op.kind.startsWith('widget')).length, 0)
+  const w = widget()
+  assert.equal(w.properties.status.status.name, 'Hidden') // enabled 不动
+  assert.equal(w.properties.title.title[0].plain_text, '旧标题') // title 不动
+  assert.equal(w.properties.excerpt.rich_text[0].plain_text, 'https://old.example.com') // url 不动
+  assert.equal(fixture.settingsRow.vending_mode ?? null, null) // mode 不动
+  assert.equal(fixture.settingsRow.vending_enabled ?? null, null) // legacy 不动
+})
+
+test('POST {noteModal:"yes"} → 400「noteModal 参数非法」', async () => {
+  fixture.quotaRow = { plan: 'pro' }
+  const res = createResponse()
+  await vendingHandler(createRequest({ method: 'POST', body: { noteModal: 'yes' } }), res)
+  assert.equal(res.statusCode, 400)
+  assert.equal(res.body.success, false)
+  assert.equal(res.body.error, 'noteModal 参数非法')
+})
+
+test('POST {mode:"custom",title,url,noteModal:true} → 模式与 noteModal 两处均落', async () => {
+  fixture.quotaRow = { plan: 'pro' }
+  const res = createResponse()
+  await vendingHandler(
+    createRequest({
+      method: 'POST',
+      body: { mode: 'custom', title: '购买资源包', url: 'https://my.example.com', noteModal: true },
+    }),
+    res
+  )
+  assert.equal(res.statusCode, 200)
+  assert.equal(fixture.settingsRow.vending_mode, 'custom')
+  assert.equal(fixture.settingsRow.vending_custom_title, '购买资源包')
+  assert.equal(fixture.settingsRow.vending_custom_url, 'https://my.example.com')
+  assert.equal(fixture.settingsRow.vending_note_modal, true)
+  const w = widget()
+  assert.equal(w.properties.title.title[0].plain_text, '购买资源包')
+  assert.equal(w.properties.excerpt.rich_text[0].plain_text, 'https://my.example.com')
+  assert.equal(res.body.noteModal, true)
+  assert.equal(res.body.mode, 'custom')
+})
+
+test('平台同步（维护密码）POST 不含 noteModal → state.noteModal 保持原值不变', async () => {
+  fixture.quotaRow = { plan: 'pro' }
+  fixture.settingsRow = { vending_note_modal: true }
+  const res = createResponse()
+  await vendingHandler(
+    createRequest({
+      method: 'POST',
+      body: { enabled: true, title: '官方同步', url: 'https://official.example.com' },
+      headers: maintHeaders(),
+    }),
+    res
+  )
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.noteModal, true)
+  assert.equal(fixture.settingsRow.vending_note_modal, true)
+})

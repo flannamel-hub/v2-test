@@ -4771,6 +4771,9 @@ const [mounted, setMounted] = useState(false);
   const [vendingOfficialUrl, setVendingOfficialUrl] = useState('https://store.pro-pl.us');
   const [vendingLoading, setVendingLoading] = useState(false);
   const [vendingSaving, setVendingSaving] = useState(false);
+  // VENDING_MODE2:购买说明弹窗开关(noteModal-only 提交;缺省 false=点击直接跳转,仅标准主题生效)
+  const [vendingNoteModal, setVendingNoteModal] = useState(false);
+  const [vendingNoteSaving, setVendingNoteSaving] = useState(false);
   const [announcementPopup, setAnnouncementPopup] = useState({
     id: null,
     enabled: false,
@@ -6490,6 +6493,8 @@ const [mounted, setMounted] = useState(false);
         // 官方只读展示 official_* ?? DEFAULT 常量
         setVendingOfficialTitle(d.officialTitle || '贩售机');
         setVendingOfficialUrl(d.officialUrl || 'https://store.pro-pl.us');
+        // VENDING_MODE2:购买说明弹窗开关现值
+        setVendingNoteModal(d.noteModal === true);
       }
       else alert('加载贩售机设置失败：' + (d.error || '未知错误'));
     } catch (e) { alert('加载贩售机设置失败：' + e.message); }
@@ -7179,6 +7184,8 @@ const [mounted, setMounted] = useState(false);
         setVendingMode(resolveVendingModeFromState(d));
         setVendingOfficialTitle(d.officialTitle || '贩售机');
         setVendingOfficialUrl(d.officialUrl || 'https://store.pro-pl.us');
+        // VENDING_MODE2:保存不提交 noteModal,回填服务端现值防本地漂移
+        setVendingNoteModal(d.noteModal === true);
         if (d.mode === 'custom') {
           setVendingTitle(d.customTitle || d.title || '贩售机');
           setVendingUrl(d.customUrl || d.url || '');
@@ -7202,6 +7209,41 @@ const [mounted, setMounted] = useState(false);
       } else alert('保存失败：' + (d.error || '未知错误'));
     } catch (e) { alert('保存失败：' + e.message); }
     finally { setVendingSaving(false); }
+  };
+
+  // VENDING_MODE2:购买说明弹窗开关——noteModal-only 提交,不触发 widget 写/不动三态
+  const toggleVendingNote = async () => {
+    if (vendingLocked) { alert('贩售机组件为专业版权益，升级后可用'); return; }
+    if (vendingNoteSaving) return;
+    setVendingNoteSaving(true);
+    try {
+      const r = await fetch('/api/admin/vending', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteModal: !vendingNoteModal }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setVendingNoteModal(d.noteModal === true);
+        showAdminToast(d.noteModal ? '购买说明弹窗已开启' : '购买说明弹窗已关闭');
+        void runBatchedRevalidation({
+          listScope: 'vending',
+          freshTheme: true,
+          contentChange: true,
+          progressLabels: {
+            listing: '正在统计贩售机入口页面…',
+            running: '正在更新贩售机入口…',
+            doneOk: '贩售机入口已同步到前台页面',
+            donePartial: '部分页面需稍后自动更新',
+            hintPartial: '个页面未能更新，可重新保存贩售机设置',
+            hintOk: '全部入口页面已更新',
+          },
+        }).then((rev) => {
+          if (rev.failed > 0) showAdminToast(`部分页面更新失败（${rev.failed}/${rev.total}）`);
+        }).catch((e) => console.warn('贩售机增量刷新失败', e));
+      } else alert('保存失败：' + (d.error || '未知错误'));
+    } catch (e) { alert('保存失败：' + e.message); }
+    finally { setVendingNoteSaving(false); }
   };
 
   const saveGalleryAd = async (patch = {}) => {
@@ -10181,6 +10223,32 @@ const [mounted, setMounted] = useState(false);
                   >
                     {vendingSaving ? '保存中…' : '保存设置'}
                   </button>
+                  <div style={{height:1, background:'#4a4a4a', margin:'14px 2px 16px'}} />
+                  <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'16px'}}>
+                    <div>
+                      <div style={{fontSize:'15px', fontWeight:'bold', color:'#fff'}}>购买说明弹窗</div>
+                      <div style={{fontSize:'12px', color:'#9d9d9d', marginTop:'4px', lineHeight:1.55}}>开启后点击贩售机先显示购买说明；关闭则直接跳转（仅标准主题生效）</div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={vendingNoteSaving}
+                      onClick={() => toggleVendingNote()}
+                      style={{
+                        minWidth: '88px',
+                        padding: '12px 20px',
+                        border: 'none',
+                        borderRadius: '999px',
+                        fontWeight: 'bold',
+                        fontSize: '14px',
+                        cursor: vendingNoteSaving ? 'wait' : 'pointer',
+                        background: vendingLocked ? '#444' : vendingNoteModal ? '#22c55e' : '#555',
+                        color: '#fff',
+                        opacity: vendingNoteSaving ? 0.6 : vendingLocked ? 0.7 : 1,
+                      }}
+                    >
+                      {vendingNoteSaving ? '保存中…' : vendingLocked ? '专业版' : (vendingNoteModal ? '已开启' : '已关闭')}
+                    </button>
+                  </div>
                 </div>
               </>
             )}

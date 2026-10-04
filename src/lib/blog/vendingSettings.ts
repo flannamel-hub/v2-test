@@ -163,9 +163,17 @@ function buildVendingProperties(
 export async function getVendingConfig(
   widgetPages?: PageObjectResponse[]
 ): Promise<VendingConfig> {
+  // VENDING_MODE2:两个分支都要合并 settings 列(mode/noteModal)；读取失败/无行 → official/false 降级
+  const columns = await readVendingSettingsColumns()
   try {
     const widget = await findVendingWidget(widgetPages)
-    if (widget) return readVendingConfigFromPage(widget)
+    if (widget) {
+      return {
+        ...readVendingConfigFromPage(widget),
+        mode: columns?.mode ?? 'official',
+        noteModal: columns?.noteModal ?? false,
+      }
+    }
   } catch (error) {
     console.warn(
       '[vendingSettings] Notion vending widget lookup failed:',
@@ -179,6 +187,8 @@ export async function getVendingConfig(
     title: DEFAULT_VENDING_TITLE,
     id: null,
     source: 'legacy',
+    mode: columns?.mode ?? 'official',
+    noteModal: columns?.noteModal ?? false,
   }
 }
 
@@ -195,6 +205,7 @@ type VendingSettingsColumns = {
   officialUrl: string | null
   customTitle: string | null
   customUrl: string | null
+  noteModal: boolean
 }
 
 async function readVendingSettingsColumns(): Promise<VendingSettingsColumns | null> {
@@ -205,7 +216,7 @@ async function readVendingSettingsColumns(): Promise<VendingSettingsColumns | nu
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      'vending_mode, vending_official_title, vending_official_url, vending_custom_title, vending_custom_url'
+      'vending_mode, vending_official_title, vending_official_url, vending_custom_title, vending_custom_url, vending_note_modal'
     )
     .eq('site_id', siteId)
     .maybeSingle()
@@ -220,6 +231,7 @@ async function readVendingSettingsColumns(): Promise<VendingSettingsColumns | nu
     officialUrl: data.vending_official_url || null,
     customTitle: data.vending_custom_title || null,
     customUrl: data.vending_custom_url || null,
+    noteModal: data.vending_note_modal === true,
   }
 }
 
@@ -231,6 +243,7 @@ async function writeVendingSettingsColumns(
     vending_official_url: string
     vending_custom_title: string
     vending_custom_url: string
+    vending_note_modal: boolean
   }>
 ): Promise<void> {
   const supabase = getSupabaseAdmin()
@@ -295,6 +308,7 @@ export type VendingAdminState = {
   officialUrl: string | null
   customTitle: string | null
   customUrl: string | null
+  noteModal: boolean
   id: string | null
   source: 'notion' | 'legacy' | 'default'
 }
@@ -314,6 +328,7 @@ export async function getVendingAdminState(): Promise<VendingAdminState> {
     officialUrl: columns?.officialUrl ?? null,
     customTitle: columns?.customTitle ?? null,
     customUrl: columns?.customUrl ?? null,
+    noteModal: columns?.noteModal ?? false,
     id: config.id ?? null,
     source: config.source ?? 'default',
   }
@@ -323,13 +338,24 @@ export async function getVendingAdminState(): Promise<VendingAdminState> {
  * - 无 mode：enabled-only，仅翻 widget status，title/url/mode 不动（Q1=现状行为）
  * - mode='official'：widget := official_* ?? DEFAULT_*，mode='official'，status=Published
  * - mode='custom'：校验 title(≤40)/url(http)，widget := 提交值，custom_* := 提交值，mode='custom'，status=Published
- * - Q3 写入顺序：先写 settings 列、后写 widget；Q2 三路径均沿用 syncLegacyVendingEnabled */
+ * - Q3 写入顺序：先写 settings 列、后写 widget；Q2 三路径均沿用 syncLegacyVendingEnabled
+ * - VENDING_MODE2:noteModal 为布尔时先写 settings 列；noteModal-only 提交（无 mode 无 enabled）
+ *   直接返回最新 state——不触发 widget 写、不动 enabled（严禁落进 Q1 enabled-only 分支） */
 export async function applyMerchantVendingUpdate(input: {
   enabled?: boolean
   mode?: 'official' | 'custom'
   title?: string
   url?: string
+  noteModal?: boolean
 }): Promise<VendingAdminState> {
+  if (typeof input.noteModal === 'boolean') {
+    await writeVendingSettingsColumns({ vending_note_modal: input.noteModal })
+  }
+  if (input.mode === undefined && input.enabled === undefined) {
+    // VENDING_MODE2:noteModal-only —— 仅写列，其余全部不动
+    return getVendingAdminState()
+  }
+
   const columns = await readVendingSettingsColumns()
 
   if (!input.mode) {
