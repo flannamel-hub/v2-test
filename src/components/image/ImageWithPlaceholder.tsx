@@ -16,10 +16,13 @@ const ImageWithPlaceholder = ({
   alt: string
   width: number
   height: number
-  blurDataURL: string
+  blurDataURL?: string
   className?: string
 }) => {
   const [blur, setBlur] = useState(true)
+  const blurProps = blurDataURL
+    ? { placeholder: 'blur' as const, blurDataURL }
+    : {}
 
   return (
     <ImageWithFallback
@@ -35,9 +38,8 @@ const ImageWithPlaceholder = ({
         blur ? 'blur-xl' : 'unblur'
       )}
       fallbackSrc={CONFIG.DEFAULT_POST_COVER}
-      placeholder="blur"
       quality={100}
-      blurDataURL={blurDataURL}
+      {...blurProps}
       onLoadingComplete={() => setBlur(false)}
       {...props}
     />

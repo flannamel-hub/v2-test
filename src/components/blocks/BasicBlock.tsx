@@ -1226,8 +1226,9 @@ export const Image = ({ block }: BlockComponentType) => {
           fallbackSrc={CONFIG.DEFAULT_POST_COVER}
           width={width}
           height={height}
-          placeholder="blur"
-          blurDataURL={placeholder}
+          {...(placeholder
+            ? { placeholder: 'blur' as const, blurDataURL: placeholder }
+            : {})}
         />
       </figure>
       {caption && (
