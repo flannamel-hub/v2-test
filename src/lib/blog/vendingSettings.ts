@@ -187,22 +187,83 @@ export async function getVendingEnabled(): Promise<boolean> {
   return config.enabled
 }
 
-export async function updateVendingConfig(
-  input: Partial<VendingConfig>
-): Promise<VendingConfig> {
-  const current = await getVendingConfig()
-  const next = {
-    enabled: input.enabled ?? current.enabled ?? DEFAULT_ENABLED,
-    url: normalizeVendingUrl(input.url || current.url),
-    title: normalizeVendingTitle(input.title || current.title),
-  }
+/** VENDING_MODE:blog_site_settings 新列读取结果（023 未执行/无行/读取失败 → null 降级） */
+type VendingSettingsColumns = {
+  mode: 'official' | 'custom'
+  rawMode: string | null
+  officialTitle: string | null
+  officialUrl: string | null
+  customTitle: string | null
+  customUrl: string | null
+}
 
-  if (!next.url.startsWith('http')) {
-    throw new Error('贩售机地址必须以 http 开头')
-  }
+async function readVendingSettingsColumns(): Promise<VendingSettingsColumns | null> {
+  const siteId = getBlogSiteIdOrNull()
+  const supabase = getSupabaseAdmin()
+  if (!siteId || !supabase) return null
 
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      'vending_mode, vending_official_title, vending_official_url, vending_custom_title, vending_custom_url'
+    )
+    .eq('site_id', siteId)
+    .maybeSingle()
+
+  if (error || !data) return null
+  const rawMode = typeof data.vending_mode === 'string' ? data.vending_mode.trim() : ''
+  return {
+    // null/未知一律按 'official' 处理
+    mode: rawMode === 'custom' ? 'custom' : 'official',
+    rawMode: rawMode || null,
+    officialTitle: data.vending_official_title || null,
+    officialUrl: data.vending_official_url || null,
+    customTitle: data.vending_custom_title || null,
+    customUrl: data.vending_custom_url || null,
+  }
+}
+
+/** VENDING_MODE:写 settings 新列（update→无行 upsert；失败 console.warn 不阻断，Q3） */
+async function writeVendingSettingsColumns(
+  values: Partial<{
+    vending_mode: string
+    vending_official_title: string
+    vending_official_url: string
+    vending_custom_title: string
+    vending_custom_url: string
+  }>
+): Promise<void> {
+  const supabase = getSupabaseAdmin()
+  const siteId = getBlogSiteIdOrNull()
+  if (!supabase || !siteId) return
+
+  const now = new Date().toISOString()
+  const { error: updateError } = await supabase
+    .from(TABLE)
+    .update({ ...values, updated_at: now })
+    .eq('site_id', siteId)
+  if (!updateError) return
+
+  const { error: upsertError } = await supabase.from(TABLE).upsert(
+    {
+      site_id: siteId,
+      theme_code: 'gallery',
+      ...values,
+      updated_at: now,
+    },
+    { onConflict: 'site_id' }
+  )
+  if (upsertError) {
+    console.warn('[vendingSettings] vending mode columns sync failed:', upsertError.message)
+  }
+}
+
+/** widget 写入（含 P11-C5 串行化 + 临界区内查重转 update） */
+async function writeVendingWidget(
+  config: Pick<VendingConfig, 'enabled' | 'url' | 'title'>
+): Promise<void> {
   const db = await getDatabaseMetadata()
-  const properties = buildVendingProperties(db.properties || {}, next)
+  const properties = buildVendingProperties(db.properties || {}, config)
 
   const release = await acquireUpdateTurn()
   try {
@@ -223,12 +284,161 @@ export async function updateVendingConfig(
   } finally {
     release()
   }
+}
+
+export type VendingAdminState = {
+  enabled: boolean
+  title: string
+  url: string
+  mode: 'official' | 'custom'
+  officialTitle: string | null
+  officialUrl: string | null
+  customTitle: string | null
+  customUrl: string | null
+  id: string | null
+  source: 'notion' | 'legacy' | 'default'
+}
+
+/** VENDING_MODE:后台/API 完整状态（widget 现值 + settings 新列快照） */
+export async function getVendingAdminState(): Promise<VendingAdminState> {
+  const [config, columns] = await Promise.all([
+    getVendingConfig(),
+    readVendingSettingsColumns(),
+  ])
+  return {
+    enabled: config.enabled,
+    title: config.title,
+    url: config.url,
+    mode: columns?.mode ?? 'official',
+    officialTitle: columns?.officialTitle ?? null,
+    officialUrl: columns?.officialUrl ?? null,
+    customTitle: columns?.customTitle ?? null,
+    customUrl: columns?.customUrl ?? null,
+    id: config.id ?? null,
+    source: config.source ?? 'default',
+  }
+}
+
+/** VENDING_MODE:商户后台保存（登录商户调用；无密码路径）
+ * - 无 mode：enabled-only，仅翻 widget status，title/url/mode 不动（Q1=现状行为）
+ * - mode='official'：widget := official_* ?? DEFAULT_*，mode='official'，status=Published
+ * - mode='custom'：校验 title(≤40)/url(http)，widget := 提交值，custom_* := 提交值，mode='custom'，status=Published
+ * - Q3 写入顺序：先写 settings 列、后写 widget；Q2 三路径均沿用 syncLegacyVendingEnabled */
+export async function applyMerchantVendingUpdate(input: {
+  enabled?: boolean
+  mode?: 'official' | 'custom'
+  title?: string
+  url?: string
+}): Promise<VendingAdminState> {
+  const columns = await readVendingSettingsColumns()
+
+  if (!input.mode) {
+    // Q1: enabled-only —— 仅翻 widget status（title/url 以现值回写=不动，mode 不变）
+    const current = await getVendingConfig()
+    const nextEnabled = input.enabled ?? current.enabled
+    await writeVendingWidget({
+      enabled: nextEnabled,
+      title: current.title,
+      url: current.url,
+    })
+    await syncLegacyVendingEnabled(nextEnabled)
+    return getVendingAdminState()
+  }
+
+  if (input.mode === 'official') {
+    // Q4: official_* 为空（过渡窗口）→ 回退 DEFAULT_*
+    const officialTitle = columns?.officialTitle || DEFAULT_VENDING_TITLE
+    const officialUrl = columns?.officialUrl || DEFAULT_VENDING_URL
+    await writeVendingSettingsColumns({ vending_mode: 'official' })
+    await writeVendingWidget({ enabled: true, title: officialTitle, url: officialUrl })
+    await syncLegacyVendingEnabled(true)
+    return getVendingAdminState()
+  }
+
+  // mode === 'custom'
+  const customTitle = normalizeVendingTitle(input.title)
+  if (customTitle.length > 40) {
+    throw new Error('按钮名称最多 40 字')
+  }
+  const customUrl = (input.url || '').trim()
+  if (!customUrl.startsWith('http')) {
+    throw new Error('贩售机地址必须以 http 开头')
+  }
+  await writeVendingSettingsColumns({
+    vending_mode: 'custom',
+    vending_custom_title: customTitle,
+    vending_custom_url: customUrl,
+  })
+  await writeVendingWidget({ enabled: true, title: customTitle, url: customUrl })
+  await syncLegacyVendingEnabled(true)
+  return getVendingAdminState()
+}
+
+/** VENDING_MODE:平台同步（维护密码鉴权调用）
+ * - official_* := 提交的 title/url（仅更新提供了的字段）
+ * - mode!=='custom'：与现状一致全量写 widget（title/url/enabled）
+ * - mode==='custom'：跳过 widget 写入（保持商户自定义，enabled 也不动）
+ * - Q2 平台路径同样沿用 syncLegacyVendingEnabled；返回最新完整配置 */
+export async function applyPlatformVendingSync(input: {
+  enabled?: boolean
+  title?: string
+  url?: string
+}): Promise<VendingAdminState> {
+  const columns = await readVendingSettingsColumns()
+  const nextTitle =
+    typeof input.title === 'string' && input.title.trim() !== ''
+      ? input.title.trim()
+      : null
+  const nextUrl =
+    typeof input.url === 'string' && input.url.trim() !== ''
+      ? input.url.trim()
+      : null
+
+  const officialPatch: Record<string, string> = {}
+  if (nextTitle !== null) officialPatch.vending_official_title = nextTitle
+  if (nextUrl !== null) officialPatch.vending_official_url = nextUrl
+  if (Object.keys(officialPatch).length > 0) {
+    await writeVendingSettingsColumns(officialPatch)
+  }
+
+  if (columns?.mode !== 'custom') {
+    const current = await getVendingConfig()
+    const nextEnabled = input.enabled ?? current.enabled
+    await writeVendingWidget({
+      enabled: nextEnabled,
+      title: nextTitle ?? current.title,
+      url: nextUrl ?? current.url,
+    })
+    await syncLegacyVendingEnabled(nextEnabled)
+  } else {
+    // 自定义站：跳过 widget 写入（enabled 也不动），legacy 按当前 widget 状态对齐
+    const current = await getVendingConfig()
+    await syncLegacyVendingEnabled(current.enabled)
+  }
+  return getVendingAdminState()
+}
+
+export async function updateVendingConfig(
+  input: Partial<VendingConfig>
+): Promise<VendingConfig> {
+  const current = await getVendingConfig()
+  const next = {
+    enabled: input.enabled ?? current.enabled ?? DEFAULT_ENABLED,
+    url: normalizeVendingUrl(input.url || current.url),
+    title: normalizeVendingTitle(input.title || current.title),
+  }
+
+  if (!next.url.startsWith('http')) {
+    throw new Error('贩售机地址必须以 http 开头')
+  }
+
+  await writeVendingWidget(next)
 
   await syncLegacyVendingEnabled(next.enabled)
   const updated = await findVendingWidget()
   return updated
     ? readVendingConfigFromPage(updated)
-    : { ...next, id: existing?.id ?? null, source: 'notion' }
+    : { ...next, id: null, source: 'notion' }
 }
 
 export async function updateVendingEnabled(enabled: boolean): Promise<boolean> {

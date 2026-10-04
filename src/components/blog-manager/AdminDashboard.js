@@ -108,7 +108,6 @@ const isSystemReservedCategory = (name) =>
   isProtectedCategory(name) || isFallbackCategory(name);
 
 const SPECIAL_PAGE_SLUGS = new Set(['announcement', 'about', 'download', 'theme-config', 'social-links', 'members']);
-const SHOW_VENDING_ADDRESS_ADMIN = true;
 const SOCIAL_LINK_PLATFORMS = [
   { platform: 'weibo', label: '微博', placeholder: 'https://weibo.com/...' },
   { platform: 'twitter', label: 'Twitter / X', placeholder: 'https://x.com/...' },
@@ -2749,107 +2748,6 @@ const CrawlerIngestUnlockModal = ({
 };
 
 /** 主题切换完成提示（替代浏览器 alert） */
-const VendingAddressUnlockModal = ({
-  open,
-  closing,
-  busy,
-  passwordError,
-  onConfirm,
-  onCancel,
-}) => {
-  const [visible, setVisible] = useState(false);
-  const [password, setPassword] = useState('');
-
-  useEffect(() => {
-    if (open && !closing) {
-      setVisible(false);
-      setPassword('');
-      const id = requestAnimationFrame(() => {
-        requestAnimationFrame(() => setVisible(true));
-      });
-      return () => cancelAnimationFrame(id);
-    }
-    if (!open || closing) setVisible(false);
-  }, [open, closing]);
-
-  if (!open && !closing) return null;
-
-  const submit = () => {
-    if (busy) return;
-    onConfirm(password.trim());
-  };
-
-  return (
-    <div
-      className={`cover-modal-backdrop ${visible && !closing ? 'is-visible' : ''} ${closing ? 'is-closing' : ''}`}
-      onClick={onCancel}
-      role="presentation"
-    >
-      <div
-        className="cover-modal-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="vending-address-unlock-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="cover-modal-icon" aria-hidden>🔐</div>
-        <h3 id="vending-address-unlock-title" className="cover-modal-title">解锁贩售机地址</h3>
-        <p className="cover-modal-desc">
-          贩售机地址会影响统一分发与收款入口。请输入维护密码后再编辑地址或按钮名称。
-        </p>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          disabled={busy}
-          placeholder="请输入维护密码"
-          autoComplete="off"
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            marginTop: '12px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            border: `1px solid ${passwordError ? '#ff7875' : 'rgba(255,255,255,0.18)'}`,
-            background: '#151515',
-            color: '#f5f5f5',
-            outline: 'none',
-          }}
-        />
-        {passwordError ? (
-          <p style={{ margin: '8px 0 0', color: '#ff7875', fontSize: '12px' }}>
-            {passwordError}
-          </p>
-        ) : null}
-        <div className="cover-modal-actions">
-          <button type="button" className="cover-modal-btn cover-modal-btn-secondary" onClick={onCancel} disabled={busy}>
-            取消
-          </button>
-          <button
-            type="button"
-            className="cover-modal-btn"
-            onClick={submit}
-            disabled={busy}
-            style={{
-              background: busy ? '#5a4a6e' : '#9a6dd7',
-              color: '#fff',
-              boxShadow: busy ? 'none' : '0 4px 14px rgba(154,109,215,0.35)',
-            }}
-          >
-            {busy ? '验证中…' : '解锁'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const ThemeSwitchDoneModal = ({ open, closing, extraNote, onClose }) => {
   const [visible, setVisible] = useState(false);
 
@@ -4865,15 +4763,14 @@ const [mounted, setMounted] = useState(false);
   const [contentProtectEnabled, setContentProtectEnabled] = useState(false);
   const [contentProtectLoading, setContentProtectLoading] = useState(false);
   const [contentProtectSaving, setContentProtectSaving] = useState(false);
-  const [vendingEnabled, setVendingEnabled] = useState(true);
+  // VENDING_MODE:三态圆点('off'|'official'|'custom')——切换零请求,点「保存设置」才提交
+  const [vendingMode, setVendingMode] = useState('official');
   const [vendingTitle, setVendingTitle] = useState('贩售机');
   const [vendingUrl, setVendingUrl] = useState('');
+  const [vendingOfficialTitle, setVendingOfficialTitle] = useState('贩售机');
+  const [vendingOfficialUrl, setVendingOfficialUrl] = useState('https://store.pro-pl.us');
   const [vendingLoading, setVendingLoading] = useState(false);
   const [vendingSaving, setVendingSaving] = useState(false);
-  const [vendingAddressUnlocked, setVendingAddressUnlocked] = useState(false);
-  const [vendingAddressPassword, setVendingAddressPassword] = useState('');
-  const [vendingEditing, setVendingEditing] = useState(false);
-  const vendingSnapshotRef = useRef(null);
   const [announcementPopup, setAnnouncementPopup] = useState({
     id: null,
     enabled: false,
@@ -4972,11 +4869,6 @@ const [mounted, setMounted] = useState(false);
   const [crawlerIngestUnlockBusy, setCrawlerIngestUnlockBusy] = useState(false);
   const [crawlerIngestUnlockError, setCrawlerIngestUnlockError] = useState('');
   const crawlerIngestUnlockTimerRef = useRef(null);
-  const [vendingAddressUnlockOpen, setVendingAddressUnlockOpen] = useState(false);
-  const [vendingAddressUnlockClosing, setVendingAddressUnlockClosing] = useState(false);
-  const [vendingAddressUnlockBusy, setVendingAddressUnlockBusy] = useState(false);
-  const [vendingAddressUnlockError, setVendingAddressUnlockError] = useState('');
-  const vendingAddressUnlockTimerRef = useRef(null);
   const [themeDoneModalOpen, setThemeDoneModalOpen] = useState(false);
   const [themeDoneModalClosing, setThemeDoneModalClosing] = useState(false);
   const [themeDoneModalNote, setThemeDoneModalNote] = useState('');
@@ -5175,16 +5067,6 @@ const [mounted, setMounted] = useState(false);
     crawlerIngestUnlockTimerRef.current = setTimeout(() => {
       setCrawlerIngestUnlockOpen(false);
       setCrawlerIngestUnlockClosing(false);
-    }, 240);
-  };
-
-  const closeVendingAddressUnlockModal = () => {
-    if (vendingAddressUnlockTimerRef.current) clearTimeout(vendingAddressUnlockTimerRef.current);
-    setVendingAddressUnlockError('');
-    setVendingAddressUnlockClosing(true);
-    vendingAddressUnlockTimerRef.current = setTimeout(() => {
-      setVendingAddressUnlockOpen(false);
-      setVendingAddressUnlockClosing(false);
     }, 240);
   };
 
@@ -6208,7 +6090,6 @@ const [mounted, setMounted] = useState(false);
   }, [activeTab]);
 
   useEffect(() => { if (galleryAd.enabled) setGalleryAdEditing(false); }, [galleryAd.enabled]);
-  useEffect(() => { if (vendingEnabled) setVendingEditing(false); }, [vendingEnabled]);
   useEffect(() => { if (shopBanner.enabled) setShopBannerEditing(false); }, [shopBanner.enabled]);
   useEffect(() => { if (announcementPopup.enabled) setAnnouncementPopupEditing(false); }, [announcementPopup.enabled]);
   useEffect(() => { if (popupAd.enabled) setPopupAdEditing(false); }, [popupAd.enabled]);
@@ -6525,19 +6406,6 @@ const [mounted, setMounted] = useState(false);
     }
   };
 
-  const startVendingEditing = () => {
-    vendingSnapshotRef.current = { enabled: vendingEnabled, title: vendingTitle, url: vendingUrl };
-    setVendingEditing(true);
-  };
-  const discardVendingEditing = () => {
-    const snap = vendingSnapshotRef.current;
-    if (snap) {
-      setVendingEnabled(snap.enabled);
-      setVendingTitle(snap.title);
-      setVendingUrl(snap.url);
-    }
-    setVendingEditing(false);
-  };
   const startShopBannerEditing = () => {
     shopBannerSnapshotRef.current = { ...shopBanner };
     setShopBannerEditing(true);
@@ -6607,26 +6475,27 @@ const [mounted, setMounted] = useState(false);
   };
   const openGalleryAd = () => { discardGalleryAdEditing(); setView('gallery-ad'); loadGalleryAd(); };
 
-  // === 🛒 贩售机全站开关 ===
+  // === 🛒 贩售机（VENDING_MODE 三态圆点：关闭|官方|自定义） ===
+  const resolveVendingModeFromState = (d) => (!d || d.enabled === false ? 'off' : (d.mode === 'custom' ? 'custom' : 'official'));
   const loadVending = async () => {
     setVendingLoading(true);
     try {
       const r = await fetch('/api/admin/vending');
       const d = await r.json();
       if (d.success) {
-        setVendingEnabled(d.enabled !== false);
-        setVendingTitle(d.title || '贩售机');
-        setVendingUrl(d.url || 'https://store.proplus.onl/buy');
+        setVendingMode(resolveVendingModeFromState(d));
+        // 自定义编辑值预填 custom_* ?? 当前 widget 值
+        setVendingTitle(d.customTitle || d.title || '贩售机');
+        setVendingUrl(d.customUrl || d.url || '');
+        // 官方只读展示 official_* ?? DEFAULT 常量
+        setVendingOfficialTitle(d.officialTitle || '贩售机');
+        setVendingOfficialUrl(d.officialUrl || 'https://store.pro-pl.us');
       }
       else alert('加载贩售机设置失败：' + (d.error || '未知错误'));
     } catch (e) { alert('加载贩售机设置失败：' + e.message); }
     finally { setVendingLoading(false); }
   };
   const openVending = () => {
-    setVendingAddressUnlocked(false);
-    setVendingAddressPassword('');
-    setVendingAddressUnlockError('');
-    discardVendingEditing();
     setView('vending');
     loadVending();
   };
@@ -7282,56 +7151,24 @@ const [mounted, setMounted] = useState(false);
     }
   };
 
-  const confirmVendingAddressUnlock = async (password) => {
-    if (vendingAddressUnlockBusy) return;
-    if (!password) {
-      setVendingAddressUnlockError('请输入维护密码');
-      return;
-    }
-
-    setVendingAddressUnlockBusy(true);
-    setVendingAddressUnlockError('');
-    try {
-      const r = await fetch('/api/admin/vending?verifyAddress=1', {
-        headers: { 'x-admin-maintenance-password': password },
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.success === false) {
-        setVendingAddressUnlockError(d.error || '维护密码错误');
-        return;
-      }
-      setVendingAddressPassword(password);
-      setVendingAddressUnlocked(true);
-      closeVendingAddressUnlockModal();
-      showAdminToast('贩售机地址编辑已解锁');
-    } catch (e) {
-      setVendingAddressUnlockError(e.message || '验证失败，请稍后重试');
-    } finally {
-      setVendingAddressUnlockBusy(false);
-    }
-  };
-
-  const saveVending = async (patch = {}) => {
+  // VENDING_MODE:三态统一保存——off→{enabled:false}; official→{enabled:true,mode:'official'};
+  // custom→{enabled:true,mode:'custom',title,url}(前端校验 http/≤40 字)。圆点切换零请求,仅此处 POST。
+  const saveVending = async () => {
     if (vendingSaving) return; // P11-C3: 进行中早退
-    const nextEnabled = typeof patch.enabled === 'boolean' ? patch.enabled : vendingEnabled;
-    const nextTitle = ((patch.title ?? vendingTitle) || '').trim() || '贩售机';
-    const nextUrl = ((patch.url ?? vendingUrl) || '').trim();
-    const includeAddress = Boolean(patch.includeAddress);
-    if (includeAddress && !vendingAddressUnlocked) {
-      setVendingAddressUnlockError('');
-      setVendingAddressUnlockClosing(false);
-      setVendingAddressUnlockOpen(true);
-      return;
+    let payload;
+    if (vendingMode === 'off') {
+      payload = { enabled: false };
+    } else if (vendingMode === 'official') {
+      payload = { enabled: true, mode: 'official' };
+    } else {
+      const nextTitle = (vendingTitle || '').trim() || '贩售机';
+      const nextUrl = (vendingUrl || '').trim();
+      if (!nextUrl.startsWith('http')) { alert('请填写有效的贩售机地址（需以 http 开头）'); return; }
+      if (nextTitle.length > 40) { alert('按钮名称最多 40 字'); return; }
+      payload = { enabled: true, mode: 'custom', title: nextTitle, url: nextUrl };
     }
-    if (includeAddress && !nextUrl.startsWith('http')) { alert('请填写有效的贩售机地址（需以 http 开头）'); return; }
     setVendingSaving(true);
     try {
-      const payload = { enabled: nextEnabled };
-      if (includeAddress) {
-        payload.title = nextTitle;
-        payload.url = nextUrl;
-        payload.password = vendingAddressPassword;
-      }
       const r = await fetch('/api/admin/vending', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -7339,9 +7176,13 @@ const [mounted, setMounted] = useState(false);
       });
       const d = await r.json();
       if (d.success) {
-        setVendingEnabled(d.enabled !== false);
-        setVendingTitle(d.title || nextTitle);
-        setVendingUrl(d.url || nextUrl);
+        setVendingMode(resolveVendingModeFromState(d));
+        setVendingOfficialTitle(d.officialTitle || '贩售机');
+        setVendingOfficialUrl(d.officialUrl || 'https://store.pro-pl.us');
+        if (d.mode === 'custom') {
+          setVendingTitle(d.customTitle || d.title || '贩售机');
+          setVendingUrl(d.customUrl || d.url || '');
+        }
         showAdminToast(d.enabled ? '贩售机已保存，正在更新前台…' : '贩售机已关闭，正在更新前台…');
         void runBatchedRevalidation({
           listScope: 'vending',
@@ -9472,14 +9313,6 @@ const [mounted, setMounted] = useState(false);
         desc="该页面为系统修复与内部维护功能，请输入维护密码后继续。"
         titleId="version-repair-unlock-title"
       />
-      <VendingAddressUnlockModal
-        open={vendingAddressUnlockOpen}
-        closing={vendingAddressUnlockClosing}
-        busy={vendingAddressUnlockBusy}
-        passwordError={vendingAddressUnlockError}
-        onConfirm={confirmVendingAddressUnlock}
-        onCancel={closeVendingAddressUnlockModal}
-      />
       <AdminToast message={adminToast.message} visible={adminToast.visible} closing={adminToast.closing} />
       <OnboardingTour open={tourOpen} onClose={handleCloseOnboardingTour} steps={TOUR_STEPS} />
       {/* R18：编辑器聚焦引导（14 步；onStepChange 按动作表展开/收起 StepAccordion；与首页引导单飞） */}
@@ -10274,111 +10107,81 @@ const [mounted, setMounted] = useState(false);
                 {vendingLocked && (
                   <div style={ADS_LOCKED_NOTICE_STYLE}>贩售机组件为专业版权益，升级后可用</div>
                 )}
-                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'20px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', marginBottom:'18px', opacity: vendingLocked ? 0.55 : 1}}>
-                  <div>
-                    <div style={{fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'6px'}}>贩售机功能</div>
-                    <div style={{fontSize:'12px', color:'#999'}}>{vendingEnabled ? '当前：已开启' : vendingEditing ? '当前：已关闭 · 修改未保存' : '当前：已关闭'}{vendingLocked ? '（免费版由平台统一维护）' : ''}</div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={vendingSaving}
-                    onClick={() => {
-                      if (vendingLocked) { alert('贩售机组件为专业版权益，升级后可用'); return; }
-                      if (vendingEnabled) { saveVending({ enabled: false }); return; }
-                      if (vendingEditing) { discardVendingEditing(); return; }
-                      startVendingEditing();
-                    }}
-                    title={vendingEditing ? '放弃修改并收起' : undefined}
-                    style={{
-                      minWidth: '88px',
-                      padding: '12px 20px',
-                      border: 'none',
-                      borderRadius: '999px',
-                      fontWeight: 'bold',
-                      fontSize: '14px',
-                      cursor: vendingSaving ? 'wait' : 'pointer',
-                      background: vendingLocked ? '#444' : vendingEnabled ? '#22c55e' : vendingEditing ? '#d97706' : '#555',
-                      color: '#fff',
-                      opacity: vendingSaving ? 0.6 : vendingLocked ? 0.7 : 1,
-                    }}
-                  >
-                    {vendingSaving ? '保存中…' : vendingLocked ? '专业版' : (vendingEnabled ? '已开启' : vendingEditing ? '未保存' : '已关闭')}
-                  </button>
-                </div>
-                {SHOW_VENDING_ADDRESS_ADMIN && (vendingEnabled || vendingEditing) && (
-                <div style={{display:'flex', flexDirection:'column', gap:'16px', padding:'22px 24px', background:'#333', borderRadius:'14px', border:'1px solid #555', opacity: vendingLocked ? 0.55 : 1}}>
-                  <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'14px'}}>
-                    <div>
-                      <div style={{fontSize:'15px', fontWeight:'bold', color:'#fff', marginBottom:'4px'}}>地址管理</div>
-                      <div style={{fontSize:'12px', color:'#999'}}>
-                        {vendingAddressUnlocked ? '已解锁：可编辑地址' : '已锁定'}
+                <div style={{padding:'18px 18px 20px', background:'#333', border:'1px solid #555', borderRadius:'14px', opacity: vendingLocked ? 0.55 : 1}}>
+                  <div style={{fontSize:'11px', color:'#8d8d8d', letterSpacing:'.08em', margin:'2px 2px 8px'}}>启用方式</div>
+                  {[
+                    { key: 'off', title: '关闭', desc: '前台不显示贩售机入口' },
+                    { key: 'official', title: '官方贩售机链接', desc: '使用平台统一维护的地址，平台更新后自动生效' },
+                    { key: 'custom', title: '自定义链接', desc: '使用你自己的发卡站地址' },
+                  ].map((opt) => {
+                    const sel = vendingMode === opt.key;
+                    return (
+                      <div
+                        key={opt.key}
+                        onClick={() => {
+                          if (vendingLocked) { alert('贩售机组件为专业版权益，升级后可用'); return; }
+                          if (vendingSaving) return;
+                          setVendingMode(opt.key);
+                        }}
+                        style={{display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px', borderRadius:'12px', marginBottom:'2px', background: sel ? '#39423b' : 'transparent', border:`1px solid ${sel ? 'rgba(74,222,128,.45)' : 'transparent'}`, cursor: vendingLocked ? 'not-allowed' : 'pointer'}}
+                      >
+                        <div style={{width:18, height:18, borderRadius:'50%', border:`2px solid ${sel ? '#4ade80' : '#777'}`, marginTop:2, flexShrink:0, position:'relative'}}>
+                          {sel && <div style={{position:'absolute', left:3, top:3, right:3, bottom:3, borderRadius:'50%', background:'#4ade80'}} />}
+                        </div>
+                        <div>
+                          <div style={{fontSize:'15px', fontWeight:'bold', color:'#fff'}}>{opt.title}</div>
+                          <div style={{fontSize:'12px', color:'#9d9d9d', marginTop:'4px', lineHeight:1.55}}>{opt.desc}</div>
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (vendingLocked) { alert('贩售机组件为专业版权益，升级后可用'); return; }
-                        // P18FREEPRO: 专业版免维护密码直接解锁贩售机地址编辑(用户2026-08-30)
-                        if (sitePlan === 'pro') { setVendingAddressUnlockError(''); setVendingAddressUnlocked(true); showAdminToast('贩售机地址编辑已解锁(专业版)'); return; }
-                        setVendingAddressUnlockError('');
-                        setVendingAddressUnlockClosing(false);
-                        setVendingAddressUnlockOpen(true);
-                      }}
-                      disabled={vendingSaving || vendingAddressUnlocked}
-                      style={{
-                        padding:'10px 16px',
-                        background: vendingLocked ? '#444' : vendingAddressUnlocked ? '#2f5136' : '#9a6dd7',
-                        color:'#fff',
-                        border:'none',
-                        borderRadius:'999px',
-                        fontWeight:'bold',
-                        cursor: vendingAddressUnlocked ? 'default' : 'pointer',
-                        opacity: vendingSaving ? 0.6 : vendingLocked ? 0.7 : 1,
-                      }}
-                    >
-                      {vendingAddressUnlocked ? '已解锁' : '解锁编辑'}
-                    </button>
-                  </div>
-                  <div>
-                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>按钮名称</label>
-                    <input className="glow-input" value={vendingTitle} onChange={e=>setVendingTitle(e.target.value)} placeholder="贩售机" disabled={vendingLocked || !vendingAddressUnlocked || vendingSaving} />
-                  </div>
-                  <div>
-                    <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>贩售机地址 <span style={{color:'#ff4d4f'}}>*</span></label>
-                    <input className="glow-input" value={vendingUrl} onChange={e=>setVendingUrl(e.target.value)} placeholder="https://store.proplus.onl/buy" disabled={vendingLocked || !vendingAddressUnlocked || vendingSaving} />
-                    <div style={{fontSize:'11px', color:'#888', marginTop:'8px', lineHeight:1.6}}>地址默认由平台维护。</div>
-                  </div>
-                  {vendingEditing ? (
-                    <button
-                      type="button"
-                      onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ includeAddress: vendingAddressUnlocked, enabled: true })}
-                      disabled={vendingSaving}
-                      style={{padding:'16px', background: vendingSaving ? '#333' : '#fff', color: vendingSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : 'pointer'}}
-                    >
-                      {vendingSaving ? '保存中…' : '保存并开启'}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ includeAddress: true })}
-                      disabled={vendingSaving || !vendingAddressUnlocked}
-                      style={{padding:'16px', background: (vendingSaving || !vendingAddressUnlocked) ? '#333' : '#fff', color: (vendingSaving || !vendingAddressUnlocked) ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : (vendingAddressUnlocked ? 'pointer' : 'not-allowed')}}
-                    >
-                      {vendingSaving ? '保存中…' : '保存地址设置'}
-                    </button>
+                    );
+                  })}
+                  <div style={{height:1, background:'#4a4a4a', margin:'14px 2px 16px'}} />
+                  {vendingMode === 'official' && (
+                    <>
+                      <div style={{marginBottom:'14px'}}>
+                        <label style={{display:'flex', alignItems:'center', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>
+                          按钮名称
+                          <span style={{marginLeft:8, fontSize:10, fontWeight:'bold', color:'#9ad0a4', border:'1px solid rgba(74,222,128,.4)', borderRadius:999, padding:'2px 8px'}}>平台统一</span>
+                        </label>
+                        <div style={{background:'#2c2c2c', border:'1px solid #4b4b4b', borderRadius:'12px', padding:'13px 14px', fontSize:'14px', color:'#ececec', wordBreak:'break-all'}}>{vendingOfficialTitle}</div>
+                      </div>
+                      <div style={{marginBottom:'14px'}}>
+                        <label style={{display:'flex', alignItems:'center', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>
+                          贩售机地址
+                          <span style={{marginLeft:8, fontSize:10, fontWeight:'bold', color:'#9ad0a4', border:'1px solid rgba(74,222,128,.4)', borderRadius:999, padding:'2px 8px'}}>平台统一</span>
+                        </label>
+                        <div style={{background:'#2c2c2c', border:'1px solid #4b4b4b', borderRadius:'12px', padding:'13px 14px', fontSize:'14px', color:'#ececec', wordBreak:'break-all'}}>{vendingOfficialUrl}</div>
+                      </div>
+                      <div style={{fontSize:'11px', color:'#8f8f8f', marginTop:'8px', lineHeight:1.65}}>官方链接由平台统一维护；平台更新后自动同步生效，无需手动修改。</div>
+                    </>
                   )}
-                </div>
-                )}
-                {vendingEditing && !SHOW_VENDING_ADDRESS_ADMIN && (
+                  {vendingMode === 'custom' && (
+                    <>
+                      <div style={{marginBottom:'14px'}}>
+                        <label style={{display:'block', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>按钮名称</label>
+                        <input className="glow-input" value={vendingTitle} onChange={e=>setVendingTitle(e.target.value)} placeholder="贩售机" disabled={vendingLocked || vendingSaving} />
+                      </div>
+                      <div style={{marginBottom:'14px'}}>
+                        <label style={{display:'block', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>贩售机地址 <span style={{color:'#ff4d4f'}}>*</span></label>
+                        <input className="glow-input" value={vendingUrl} onChange={e=>setVendingUrl(e.target.value)} placeholder="https://your-shop.com" disabled={vendingLocked || vendingSaving} />
+                        <div style={{fontSize:'11px', color:'#8f8f8f', marginTop:'8px', lineHeight:1.65}}>地址需以 http 开头；保存后前台立即更新。</div>
+                      </div>
+                    </>
+                  )}
+                  {vendingMode === 'off' && (
+                    <div style={{background:'#2c2c2c', border:'1px solid #4b4b4b', borderRadius:'12px', padding:'14px 16px', fontSize:'12.5px', color:'#d2d2d2', lineHeight:1.75}}>
+                      贩售机入口已关闭：前台（首页 / 文章页）不显示贩售机按钮。<br/>随时切回上方任意一种链接方式即可恢复。
+                    </div>
+                  )}
                   <button
                     type="button"
-                    onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending({ includeAddress: false, enabled: true })}
+                    onClick={() => vendingLocked ? alert('贩售机组件为专业版权益，升级后可用') : saveVending()}
                     disabled={vendingSaving}
-                    style={{padding:'16px', background: vendingSaving ? '#333' : '#fff', color: vendingSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : 'pointer', marginTop:'18px'}}
+                    style={{width:'100%', marginTop:'16px', padding:'15px', background: vendingSaving ? '#333' : '#fff', color: vendingSaving ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: vendingSaving ? 'wait' : 'pointer'}}
                   >
-                    {vendingSaving ? '保存中…' : '保存并开启'}
+                    {vendingSaving ? '保存中…' : '保存设置'}
                   </button>
-                )}
+                </div>
               </>
             )}
           </div>
@@ -11354,7 +11157,7 @@ const [mounted, setMounted] = useState(false);
 
             {!editingSimplePage ? (
             <StepAccordion step={3} displayStep={editorStepDisplayMap[3]} title="文章封面" isOpen={expandedStep === 3} onToggle={()=>setExpandedStep(expandedStep===3?0:3)}>
-              <div className="block-cover-hint"><b style={{ color: 'greenyellow' }}>封面说明</b>：可手动将图库中的图片或正文图片块设定为封面，未手动设定封面则自动采取正文首图或图库首图作为封面。</div>
+              <div className="block-cover-hint"><b style={{ color: 'greenyellow' }}>封面说明</b>：可手动将任意一张正文图片设定为封面，未手动设定封面则自动采取正文作为封面。</div>
             </StepAccordion>
             ) : null}
 

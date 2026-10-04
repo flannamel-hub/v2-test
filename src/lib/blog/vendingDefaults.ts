@@ -1,5 +1,5 @@
 export const VENDING_WIDGET_SLUG = 'vending'
-export const DEFAULT_VENDING_URL = 'https://store.proplus.onl/buy'
+export const DEFAULT_VENDING_URL = 'https://store.pro-pl.us'
 export const DEFAULT_VENDING_TITLE = '贩售机'
 
 export type VendingConfig = {
