@@ -9,6 +9,10 @@ import type { SiteMembershipConfig } from '@/src/lib/blog/membershipGate'
 import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetTheme'
 
 /**
+ * 【已退役 deprecated(2026-10-05 R2-B5a)】/member 页已改为 307 → /pricing,
+ * 本组件不再被任何页面渲染;仅为 tests/member-b4-center / member-r1-handoff 的
+ * 纯函数与文案导出而保留——勿在新页面引用本组件。
+ *
  * 站点会员 B4-W3:/member 会员中心三态(active / expired / guest)。
  * - 挂载即调一次 /api/member/session(无双轮询,任何位置不加 interval);
  * - active:状态卡 + 档位列表(续费)+ 退出登录 + 小字;

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import type { VendingConfig } from '@/src/lib/blog/vendingDefaults'
 import type { SocialLinksWidgetType } from '@/src/lib/blog/format/widget/socialLinks'
 import { SocialLinks } from '@/src/components/widget/SocialLinks'
-import { MemberNavEntries } from '@/src/components/member/MemberNavEntries'
+import { MemberNav } from '@/src/components/member/MemberNav'
 import { useMemberNavConfig } from '@/src/components/theme/SitePlanContext'
 import {
   GALLERY_LOGIN_URL,
@@ -125,8 +125,8 @@ export const GallerySidebar = ({
 
       {showVending || socialLinks?.links || memberNavEnabled ? (
       <div className="shrink-0 border-t border-neutral-200 px-4 py-5">
-        {/* 站点会员 B4-W2:「会员」「登录」双入口(仅开通出现) */}
-        <MemberNavEntries variant="gallery" />
+        {/* 站点会员 R2-B5a:红描边「加入会员」+ 登录位/chip(仅开通出现;STORE 按原样保留 Q9) */}
+        <MemberNav variant="gallery" />
         {showVending ? (
           <a
             href={vendingUrl}

@@ -246,3 +246,19 @@ export function buildMemberSetCookie(
 export function buildMemberClearCookie(): string {
   return `${MEMBER_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${memberCookieSuffix()}`
 }
+
+/**
+ * R2-B5a:member_no 展示 cookie(非敏感、仅前台 chip 读取展示)。
+ * - 非 HttpOnly(客户端读);Path/Max-Age/SameSite/Secure 与 sm_session 同规则;
+ * - 与 sm_session 同生共死:清 sm_session 处必清 sm_member_no(反向不要求);
+ * - 值经 encodeURIComponent(防分隔符/非 ASCII 破坏 Set-Cookie;读取侧 decode)。
+ */
+export const MEMBER_NO_COOKIE_NAME = 'sm_member_no'
+
+export function buildMemberNoCookie(value: string): string {
+  return `${MEMBER_NO_COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; Max-Age=${MEMBER_PASSPORT_TTL_SECONDS}; SameSite=Lax${memberCookieSuffix()}`
+}
+
+export function buildMemberNoClearCookie(): string {
+  return `${MEMBER_NO_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax${memberCookieSuffix()}`
+}

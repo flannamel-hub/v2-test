@@ -264,8 +264,8 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
   }
 
   if (sessionPhase === 'expired') {
-    // B4-W5:有档位且未失败 → 主按钮「立即续费」+ 次级「进入会员中心」;
-    // plans 为空/续费失败 → 回落主按钮「前往会员中心」(§10.3-2)
+    // R2-B5a(E2/E5):到期面板保留主按钮「立即续费」,移除「进入会员中心」链接;
+    // plans 为空/续费失败 → 回落主按钮「加入会员」→ /pricing
     const showRenewPrimary = config.plans.length > 0 && renewPhase !== 'failed'
     return (
       <div
@@ -275,28 +275,20 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
           <LockIcon className={`h-5 w-5 ${mutedCls}`} />
           <p className={`text-sm font-medium ${titleCls}`}>会员已到期</p>
           {showRenewPrimary ? (
-            <>
-              <button
-                type="button"
-                onClick={() => void requestRenew()}
-                disabled={renewPhase === 'requesting'}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${primaryButtonCls}`}
-              >
-                {renewPhase === 'requesting' ? '跳转中…' : '立即续费'}
-              </button>
-              <Link
-                href="/member"
-                className={`text-xs font-medium transition-colors ${mutedCls} hover:underline`}
-              >
-                进入会员中心
-              </Link>
-            </>
+            <button
+              type="button"
+              onClick={() => void requestRenew()}
+              disabled={renewPhase === 'requesting'}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${primaryButtonCls}`}
+            >
+              {renewPhase === 'requesting' ? '跳转中…' : '立即续费'}
+            </button>
           ) : (
             <Link
-              href="/member"
+              href="/pricing"
               className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
             >
-              前往会员中心
+              加入会员
             </Link>
           )}
         </div>
@@ -349,15 +341,22 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
           </div>
         ) : null}
 
+        {/* R2-B5a(E2):主按钮「加入会员」→ /pricing;登录降次级开弹窗 */}
+        <Link
+          href="/pricing"
+          className={`w-full max-w-xs rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
+        >
+          加入会员
+        </Link>
         <button
           type="button"
           onClick={() => {
             setLoginAnomalyError('')
             setLoginDialogOpen(true)
           }}
-          className={`w-full max-w-xs rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
+          className={`text-xs font-medium transition-colors ${mutedCls} hover:underline`}
         >
-          使用访问串登录
+          已有访问串？登录
         </button>
       </div>
 

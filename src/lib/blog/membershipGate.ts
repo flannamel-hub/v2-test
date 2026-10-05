@@ -11,7 +11,19 @@ const TABLE = 'blog_site_settings'
 const DEFAULT_CACHE_TTL_MS = 15_000
 
 export type SiteMembershipPlan = { days: number; price: number; sku: string }
-export type SiteMembershipCopy = Record<string, string>
+
+/**
+ * 站点会员文案(R2-B5a 结构化透传;与 B5B 后台写入口径一一对齐):
+ * - intro ≤500 / benefits ≤8 条×≤120 / guarantee ≤300;updatedAt 非串忽略;
+ * - 读侧同口径宽松截断(双保险,写侧已归一);
+ * - 逐字段校验、非法字段丢弃(置 undefined),仅根对象非法才整份 null。
+ */
+export type SiteMembershipCopy = {
+  intro?: string
+  benefits?: string[]
+  guarantee?: string
+  updatedAt?: string
+}
 export type SiteMembershipConfig = {
   enabled: true
   plans: SiteMembershipPlan[]
@@ -55,14 +67,41 @@ function normalizePlans(raw: unknown): SiteMembershipPlan[] {
   return plans
 }
 
+/** copy 字段长度上限(与 B5B 写入口径一致;读侧宽松截断双保险) */
+const COPY_INTRO_MAX = 500
+const COPY_BENEFIT_MAX_ITEMS = 8
+const COPY_BENEFIT_ITEM_MAX = 120
+const COPY_GUARANTEE_MAX = 300
+const COPY_UPDATED_AT_MAX = 40
+
+function normalizeCopyText(value: unknown, max: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return trimmed.slice(0, max)
+}
+
 function normalizeCopy(raw: unknown): SiteMembershipCopy | null {
+  // R2-B5a(R3):重写为结构化逐字段归一——逐字段校验、非法字段丢弃,
+  // 仅根对象非法才整份 null;全部字段无效 → null(组件侧回落默认文案)
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const record = raw as Record<string, unknown>
   const out: SiteMembershipCopy = {}
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value !== 'string') return null
-    const trimmed = value.trim()
-    if (trimmed) out[key] = trimmed
+  const intro = normalizeCopyText(record.intro, COPY_INTRO_MAX)
+  if (intro !== undefined) out.intro = intro
+  if (Array.isArray(record.benefits)) {
+    const benefits = record.benefits
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim().slice(0, COPY_BENEFIT_ITEM_MAX))
+      .filter((item) => item.length > 0)
+      .slice(0, COPY_BENEFIT_MAX_ITEMS)
+    if (benefits.length > 0) out.benefits = benefits
   }
+  const guarantee = normalizeCopyText(record.guarantee, COPY_GUARANTEE_MAX)
+  if (guarantee !== undefined) out.guarantee = guarantee
+  const updatedAt = normalizeCopyText(record.updatedAt, COPY_UPDATED_AT_MAX)
+  if (updatedAt !== undefined) out.updatedAt = updatedAt
+  if (Object.keys(out).length === 0) return null
   return out
 }
 
@@ -123,7 +162,8 @@ async function fetchMembershipRaw(): Promise<MembershipRawRead> {
  * fail-closed 硬语义:BLOG_SITE_ID / Supabase 未配置、读取失败、表或列缺失、
  * 无行、值非对象、enabled !== true → 一律 null。
  * plans 逐项校验(days 正整数 / sku 非空 / price 有限数字),非法项剔除,全非法 → []。
- * copy 非对象或含非 string 值 → null;合法值 trim 后保留非空。
+ * copy 结构化逐字段归一(R2-B5a R3):根对象非法 → null;字段级非法丢弃;
+ * 长度/条数上限宽松截断(intro≤500 / benefits≤8×≤120 / guarantee≤300)。
  */
 export async function getMembershipConfig(): Promise<SiteMembershipConfig | null> {
   const now = Date.now()

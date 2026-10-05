@@ -3,6 +3,8 @@ import { getEffectiveMembershipConfig } from '@/src/lib/blog/membershipGate'
 import { callCenterRefresh } from '@/src/lib/blog/memberCenterClient'
 import {
   buildMemberClearCookie,
+  buildMemberNoClearCookie,
+  buildMemberNoCookie,
   buildMemberSetCookie,
   MEMBER_COOKIE_NAME,
   MEMBER_HEARTBEAT_SECONDS,
@@ -72,9 +74,12 @@ export default async function handler(
         ? await verifyMemberPassport(token, { host, siteId })
         : ({ ok: false as const, reason: 'aud_mismatch' as const })
 
-    // 状态 3:验签失败 → 清除 cookie + guest
+    // 状态 3:验签失败 → 清除 cookie(含 member_no 展示 cookie)+ guest
     if (!verified.ok) {
-      res.setHeader('Set-Cookie', buildMemberClearCookie())
+      res.setHeader('Set-Cookie', [
+        buildMemberClearCookie(),
+        buildMemberNoClearCookie(),
+      ])
       return res.status(200).json({ status: 'guest' })
     }
     const claims = verified.claims
@@ -107,11 +112,15 @@ export default async function handler(
         siteId: siteId as string,
       })
       if (reVerified.ok) {
-        // 换写新值(maxAge 7d)
-        res.setHeader(
-          'Set-Cookie',
-          buildMemberSetCookie(refresh.passport, MEMBER_PASSPORT_TTL_SECONDS)
-        )
+        // 换写新值(maxAge 7d);R2-B5a:中心 refresh 带 member_no 时
+        // 同步补发 sm_member_no 展示 cookie(顺序固定 session 在前)
+        const setCookies = [
+          buildMemberSetCookie(refresh.passport, MEMBER_PASSPORT_TTL_SECONDS),
+        ]
+        if (typeof refresh.memberNo === 'string' && refresh.memberNo) {
+          setCookies.push(buildMemberNoCookie(refresh.memberNo))
+        }
+        res.setHeader('Set-Cookie', setCookies)
         return res.status(200).json({
           status: 'active',
           member_no: refresh.memberNo ?? memberNoFromClaims(reVerified.claims),
@@ -136,12 +145,18 @@ export default async function handler(
     }
 
     if (!refresh.ok && refresh.error === 'invalid') {
-      res.setHeader('Set-Cookie', buildMemberClearCookie())
+      res.setHeader('Set-Cookie', [
+        buildMemberClearCookie(),
+        buildMemberNoClearCookie(),
+      ])
       return res.status(200).json({ status: 'guest' })
     }
 
     if (!refresh.ok && refresh.error === 'revoked') {
-      res.setHeader('Set-Cookie', buildMemberClearCookie())
+      res.setHeader('Set-Cookie', [
+        buildMemberClearCookie(),
+        buildMemberNoClearCookie(),
+      ])
       return res.status(200).json({
         status: 'revoked',
         member_no: memberNoFromClaims(claims),

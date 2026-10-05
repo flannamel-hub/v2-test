@@ -164,7 +164,7 @@ test('enabled:false / membership:null / 值非对象 → null', async () => {
 
 // --- 合法配置规范化 ---------------------------------------------------------------
 
-test('合法配置:plans/copy 规范化(trim、空串剔除)', async () => {
+test('合法配置:plans/copy 规范化(R2-B5a 结构化逐字段:trim、空值剔除)', async () => {
   adminStub.__setSupabaseClient(
     createFakeSupabase({
       quotaRow: { plan: 'pro' },
@@ -172,7 +172,12 @@ test('合法配置:plans/copy 规范化(trim、空串剔除)', async () => {
         membership: {
           enabled: true,
           plans: [{ days: 30, price: 29, sku: 'MEM-30' }],
-          copy: { title: ' 会员 ', notice: '', sub: ' 开通后解锁 ' },
+          copy: {
+            intro: ' 会员说明 ',
+            benefits: [' 权益一 ', '', '权益二'],
+            guarantee: ' 保障说明 ',
+            updatedAt: ' 2026-10-05 ',
+          },
         },
       },
     })
@@ -183,7 +188,12 @@ test('合法配置:plans/copy 规范化(trim、空串剔除)', async () => {
   assert.deepEqual(config, {
     enabled: true,
     plans: [{ days: 30, price: 29, sku: 'MEM-30' }],
-    copy: { title: '会员', sub: '开通后解锁' },
+    copy: {
+      intro: '会员说明',
+      benefits: ['权益一', '权益二'],
+      guarantee: '保障说明',
+      updatedAt: '2026-10-05',
+    },
   })
 })
 
@@ -236,8 +246,19 @@ test('plans 混非法项剔除;全非法 → plans:[];非数组 → plans:[]', a
   assert.deepEqual(nonArray.plans, [])
 })
 
-test('copy 非法:含非 string 值 / 非对象 → null', async () => {
+test('copy 归一(R3 重写):非对象 → null;字段级非法丢弃;全字段无效 → null;上限截断', async () => {
   blogSiteStub.__setBlogSiteId(SITE_ID)
+
+  adminStub.__setSupabaseClient(
+    createFakeSupabase({
+      membershipRow: {
+        membership: { enabled: true, plans: [], copy: { intro: 3, benefits: 'n/a', guarantee: ' 保障 ' } },
+      },
+    })
+  )
+  const fieldDropped = await getMembershipConfig()
+  // 字段坏类型丢弃(intro/benefits 非法 → undefined),合法字段保留
+  assert.deepEqual(fieldDropped.copy, { guarantee: '保障' })
 
   adminStub.__setSupabaseClient(
     createFakeSupabase({
@@ -246,8 +267,10 @@ test('copy 非法:含非 string 值 / 非对象 → null', async () => {
       },
     })
   )
-  const badValue = await getMembershipConfig()
-  assert.equal(badValue.copy, null)
+  __resetMembershipGateCacheForTest()
+  // 未知键不透传且全字段无效 → 整份 null
+  const unknownKeys = await getMembershipConfig()
+  assert.equal(unknownKeys.copy, null)
 
   adminStub.__setSupabaseClient(
     createFakeSupabase({
@@ -257,6 +280,29 @@ test('copy 非法:含非 string 值 / 非对象 → null', async () => {
   __resetMembershipGateCacheForTest()
   const badShape = await getMembershipConfig()
   assert.equal(badShape.copy, null)
+
+  // 上限宽松截断(读侧双保险):benefits ≤8 条×≤120、intro ≤500、guarantee ≤300
+  adminStub.__setSupabaseClient(
+    createFakeSupabase({
+      membershipRow: {
+        membership: {
+          enabled: true,
+          plans: [],
+          copy: {
+            intro: 'x'.repeat(600),
+            benefits: Array.from({ length: 12 }, (_, i) => `b${i}`).concat(['y'.repeat(200)]),
+            guarantee: 'z'.repeat(400),
+          },
+        },
+      },
+    })
+  )
+  __resetMembershipGateCacheForTest()
+  const capped = await getMembershipConfig()
+  assert.equal(capped.copy.intro.length, 500)
+  assert.equal(capped.copy.benefits.length, 8)
+  assert.equal(capped.copy.benefits[7].length, 2)
+  assert.equal(capped.copy.guarantee.length, 300)
 })
 
 // --- 缓存 -----------------------------------------------------------------------

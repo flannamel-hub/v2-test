@@ -14,7 +14,6 @@ import {
 import type { IconType } from 'react-icons'
 import { classNames } from '@/src/lib/util'
 import type { Page, Title } from '@/src/types/blog'
-import { MemberNavEntries } from '@/src/components/member/MemberNavEntries'
 import { ShopCartButton } from './ShopCartButton'
 
 /** P18-D 游客查单页(未上线前固定指向 store 订单查询) */
@@ -200,10 +199,7 @@ export function ShopNavbar({
         </nav>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          {/* 站点会员 B4-W2:双入口(仅开通出现;桌面右区,移动端收纳进菜单面板防拥挤) */}
-          <div className="hidden items-center gap-1 md:flex">
-            <MemberNavEntries variant="shop" />
-          </div>
+          {/* R2-B5a:shop=贩售专属,不呈现会员入口(MemberNavEntries 已移除) */}
           {guestOrders}
           <ShopCartButton />
           <button
@@ -237,10 +233,6 @@ export function ShopNavbar({
                 <span className="truncate">{item.label}</span>
               </Link>
             ))}
-            {/* 站点会员 B4-W2:移动端菜单面板双入口 */}
-            <div className="col-span-full flex gap-2">
-              <MemberNavEntries variant="shop" />
-            </div>
           </nav>
         </div>
       ) : null}

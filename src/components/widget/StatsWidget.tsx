@@ -6,6 +6,7 @@ import {
   DEFAULT_VENDING_URL,
   VendingConfig,
 } from '@/src/lib/blog/vendingDefaults'
+import { useMemberNavConfig } from '@/src/components/theme/SitePlanContext'
 // @ts-ignore
 import { createPortal } from 'react-dom'
 
@@ -28,6 +29,9 @@ export const StatsWidget = ({
   const vendingLabel = vendingConfig?.mode === 'custom' ? vendingTitle : `前往${vendingTitle}`
   // VENDING_MODE2:购买说明弹窗开关；缺省 false=点击直接新标签跳转
   const noteModalEnabled = vendingConfig?.noteModal === true
+  // R2-B5a:会员开通 → 贩售入口让位「加入会员」(红描边/红字,/pricing 同窗);
+  // 贩售模式(未开通会员)行为零变化
+  const memberMode = useMemberNavConfig() !== null
 
   // 1. 数据解析 (保持原样不动)
   const post = data || {};
@@ -187,7 +191,7 @@ export const StatsWidget = ({
         .animate-border-flow { background-size: 200% 200%; animation: borderFlow 3s ease infinite; }
       `}</style>
 
-      {showModal && showVending && <Modal />}
+      {showModal && showVending && !memberMode && <Modal />}
 
       <div className="relative h-full w-full group/card transition-transform duration-500 ease-out hover:scale-[1.015]">
         
@@ -225,8 +229,29 @@ export const StatsWidget = ({
                </p>
             </Wrapper>
 
-            {/* 下半部分：贩售机入口（有按钮时贴底） */}
-            {showVending ? (
+            {/* 下半部分：会员开通 → 加入会员次级入口；否则贩售机入口（有按钮时贴底） */}
+            {memberMode ? (
+            <div className="w-full mt-auto pt-4 relative z-20">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.location.assign('/pricing');
+                }}
+                type="button"
+                className="w-full h-9 rounded-xl flex items-center justify-center gap-2
+                  bg-transparent border border-red-500/70
+                  text-xs font-bold text-red-400 tracking-wide
+                  transition-all duration-300
+                  hover:bg-red-500/15 hover:scale-[1.02] active:scale-95 active:bg-red-500/10"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.6 10.2a1 1 0 0 1-1 .8H5.6a1 1 0 0 1-1-.8L3 8z" />
+                </svg>
+                <span>加入会员</span>
+              </button>
+            </div>
+            ) : showVending ? (
             <div className="w-full mt-auto pt-4 relative z-20">
               <button
                 onClick={(e) => {

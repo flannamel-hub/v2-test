@@ -1,24 +1,30 @@
 'use client'
 
 import React, { useCallback, useEffect, useState } from 'react'
-import { BlockRender } from '@/src/components/blocks/BlockRender'
+import { useRouter } from 'next/router'
 import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
+import { MEMBER_HANDOFF_FAILED_TEXT } from '@/src/components/member/MemberCenter'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
-import type { SiteMembershipConfig } from '@/src/lib/blog/membershipGate'
+import type {
+  SiteMembershipConfig,
+  SiteMembershipCopy,
+} from '@/src/lib/blog/membershipGate'
 import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetTheme'
-import type { BlockResponse } from '@/src/types/notion'
 
 /**
- * 站点会员 B4-W6:/pricing「会员说明」页内容(保留主题壳层,由 [page].tsx 接线)。
- * - 页头:标题「会员说明」+ 默认说明段(文案 A);Notion 页存在且有正文块时,
- *   正文块渲染于页头之下(block render 既有管道);
- * - 档位/权益卡组:config.plans 逐档({days} 天 / ¥{price} + 通用权益要点 文案 B);
+ * 站点会员 B4-W6/R2-B5a:/pricing「会员说明」页内容(保留主题壳层,由 [page].tsx 接线)。
+ * - 页头:标题「会员说明」+ 说明段;R2-B5a 起不再透传 Notion blocks,文案分段渲染:
+ *   intro/benefits/guarantee 逐段取 membership.copy,缺省/空回落内置默认
+ *   (未编辑站零视觉变化);
+ * - 档位/权益卡组:config.plans 逐档({days} 天 / ¥{price} + 权益要点);
  * - 主 CTA:guest →「订阅」直链 ${NEXT_PUBLIC_STORE_URL}/p/{sku}?go=1 同窗
  *   (R1 直达化;storeUrl 空时 preventDefault 先例照旧;登录转次级入口
  *   「已有访问串？登录」开 W1 弹窗);active →「订阅」跳 store 新开链
  *   ${NEXT_PUBLIC_STORE_URL}/p/{sku}(Q4:无 renew 场景取环境变量,不取中心 store_url);
  *   expired →「续费」走 /api/member/renew-url;
- * - 保障说明块(文案 C)。挂载即探测一次 session(无双轮询)。
+ * - R2-B5a R2:挂载读一次 router.query.handoff === 'failed' → 一次性轻提示行
+ *   (handoff 失败落点已改 /pricing?handoff=failed)+ 登录弹窗次入口;
+ * - 保障说明块。挂载即探测一次 session(无双轮询)。
  */
 
 export const PRICING_INTRO_TEXT =
@@ -35,6 +41,36 @@ export const PRICING_GUARANTEE_TEXT =
 
 export const PRICING_RENEW_ERROR_TEXT = '暂时不可用，请稍后重试'
 
+/** copy 渲染侧上限(读侧 normalizeCopy 已归一,此为组件级双保险) */
+export const PRICING_COPY_BENEFIT_MAX_ITEMS = 8
+export const PRICING_COPY_BENEFIT_ITEM_MAX = 120
+
+/** copy 分段解析:逐字段回落内置默认;benefits ≤8 条、每行 ≤120 截断 */
+export function resolvePricingCopy(
+  copy: SiteMembershipCopy | null | undefined
+): { intro: string; benefits: string[]; guarantee: string } {
+  const intro =
+    typeof copy?.intro === 'string' && copy.intro.trim()
+      ? copy.intro.trim()
+      : PRICING_INTRO_TEXT
+  const rawBenefits = copy?.benefits
+  const sourceBenefits =
+    Array.isArray(rawBenefits) &&
+    rawBenefits.some((item) => typeof item === 'string' && item.trim())
+      ? rawBenefits
+      : [...PRICING_BENEFIT_ITEMS]
+  const benefits = sourceBenefits
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item.length > 0)
+    .map((item) => item.slice(0, PRICING_COPY_BENEFIT_ITEM_MAX))
+    .slice(0, PRICING_COPY_BENEFIT_MAX_ITEMS)
+  const guarantee =
+    typeof copy?.guarantee === 'string' && copy.guarantee.trim()
+      ? copy.guarantee.trim()
+      : PRICING_GUARANTEE_TEXT
+  return { intro, benefits, guarantee }
+}
+
 type SessionView = 'probing' | 'guest' | 'active' | 'expired'
 
 function resolveStoreUrl(): string {
@@ -44,19 +80,20 @@ function resolveStoreUrl(): string {
 
 export function PricingPageContent({
   membership,
-  blocks,
-  variant = 'default',
 }: {
   membership: SiteMembershipConfig
-  blocks?: BlockResponse[]
-  variant?: 'default' | 'gallery' | 'tweet'
 }) {
+  const router = useRouter()
   const activeTheme = useActiveTheme()
   const [view, setView] = useState<SessionView>('probing')
   const [loginOpen, setLoginOpen] = useState(false)
   const [renewDays, setRenewDays] = useState<number | null>(null)
   const [renewError, setRenewError] = useState('')
   const [renewErrorDays, setRenewErrorDays] = useState<number | null>(null)
+
+  // R2-B5a R2:handoff 失败落点提示行(一次性;query 清除后不再显示)
+  const showHandoffFailed =
+    router.isReady && router.query?.handoff === 'failed'
 
   // 挂载即探测一次(单次;无轮询)
   useEffect(() => {
@@ -146,6 +183,7 @@ export function PricingPageContent({
         : 'bg-neutral-900 hover:bg-neutral-700 dark:bg-blue-600 dark:hover:bg-blue-500'
 
   const storeUrl = resolveStoreUrl()
+  const pricingCopy = resolvePricingCopy(membership.copy)
 
   const renderCta = (sku: string, days: number) => {
     if (view === 'expired') {
@@ -201,17 +239,28 @@ export function PricingPageContent({
 
   return (
     <div className="flex flex-col gap-8 py-2">
-      {/* 页头:标题 + 默认说明段;Notion 正文块存在时渲染于其下 */}
+      {/* 页头:标题 + 说明段(copy 分段,缺省回落内置默认) */}
       <div>
         <h2 className={`text-lg font-semibold ${titleCls}`}>会员说明</h2>
         <p className={`mt-2 text-sm leading-relaxed ${mutedCls}`}>
-          {PRICING_INTRO_TEXT}
+          {pricingCopy.intro}
         </p>
       </div>
-      {blocks && blocks.length > 0 ? (
-        <div className="break-words">
-          <BlockRender blocks={blocks} variant={variant} />
-        </div>
+
+      {showHandoffFailed ? (
+        <p
+          className={`rounded-xl border px-4 py-3 text-xs leading-relaxed ${cardCls} ${mutedCls}`}
+          role="status"
+        >
+          {MEMBER_HANDOFF_FAILED_TEXT}
+          <button
+            type="button"
+            onClick={() => setLoginOpen(true)}
+            className="ml-1 font-medium underline transition-colors hover:opacity-80"
+          >
+            登录
+          </button>
+        </p>
       ) : null}
 
       {/* 档位/权益卡组 */}
@@ -231,8 +280,8 @@ export function PricingPageContent({
                 </span>
               </div>
               <ul className="flex flex-col gap-1.5">
-                {PRICING_BENEFIT_ITEMS.map((item) => (
-                  <li key={item} className={`flex items-start gap-2 text-xs leading-relaxed ${mutedCls}`}>
+                {pricingCopy.benefits.map((item, index) => (
+                  <li key={`${index}-${item}`} className={`flex items-start gap-2 text-xs leading-relaxed ${mutedCls}`}>
                     <span aria-hidden="true">·</span>
                     <span>{item}</span>
                   </li>
@@ -249,7 +298,7 @@ export function PricingPageContent({
 
       {/* 保障说明块 */}
       <p className={`text-xs leading-relaxed ${mutedCls}`}>
-        {PRICING_GUARANTEE_TEXT}
+        {pricingCopy.guarantee}
       </p>
 
       <MemberLoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} />

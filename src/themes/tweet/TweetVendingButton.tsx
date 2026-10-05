@@ -7,9 +7,13 @@ import {
 export function TweetVendingButton({
   url = DEFAULT_VENDING_URL,
   title = DEFAULT_VENDING_TITLE,
+  internal = false,
 }: {
   url?: string
   title?: string
+  /** R2-B5a:内部导航模式——渲染为同窗链接(无 target=_blank、无 data-blog-vending);
+   *  供会员模式「加入会员」等站内跳转复用样式;默认(false)贩售行为不变 */
+  internal?: boolean
 }) {
   const uid = useId().replace(/:/g, '')
   const fillId = `tweet-vending-fill-${uid}`
@@ -19,9 +23,9 @@ export function TweetVendingButton({
     <a
       href={url || DEFAULT_VENDING_URL}
       className="tweet-vending-btn"
-      data-blog-vending="1"
-      target="_blank"
-      rel="noopener noreferrer"
+      data-blog-vending={internal ? undefined : '1'}
+      target={internal ? undefined : '_blank'}
+      rel={internal ? undefined : 'noopener noreferrer'}
       aria-label={title || DEFAULT_VENDING_TITLE}
     >
       <span className="tweet-vending-btn__ring">

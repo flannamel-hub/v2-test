@@ -298,7 +298,7 @@ test('login 参数校验:缺 access_key / 超长 / 规范化后为空 / 无 host
 
 // --- login:中心结果映射 ------------------------------------------------------------
 
-test('login ok → 200 + Set-Cookie(值=通行证/HttpOnly/Max-Age=604800/SameSite=Lax/非生产无 Secure)', async () => {
+test('login ok → 200 + Set-Cookie(sm_session+sm_member_no 双下发,session 在前)', async () => {
   enableMembership()
   const passport = makePassport()
   fetchImpl = () =>
@@ -326,11 +326,15 @@ test('login ok → 200 + Set-Cookie(值=通行证/HttpOnly/Max-Age=604800/SameSi
     member_no: 'M001',
     expires_at: '2026-11-01T00:00:00.000Z',
   })
-  assert.equal(
-    res.headers['set-cookie'],
-    `sm_session=${passport}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax`
-  )
-  assert.equal(res.headers['set-cookie'].includes('Secure'), false)
+  // R2-B5a(R4):Set-Cookie 为数组 [sm_session, sm_member_no](顺序固定)
+  const loginCookies = [].concat(res.headers['set-cookie'])
+  assert.deepEqual(loginCookies, [
+    `sm_session=${passport}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax`,
+    'sm_member_no=M001; Path=/; Max-Age=604800; SameSite=Lax',
+  ])
+  assert.equal(loginCookies.some((cookie) => cookie.includes('Secure')), false)
+  // member_no 展示 cookie 非 HttpOnly
+  assert.equal(loginCookies[1].includes('HttpOnly'), false)
 
   // 中心调用体:规范化后的 access_key + site_id + host
   assert.equal(fetchCalls.length, 1)
@@ -463,7 +467,7 @@ test('session 无 cookie → guest', async () => {
   assert.equal(res.headers['set-cookie'], undefined)
 })
 
-test('session 坏 cookie → 清除 Set-Cookie + guest', async () => {
+test('session 坏 cookie → 清除双 Set-Cookie(session+member_no)+ guest', async () => {
   enableMembership()
   const res = createResponse()
   await sessionHandler(
@@ -473,10 +477,11 @@ test('session 坏 cookie → 清除 Set-Cookie + guest', async () => {
 
   assert.equal(res.statusCode, 200)
   assert.deepEqual(res.body, { status: 'guest' })
-  assert.equal(
-    res.headers['set-cookie'],
-    'sm_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'
-  )
+  // R2-B5a(R4):清 cookie 分支同时清 sm_member_no(数组归一断言)
+  assert.deepEqual([].concat(res.headers['set-cookie']), [
+    'sm_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax',
+    'sm_member_no=; Path=/; Max-Age=0; SameSite=Lax',
+  ])
 })
 
 test('session 本地有效(iat 新鲜)→ active 且零中心调用 + touch 同值 cookie', async () => {
@@ -530,10 +535,11 @@ test('session iat=now-25h → 中心 refresh 被调 → active + 换写新 cooki
   assert.equal(res.statusCode, 200)
   assert.equal(res.body.status, 'active')
   assert.equal(res.body.member_no, 'M001')
-  assert.equal(
-    res.headers['set-cookie'],
-    `sm_session=${newPassport}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax`
-  )
+  // R2-B5a(R4):refresh 换写 = 新 session + 补发 sm_member_no(中心返回 memberNo)
+  assert.deepEqual([].concat(res.headers['set-cookie']), [
+    `sm_session=${newPassport}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax`,
+    'sm_member_no=M001; Path=/; Max-Age=604800; SameSite=Lax',
+  ])
 })
 
 test('session mexp<=now 且中心回 expired → status=expired 且无 Set-Cookie(保留续费引用)', async () => {
@@ -580,10 +586,11 @@ test('session 中心 revoked → 清除 cookie + status=revoked(member_no 未知
   assert.equal(res.statusCode, 200)
   assert.equal(res.body.status, 'revoked')
   assert.equal(res.body.member_no, null)
-  assert.equal(
-    res.headers['set-cookie'],
-    'sm_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'
-  )
+  // R2-B5a(R4):revoked 清 cookie 分支同时清 sm_member_no
+  assert.deepEqual([].concat(res.headers['set-cookie']), [
+    'sm_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax',
+    'sm_member_no=; Path=/; Max-Age=0; SameSite=Lax',
+  ])
 })
 
 test('session 中心网络失败 + 本地有效 → active + degraded:true + touch 同值', async () => {
@@ -634,16 +641,17 @@ test('session 非 GET → 405 + Allow GET', async () => {
 
 // --- logout -----------------------------------------------------------------------
 
-test('logout → 清除 cookie + success(不检门控/不调中心)', async () => {
+test('logout → 清除双 cookie(session+member_no)+ success(不检门控/不调中心)', async () => {
   const res = createResponse()
   await logoutHandler(createRequest({}), res)
 
   assert.equal(res.statusCode, 200)
   assert.deepEqual(res.body, { success: true })
-  assert.equal(
-    res.headers['set-cookie'],
-    'sm_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'
-  )
+  // R2-B5a(R4):与 sm_session 同生共死,一并清除
+  assert.deepEqual([].concat(res.headers['set-cookie']), [
+    'sm_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax',
+    'sm_member_no=; Path=/; Max-Age=0; SameSite=Lax',
+  ])
   assert.equal(fetchCalls.length, 0)
 })
 

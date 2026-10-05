@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
@@ -52,7 +51,9 @@ type MemberLoginDialogProps = {
   initialError?: string
 }
 
-function formatExpiryDate(iso: string | null): string {
+/** 到期日展示(ISO → YYYY/MM/DD;无效/缺失 → '')。
+ * R2-B5a Q13:导出复用(MemberNav chip 浮窗),勿另复制一份。 */
+export function formatExpiryDate(iso: string | null): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
@@ -272,13 +273,14 @@ export function MemberLoginDialog({
                   {formatExpiryDate(probe.expiresAt)}
                 </p>
               ) : null}
-              <Link
-                href="/member"
+              {/* R2-B5a(/member 已退役):主按钮「继续浏览」= 关闭;次按钮「退出登录」 */}
+              <button
+                type="button"
                 onClick={() => onClose()}
                 className={`w-full rounded-lg px-4 py-2 text-center text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
               >
-                进入会员中心
-              </Link>
+                继续浏览
+              </button>
               <button
                 type="button"
                 onClick={() => void handleLogout()}

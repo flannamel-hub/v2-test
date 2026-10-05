@@ -107,7 +107,8 @@ const blogSiteStub = require('./stubs/membership-blogsite-stub.cjs')
 const SITE_ID = '11111111-2222-4333-8444-555555555555'
 const HOST = 'blog.example.com'
 const DAY = 86400
-const FAILED_LOCATION = '/member?handoff=failed'
+// R2-B5a(R2):/member 已退役为重定向,失败落点改 /pricing(query 可达)
+const FAILED_LOCATION = '/pricing?handoff=failed'
 
 const { shouldShowHandoffFailedNotice, MEMBER_HANDOFF_FAILED_TEXT } = memberCenter
 
@@ -394,11 +395,20 @@ test('handoff 成功(active)→ Set-Cookie(sm_session/HttpOnly/Lax/Max-Age=60480
   assert.equal(res.statusCode, 302)
   assert.equal(res.headers.location, '/')
   assertCommonHeaders(res)
-  assert.ok(res.headers['set-cookie'].startsWith(`sm_session=${passport}`))
-  assert.match(res.headers['set-cookie'], /HttpOnly/)
-  assert.match(res.headers['set-cookie'], /SameSite=Lax/)
-  assert.match(res.headers['set-cookie'], /Path=\//)
-  assert.match(res.headers['set-cookie'], /Max-Age=604800/)
+  // R2-B5a(R4):Set-Cookie 数组 [sm_session, sm_member_no]([].concat 归一后断言)
+  const cookies = [].concat(res.headers['set-cookie'])
+  const sessionCookie = cookies.find((cookie) => cookie.startsWith('sm_session='))
+  assert.ok(sessionCookie.startsWith(`sm_session=${passport}`))
+  assert.match(sessionCookie, /HttpOnly/)
+  assert.match(sessionCookie, /SameSite=Lax/)
+  assert.match(sessionCookie, /Path=\//)
+  assert.match(sessionCookie, /Max-Age=604800/)
+  const memberNoCookie = cookies.find((cookie) => cookie.startsWith('sm_member_no='))
+  assert.equal(
+    memberNoCookie,
+    'sm_member_no=M-001; Path=/; Max-Age=604800; SameSite=Lax'
+  )
+  assert.equal(memberNoCookie.includes('HttpOnly'), false)
 
   // 中心调用:endpoint + body {ticket, host, client_ip}
   assert.equal(fetchCalls.length, 1)
@@ -448,7 +458,11 @@ test('handoff 成功(expired 会员亦发证=续费链凭据)→ 302 / + Set-Coo
   await handoffHandler(createRequest({ query: { ticket: 'T-1' } }), res)
   assert.equal(res.statusCode, 302)
   assert.equal(res.headers.location, '/')
-  assert.ok(res.headers['set-cookie'].startsWith(`sm_session=${passport}`))
+  // R2-B5a(R4):数组归一后取 session 条目
+  const sessionCookie = []
+    .concat(res.headers['set-cookie'])
+    .find((cookie) => cookie.startsWith('sm_session='))
+  assert.ok(sessionCookie.startsWith(`sm_session=${passport}`))
 })
 
 test('handoff ?back=//evil 被忽略 → 302 /(Location 恒站内常量)', async () => {

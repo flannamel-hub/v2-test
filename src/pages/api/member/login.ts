@@ -6,6 +6,7 @@ import {
   resolveReaderClientIp,
 } from '@/src/lib/blog/memberCenterClient'
 import {
+  buildMemberNoCookie,
   buildMemberSetCookie,
   MEMBER_PASSPORT_TTL_SECONDS,
   normalizeMemberHost,
@@ -104,10 +105,15 @@ export default async function handler(
     }
 
     // status='expired' 仍发 cookie:到期会员需要会话凭据走续费链(文案由前端 B4 处理)
-    res.setHeader(
-      'Set-Cookie',
-      buildMemberSetCookie(center.passport, MEMBER_PASSPORT_TTL_SECONDS)
-    )
+    // R2-B5a:sm_member_no 展示 cookie 与 sm_session 同时下发(顺序固定 session 在前);
+    // 中心未返回 member_no 时仅发 session(展示侧以 session 状态为准,无副作用)
+    const setCookies = [
+      buildMemberSetCookie(center.passport, MEMBER_PASSPORT_TTL_SECONDS),
+    ]
+    if (typeof center.memberNo === 'string' && center.memberNo) {
+      setCookies.push(buildMemberNoCookie(center.memberNo))
+    }
+    res.setHeader('Set-Cookie', setCookies)
     return res.status(200).json({
       success: true,
       status: center.status,

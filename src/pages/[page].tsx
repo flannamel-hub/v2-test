@@ -114,6 +114,29 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
       }
     }
 
+    // 站点会员 R2-B5a:pricing 已开通时正文块不再透传(PricingPageContent 自渲染
+    // 文案分段);跳过 getAllBlocks 省一次 Notion 拉取(Q12,仍需 widgets 供 tweet 壳)
+    if (pricingMembership) {
+      let widgets: Record<string, unknown> = {}
+      try {
+        widgets = await loadHomeWidgets()
+      } catch (widgetError) {
+        console.error(`[page/${slug}] pricing widgets error:`, widgetError)
+      }
+      return {
+        props: JSON.parse(
+          JSON.stringify({
+            ...sharedPageStaticProps.props,
+            page: page,
+            blocks: [],
+            widgets,
+            pricingMembership,
+          })
+        ),
+        revalidate: CONFIG.NEXT_REVALIDATE_SECONDS,
+      }
+    }
+
     try {
       const blocks = await getAllBlocks(page?.id ?? '')
       const formattedBlocks = await formatBlocks(blocks)
@@ -160,10 +183,10 @@ const Page: NextPage<{
   widgets?: Record<string, unknown>
   pricingMembership?: SiteMembershipConfig | null
 }> = ({ page, blocks, activeTheme, siteTitle, widgets, vendingConfig, vendingEnabled, pricingMembership }) => {
-  // 站点会员 B4-W6:开通站点 pricing 页独立渲染(有页用页正文做页头补充,无页内置默认版);
-  // 未开通(pricingMembership=null)不做特殊渲染,按普通页规则(无页 → 404)
+  // 站点会员 B4-W6:开通站点 pricing 页独立渲染(R2-B5a:不再透传 Notion blocks,
+  // 文案分段由 PricingPageContent 渲染);未开通(pricingMembership=null)不做特殊渲染,
+  // 按普通页规则(无页 → 404)
   if (pricingMembership && (!page || page.slug === 'pricing')) {
-    const pricingBlocks = page ? blocks : []
     if (isTweetTheme(activeTheme)) {
       const shellWidgets = pickTweetShellWidgets(widgets)
       return (
@@ -174,7 +197,7 @@ const Page: NextPage<{
           vendingEnabled={vendingEnabled !== false}
         >
           <article className="prose-tweet overflow-hidden break-words">
-            <PricingPageContent membership={pricingMembership} blocks={pricingBlocks} variant="tweet" />
+            <PricingPageContent membership={pricingMembership} />
           </article>
         </TweetShell>
       )
@@ -184,7 +207,7 @@ const Page: NextPage<{
         <ContainerLayout>
           <LargeTitle className="mb-4" title="会员说明" />
           <div className="px-8 py-4 break-words bg-white rounded-2xl dark:bg-neutral-900">
-            <PricingPageContent membership={pricingMembership} blocks={pricingBlocks} />
+            <PricingPageContent membership={pricingMembership} />
           </div>
         </ContainerLayout>
       </>

@@ -11,7 +11,7 @@ import { NavIcon } from './NavIcon'
 import { NavItem } from './NavItem'
 import { NavMenuIcon } from './NavMenuIcon'
 import { ProPlusCreateButton } from './ProPlusCreateButton'
-import { MemberNavEntries } from '@/src/components/member/MemberNavEntries'
+import { MemberNav } from '@/src/components/member/MemberNav'
 import { ShopCartButton } from '@/src/themes/shop/ShopCartButton'
 
 const Navbar = ({
@@ -149,8 +149,8 @@ const Navbar = ({
                 {items.map((item) => (
                   <NavItem key={item.id} item={item} />
                 ))}
-                {/* 站点会员 B4-W2:「会员」「登录」双入口(仅开通出现) */}
-                <MemberNavEntries variant="standard" />
+                {/* 站点会员 R2-B5a:红条「加入会员」+ 登录位/chip(纵向,仅开通出现) */}
+                <MemberNav variant="standard" />
                 <ProPlusCreateButton />
               </nav>
               {isMobile || isTablet ? (
@@ -185,9 +185,9 @@ const Navbar = ({
                 </p>
               </Link>
             ))}
-            {/* 站点会员 B4-W2:移动端折叠菜单双入口(整行,右区不再加塞) */}
+            {/* 站点会员 R2-B5a:移动端折叠菜单(红条整行 + 登录次行/chip) */}
             <div className="col-span-full">
-              <MemberNavEntries variant="standard-mobile" />
+              <MemberNav variant="standard-mobile" />
             </div>
           </div>
         </div>

@@ -68,7 +68,7 @@ export function useIsBrandCleanSite(): boolean {
 
 /** 站点会员 B4-W2(M1):会员导航上下文。
  * 由 withNavFooter 两分支外层注入(props.membershipConfig ?? null;服务端双门收敛,
- * 免费/未开通恒 null);导航级自包含组件(MemberNavEntries)自读 context,
+ * 免费/未开通恒 null);导航级自包含组件(MemberNav,R2-B5a 起)自读 context,
  * 四主题导航文件零 props 改动。缺省 null = fail-closed 不渲染入口。 */
 
 const MemberNavContext = createContext<SiteMembershipConfig | null>(null)
