@@ -405,15 +405,13 @@ const GlobalStyle = () => (
     .block-card-wrap.in-member-zone .block-card { border-color:#3a3a42; background:#242428; box-shadow: inset 2px 0 0 rgba(255,255,255,0.09); }
     .block-card-wrap.in-member-zone:hover .block-card { border-color:#4a4a52; box-shadow: inset 2px 0 0 rgba(255,255,255,0.12), 0 0 14px rgba(255,255,255,0.04); }
     /* R2-B5b W1-c:分隔线卡 → 区段头卡(皇冠线性图标 + 标题 + 右侧块计数) */
-    .member-marker-box { padding: 4px 2px; }
+    .member-marker-box { padding: 6px 2px; }
     .member-marker-head { display: flex; align-items: center; gap: 10px; color: #d6d6db; }
-    .member-marker-crown { display: inline-flex; color: #c9c9d1; flex-shrink: 0; }
+    .member-marker-crown { display: inline-flex; color: #eab308; flex-shrink: 0; }
     .member-marker-title { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
     .member-marker-count { margin-left: auto; font-size: 12px; color: #8a8a92; border: 1px solid #3d3d44; border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
     .member-marker-caption { margin-top: 8px; font-size: 12px; color: #8a8a92; }
     .member-marker-warn { margin-top: 6px; font-size: 12px; color: #fbbf24; }
-    .block-add-toolbar .neo-btn.is-disabled { opacity:.45; cursor:not-allowed; }
-    .block-add-toolbar .neo-btn.is-disabled:hover { transform:none; box-shadow:none; background:var(--bg); color:#fff; border-color:var(--bg); }
     .block-minimap-item.is-member-marker { border-color:#5a5a64; }
     .block-minimap-item.in-member-zone { box-shadow: inset 3px 0 0 rgba(255,255,255,0.10); }
     .block-minimap.is-file-drop-empty { border-color: greenyellow; box-shadow: 0 0 0 2px rgba(173, 255, 47, 0.35), inset 0 0 40px rgba(173, 255, 47, 0.06); }
@@ -3144,7 +3142,6 @@ const BLOCK_TYPE_OPTIONS = [
   { type: 'link', label: '🔗 超链文字' },
   { type: 'note', label: '💬 注释' },
   { type: 'lock', label: '🔒 加密盒子' },
-  { type: 'member', label: '👑 会员专属内容区' },
   { type: 'ol', label: '🔢 有序列表' },
   { type: 'ul', label: '• 无序列表' },
   { type: 'toggle', label: '▶ 折叠内容' },
@@ -3906,7 +3903,7 @@ const BlockBuilder = ({
   const getBlockLabel = (type) => {
       if (type === 'h1') return 'H1 标题';
       if (type === 'lock') return '🔒 加密盒子';
-      if (type === 'member') return '👑 会员专属内容区';
+      if (type === 'member') return '会员专属内容区';
       if (type === 'note') return '💬 注释';
       if (type === 'image') return '🖼️ 图片块';
       if (type === 'quote') return '❝ 引用';
@@ -4025,7 +4022,6 @@ const BlockBuilder = ({
           <div className="neo-btn" onClick={()=>addBlock('image')}>正文图片</div>
           <div className="neo-btn" onClick={()=>addBlock('link')}>超链文字</div>
           <div className="neo-btn" onClick={()=>addBlock('lock')}>🔒 加密盒子</div>
-          <div className={`neo-btn${memberGate.canAdd ? '' : ' is-disabled'}`} onClick={()=>addBlock('member')} title={memberGate.canAdd ? '插入会员专属内容区：区段内内容仅登录会员可见（仅允许一条）' : memberGate.hint}>会员专属内容区</div>
           <div className="neo-btn" onClick={()=>addBlock('quote')}>❝ 引用</div>
           <div className="neo-btn" onClick={()=>addBlock('note')}>💬 注释</div>
           <div className="neo-btn" onClick={()=>addBlock('ol')}>🔢 有序列表</div>
@@ -4344,7 +4340,7 @@ const BlockBuilder = ({
                     <span className="member-marker-crown" aria-hidden="true">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 18h20M3 7l4.5 4L12 4l4.5 7L21 7l-1.6 9H4.6L3 7z"/></svg>
                     </span>
-                    <span className="member-marker-title">会员专属内容</span>
+                    <span className="member-marker-title">会员专属内容区</span>
                     <span className="member-marker-count">{blocks.length - index - 1} 个内容块</span>
                   </div>
                   <div className="member-marker-caption">以下内容仅登录会员可见；不会出现在文章源码中</div>
@@ -4641,6 +4637,8 @@ const [mounted, setMounted] = useState(false);
   // 按钮与强调色统一蓝色(原粉红 #f472b6 已弃用)
   const [productLookup, setProductLookup] = useState({ open: false, sku: '', loading: false, result: null });
   const openProductLookupModal = () => {
+    // R4-C2:会员模式互斥防御层(按钮已灰态禁用,此处兜底;memberMode 派生于 :6651 邻域,点击期求值无 TDZ)
+    if (memberMode) { showAdminToast('会员模式启用中，暂不可绑定商品', 2800); return; }
     setProductLookup({ open: true, sku: String(form.linked_product_sku || '').trim(), loading: false, result: null });
   };
   // 当场查询:走服务端代理 /api/admin/merchant-product-lookup(主站 8s 超时),
@@ -6647,18 +6645,45 @@ const [mounted, setMounted] = useState(false);
     setView('stats');
   };
   // R2-B5b W1-a:「会员说明页」面板(挂载拉取;与贩售机面板同级入口)
-  // 门控三态原因,优先级:未开通 > 贩售 > 专业版(free+enabled+vending 边缘组合显示贩售原因,同样锁定)
-  const pricingCopyLockedReason = !memberGateState.enabled
-    ? '站点会员未开通'
-    : memberGateState.vending
-      ? '贩售模式启用中'
-      : memberGateState.plan !== 'pro'
-        ? '专业版权益'
-        : '';
-  const pricingCopyLocked = Boolean(pricingCopyLockedReason);
+  // R4-C1:门控新口径——非会员模式(含未开通/贩售)统一贩售句,vending 分支删除(d4oidd 误锁根因)
+  // R4-C2/C3(S6):memberMode 统一派生,供 C1/C2/C3 与 BlockBuilder 传参(:11629-11645)同源引用
+  const memberMode = memberGateState.loaded && memberGateState.plan === 'pro' && memberGateState.enabled === true;
+  const pricingCopyLockedMessage = memberGateState.enabled !== true
+    ? '当前为贩售模式，无法编辑会员说明页，如需开通会员功能，请前往商家后台切换模式。'
+    : memberGateState.plan !== 'pro'
+      ? '专业版权益，会员说明页文案暂不可编辑'
+      : '';
+  const pricingCopyLocked = Boolean(pricingCopyLockedMessage);
   const openPricingCopy = () => {
     setView('pricing-copy');
     loadPricingCopy();
+  };
+  // R4-C3:会员专属内容独立入口——定位或插入(单条约束;父层直改 editorBlocks,不经 BlockBuilder 信号 prop)
+  const handleMemberBlockEntry = () => {
+    if (!memberMode) {
+      // 复用 :11638-11644 同源 hint 文案(未加载/未开通(>贩售变体)/专业版)
+      showAdminToast(
+        !memberGateState.loaded
+          ? '站点会员状态读取中，请稍后再试'
+          : !memberGateState.enabled
+            ? (memberGateState.vending ? '贩售模式启用中，会员内容不可用' : '站点会员尚未开通，暂不可添加会员内容')
+            : '站点会员为专业版功能，升级专业版后可用',
+        2800
+      );
+      return;
+    }
+    const existing = editorBlocksRef.current.find((b) => b.type === 'member');
+    if (existing) {
+      const el = document.getElementById(`block-${existing.id}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    const newBlock = createEditorBlock('member');
+    setEditorBlocksDirty([...editorBlocksRef.current, newBlock]);
+    setTimeout(() => {
+      const el = document.getElementById(`block-${newBlock.id}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
   const updatePricingBenefit = (idx, value) => {
     setPricingCopyBenefits((prev) => prev.map((item, i) => (i === idx ? String(value || '').slice(0, 120) : item)));
@@ -9671,7 +9696,7 @@ const [mounted, setMounted] = useState(false);
                       ) : t === 'Ads' ? (
                         '广告位'
                       ) : (
-                        '组件'
+                        '功能组件'
                       )}
                     </button>
                   ))}
@@ -9921,7 +9946,8 @@ const [mounted, setMounted] = useState(false);
                   <div style={{ color: '#c084fc', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
               )}
-              {activeTab === 'Widget' && viewMode !== 'folder' && (
+              {/* R4-C4:会员说明页卡迁至 Page tab(S2 去重:仅专业版显示金卡;免费版保留列表区升级占位卡) */}
+              {activeTab === 'Page' && sitePlan === 'pro' && viewMode !== 'folder' && (
                 <div onClick={openPricingCopy} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #eab308', cursor: 'pointer' }}>
                   <div style={{ width: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FiAward size={24} color="#eab308" /></div>
                   <div style={{ flex: 1 }}>
@@ -11157,7 +11183,7 @@ const [mounted, setMounted] = useState(false);
             ) : (
               <>
                 {pricingCopyLocked && (
-                  <div style={ADS_LOCKED_NOTICE_STYLE}>{pricingCopyLockedReason}，会员说明页文案暂不可编辑</div>
+                  <div style={ADS_LOCKED_NOTICE_STYLE}>{pricingCopyLockedMessage}</div>
                 )}
                 <div style={{padding:'18px 18px 20px', background:'#333', border:'1px solid #555', borderRadius:'14px', opacity: pricingCopyLocked ? 0.55 : 1}}>
                   <div style={{marginBottom:'16px'}}>
@@ -11225,7 +11251,7 @@ const [mounted, setMounted] = useState(false);
 
                   <button
                     type="button"
-                    onClick={() => pricingCopyLocked ? alert(pricingCopyLockedReason + '，会员说明页文案暂不可编辑') : savePricingCopy()}
+                    onClick={() => pricingCopyLocked ? alert(pricingCopyLockedMessage) : savePricingCopy()}
                     disabled={pricingCopySaving || !pricingCopyDirty}
                     style={{width:'100%', marginTop:'20px', padding:'15px', background: pricingCopySaving || !pricingCopyDirty ? '#333' : '#fff', color: pricingCopySaving || !pricingCopyDirty ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: pricingCopySaving ? 'wait' : (pricingCopyDirty ? 'pointer' : 'not-allowed')}}
                   >
@@ -11537,15 +11563,27 @@ const [mounted, setMounted] = useState(false);
                 </div>
                 ) : null}
                   <div style={{marginTop:'10px'}} data-tour="editor-product-btn">
-                   <button type="button" onClick={openProductLookupModal}
-                   onMouseEnter={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
-                   onMouseLeave={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
-                   onMouseDown={(e) => { e.currentTarget.style.transform = 'translateY(1px)'; }}
-                   onMouseUp={(e) => { e.currentTarget.style.transform = 'none'; }}
-                    style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'none', background:'#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer', transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow:'0 4px 12px rgba(37,99,235,0.35)'}}>
-                     <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 绑定商品信息 <HintBubble light text="未绑定商品信息则不显示商品购买组件" />
-                  </button>
-                 </div>
+                    <button type="button" onClick={openProductLookupModal} disabled={memberMode}
+                    onMouseEnter={(e) => { if (memberMode) return; e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
+                    onMouseLeave={(e) => { if (memberMode) return; e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
+                    onMouseDown={(e) => { if (memberMode) return; e.currentTarget.style.transform = 'translateY(1px)'; }}
+                    onMouseUp={(e) => { if (memberMode) return; e.currentTarget.style.transform = 'none'; }}
+                     style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border: memberMode ? '1px solid #4a4a52' : 'none', background: memberMode ? '#3a3a40' : '#2563eb', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor: memberMode ? 'not-allowed' : 'pointer', opacity: memberMode ? 0.5 : 1, transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow: memberMode ? 'none' : '0 4px 12px rgba(37,99,235,0.35)'}}>
+                      <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 绑定商品信息 <HintBubble light text="未绑定商品信息则不显示商品购买组件" />
+                   </button>
+                   {memberMode && <div style={{fontSize:'11px', color:'#777', marginTop:'6px', lineHeight:1.6}}>会员模式启用中，暂不可绑定商品</div>}
+                  </div>
+                  {/* R4-C3:会员专属内容独立入口(移出正文块体系;置于绑定商品按钮下方;data-tour 锚点外置保持纯净) */}
+                  <div style={{marginTop:'10px'}}>
+                    <button type="button" onClick={handleMemberBlockEntry}
+                    onMouseEnter={(e) => { if (memberMode) e.currentTarget.style.background = 'rgba(234,179,8,0.12)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(234,179,8,0.07)'; }}
+                     style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'1px solid rgba(234,179,8,0.5)', background:'rgba(234,179,8,0.07)', color:'#eab308', fontSize:'13px', fontWeight:'bold', cursor: memberMode ? 'pointer' : 'not-allowed', opacity: memberMode ? 1 : 0.55, transition:'background 0.2s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px'}}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M2 18h20M3 7l4.5 4L12 4l4.5 7L21 7l-1.6 9H4.6L3 7z"/></svg>
+                      会员专属内容
+                    </button>
+                    <div style={{fontSize:'11px', color:'#777', marginTop:'6px', lineHeight:1.6}}>{editorBlocks.some((b) => b.type === 'member') ? '已存在会员专属内容区：点击定位' : '在正文中插入会员专属内容区；区段内内容仅登录会员可见'}</div>
+                  </div>
                 {productLookup.open && (
                 <div
                   onMouseDown={(e) => { if (e.target === e.currentTarget) setProductLookup((p) => ({ ...p, open: false })); }}
@@ -11628,7 +11666,7 @@ const [mounted, setMounted] = useState(false);
               onToast={showAdminToast}
               memberGate={{
                 loaded: memberGateState.loaded,
-                canAdd: memberGateState.loaded && memberGateState.plan === 'pro' && memberGateState.enabled === true,
+                canAdd: memberMode,
                 // R2-B5b:门控文案优先级 未开通(>贩售变体) > 专业版;贩售态仅在未开通时作为原因展示
                 menuSuffix: !memberGateState.loaded
                   ? ''
