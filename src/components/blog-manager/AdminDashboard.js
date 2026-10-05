@@ -58,6 +58,13 @@ import {
   isEditorBlockLocked,
   normalizeLoadedEditorBlocks,
 } from '@/src/lib/admin/editorBlockLock';
+// R5-C:会员区固定尾区+纯文本输入区纯函数(join/split/判据/落块)
+import {
+  isMemberZoneTextConvertible,
+  memberZoneTextFromBlocks,
+  flushMemberZoneBlocks,
+  memberZoneParagraphCount,
+} from '@/src/lib/admin/memberZoneText';
 import { generateAdminPostSlug } from '@/src/lib/blog/generateAdminPostSlug';
 import {
   saveEditorDraftSnapshot,
@@ -412,6 +419,12 @@ const GlobalStyle = () => (
     .member-marker-count { margin-left: auto; font-size: 12px; color: #8a8a92; border: 1px solid #3d3d44; border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
     .member-marker-caption { margin-top: 8px; font-size: 12px; color: #8a8a92; }
     .member-marker-warn { margin-top: 6px; font-size: 12px; color: #fbbf24; }
+    /* R5-C C6+L1:纯文本输入区(resize:none,自动高度单通道;上限 560px 后内部滚动) */
+    .member-zone-textarea { width: 100%; min-height: 140px; max-height: 560px; overflow-y: auto; background: #1f1f24; border: 1px solid #3d3d44; border-radius: 10px; color: #e8e8ee; font-size: 13px; line-height: 1.7; padding: 12px 14px; resize: none; outline: none; font-family: inherit; box-sizing: border-box; display: block; }
+    .member-zone-textarea:focus { border-color: #55555e; }
+    .member-zone-hint { margin-top: 6px; font-size: 11px; color: #8a8a92; }
+    /* R5-C L2(a):marker 卡去空轨(无移动钮后收掉左侧控制轨留白;纯视觉,不动 grid 结构) */
+    .block-card-wrap.is-member-marker .block-card { padding-left: 15px; }
     .block-minimap-item.is-member-marker { border-color:#5a5a64; }
     .block-minimap-item.in-member-zone { box-shadow: inset 3px 0 0 rgba(255,255,255,0.10); }
     .block-minimap.is-file-drop-empty { border-color: greenyellow; box-shadow: 0 0 0 2px rgba(173, 255, 47, 0.35), inset 0 0 40px rgba(173, 255, 47, 0.06); }
@@ -2973,6 +2986,7 @@ const BLOCK_TYPE_SHORT = {
 const BlockMinimapCard = ({
   block,
   index,
+  displayIndex,
   isCover,
   isMemberMarker = false,
   inMemberZone = false,
@@ -2991,6 +3005,8 @@ const BlockMinimapCard = ({
   rootStyle,
   rootProps,
 }) => {
+  // R5-C M3:序号徽标/提示改用可见序号(文本模式隐藏区段块后不跳号);缺省回退全量下标
+  const ordinal = Number.isInteger(displayIndex) ? displayIndex : index;
   const previewText = (() => {
     // toggle 的 content 为行数组，统一转成多行字符串再取预览
     const raw = String(
@@ -3026,12 +3042,12 @@ const BlockMinimapCard = ({
         if (e.target.closest('.block-minimap-del')) return;
         onClick(block.id);
       } : undefined}
-      title={selectMode ? `第 ${index + 1} 块 · 点击选择/取消` : `第 ${index + 1} 块 · 拖拽排序 · 点击放大编辑`}
+      title={selectMode ? `第 ${ordinal + 1} 块 · 点击选择/取消` : `第 ${ordinal + 1} 块 · 拖拽排序 · 点击放大编辑`}
       onDragOver={onFileDragOver}
       onDrop={onFileDrop}
     >
-      <span className="block-minimap-index">{index + 1}</span>
-      {!selectMode && !isGhost ? (
+      <span className="block-minimap-index">{ordinal + 1}</span>
+      {!selectMode && !isGhost && !isMemberMarker ? (
         <button
           type="button"
           className="block-minimap-del"
@@ -3067,6 +3083,7 @@ const BlockMinimapCard = ({
 const BlockMinimapSortableItem = ({
   block,
   index,
+  displayIndex,
   isCover,
   isMemberMarker,
   inMemberZone,
@@ -3087,11 +3104,12 @@ const BlockMinimapSortableItem = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: block.id, disabled: selectMode });
+  } = useSortable({ id: block.id, disabled: selectMode || isMemberMarker });
   return (
     <BlockMinimapCard
       block={block}
       index={index}
+      displayIndex={displayIndex}
       isCover={isCover}
       isMemberMarker={isMemberMarker}
       inMemberZone={inMemberZone}
@@ -3200,6 +3218,12 @@ const BlockBuilder = ({
   onClearBodyCover,
   onToast,
   memberGate = { loaded: false, canAdd: false, menuSuffix: '', hint: '' },
+  // R5-C:会员区纯文本输入区(marker 存在且未回退时启用;文本/渲染过滤/聚焦信号均由父层驱动)
+  memberZoneTextMode = false,
+  memberZoneText = '',
+  onMemberZoneTextChange,
+  onMemberZoneTextBlur,
+  memberZoneFocusSignal = 0,
 }) => {
   const [movingId, setMovingId] = useState(null);
   const [blockViewMode, setBlockViewMode] = useState('expanded');
@@ -3235,6 +3259,67 @@ const BlockBuilder = ({
     setTimeout(() => setMovingId(null), 700);
   };
 
+  // === R5-C:会员区固定尾区守卫与文本输入区辅助 ===
+  // 统一语义:公开块不得越过 marker 向后;会员块不得越过 marker 向前;marker 自身不可移动/删除。
+  // 违约动作=拒绝并 toast,不自动钳位(移动类);插入类(addBlock/addBlockAfter/图片汇入点)为静默钳位。
+  const memberZoneToast = (msg) => { if (onToast) onToast(msg); };
+  const findMemberMarkerIndex = (list) => list.findIndex((b) => b.type === 'member');
+  const memberZoneGuardMove = (fromIndex, toIndex) => {
+    const mi = findMemberMarkerIndex(blocks);
+    if (mi < 0 || fromIndex === toIndex) return false;
+    if (fromIndex === mi) {
+      // marker 自身不可移动(渲染层无移动钮,此处兜底)
+      memberZoneToast('会员内容区固定在正文底部，不可移出');
+      return true;
+    }
+    if (toIndex === mi) {
+      // 目标位=marker 位(等价与其交换):公开块下移跨 marker / 会员块上移跨 marker
+      if (fromIndex < mi) memberZoneToast('会员内容区固定在正文底部，不可移出');
+      else memberZoneToast('会员区内容不可移到正文');
+      return true;
+    }
+    if (fromIndex < mi && toIndex > mi) {
+      memberZoneToast('会员内容区固定在正文底部，不可移出');
+      return true;
+    }
+    if (fromIndex > mi && toIndex < mi) {
+      memberZoneToast('会员区内容不可移到正文');
+      return true;
+    }
+    return false;
+  };
+
+  // 自动高度:onInput 置 auto 后按 scrollHeight 收缩;上限 560px 后内部滚动(L1:resize:none 单通道)
+  const autoSizeMemberZoneInput = (el) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 560)}px`;
+  };
+
+  // M4:跨视图「定位并聚焦」——一次性信号(父层递增);切展开视图→滚至 marker→聚焦 #member-zone-input
+  useEffect(() => {
+    if (!memberZoneFocusSignal) return;
+    setBlockViewMode('expanded');
+    const marker = blocks.find((b) => b.type === 'member');
+    if (!marker) return undefined;
+    const t1 = setTimeout(() => {
+      const el = document.getElementById(`block-${marker.id}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    const t2 = setTimeout(() => {
+      const input = document.getElementById('member-zone-input');
+      if (input) input.focus();
+    }, 420);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberZoneFocusSignal]);
+
+  // 文本值变化(输入/载入)后重算自动高度
+  useEffect(() => {
+    const el = document.getElementById('member-zone-input');
+    if (el) autoSizeMemberZoneInput(el);
+  }, [memberZoneText, memberZoneTextMode]);
+
   const addBlock = (type) => {
     // 站点会员 B3:member 分隔线单条约束——门控未开通拒绝新增;已存在一条拒绝再增
     if (type === 'member') {
@@ -3242,7 +3327,10 @@ const BlockBuilder = ({
       if (blocks.some((b) => b.type === 'member')) { onToast('已存在会员内容分隔线（仅允许一条）'); return; }
     }
     const newBlock = createEditorBlock(type);
-    setBlocks([...blocks, newBlock]);
+    // R5-C C2-4:尾部添加钳制——存在 marker 时插到 marker 之前(会员内容恒在其后;无 marker 保持尾部追加)
+    const markerIndex = findMemberMarkerIndex(blocks);
+    const insertAt = markerIndex >= 0 ? markerIndex : blocks.length;
+    setBlocks([...blocks.slice(0, insertAt), newBlock, ...blocks.slice(insertAt)]);
     setBlockViewMode('expanded');
     scrollToBlock(newBlock.id);
   };
@@ -3295,7 +3383,10 @@ const BlockBuilder = ({
       if (blocks.some((b) => b.type === 'member')) { onToast('已存在会员内容分隔线（仅允许一条）'); return; }
     }
     const newBlock = createEditorBlock(type);
-    setBlocks([...blocks.slice(0, index + 1), newBlock, ...blocks.slice(index + 1)]);
+    // R5-C C2-3:行内/微图「+添加块」插入点一律钳到 marker 之前(公开区插入点 ≤ marker;静默钳位)
+    const markerIndex = findMemberMarkerIndex(blocks);
+    const insertAt = Math.min(index + 1, markerIndex >= 0 ? markerIndex : blocks.length);
+    setBlocks([...blocks.slice(0, insertAt), newBlock, ...blocks.slice(insertAt)]);
     closeAddMenu();
     if (options.stayCompact || blockViewMode === 'compact') {
       setMovingId(newBlock.id);
@@ -3509,6 +3600,12 @@ const BlockBuilder = ({
   };
 
   const removeBlock = (id) => {
+    // R5-C C2-6:member 标记不可删除(渲染层已隐藏删除钮,此处入口守卫兜底);回退模式会员区块仍可删
+    const target = blocks.find(b => b.id === id);
+    if (target && target.type === 'member') {
+      memberZoneToast('会员内容区不可删除');
+      return;
+    }
     setBlocks(prev => {
       const block = prev.find(b => b.id === id);
       if (block) revokeBlockPendingMedia(block);
@@ -3533,12 +3630,16 @@ const BlockBuilder = ({
 
   const removeSelectedBlocks = () => {
     if (!compactSelectedIds.length) return;
+    // R5-C R1:多选批量删除守卫——选中集含 member marker 时从删除集剔除 marker、其余照删
     const idSet = new Set(compactSelectedIds);
+    if (blocks.some(b => b.type === 'member' && idSet.has(b.id))) {
+      memberZoneToast('会员内容区不可删除');
+    }
     setBlocks(prev => {
       prev.forEach(b => {
-        if (idSet.has(b.id)) revokeBlockPendingMedia(b);
+        if (idSet.has(b.id) && b.type !== 'member') revokeBlockPendingMedia(b);
       });
-      return prev.filter(b => !idSet.has(b.id));
+      return prev.filter(b => !idSet.has(b.id) || b.type === 'member');
     });
     setCompactSelectedIds([]);
   };
@@ -3569,9 +3670,13 @@ const BlockBuilder = ({
     if (!files.length) return;
     const created = files.map(createPendingImageBlock);
     setBlocks(prev => {
+      // R5-C R2:文件插入路径钳制(口径与 addBlockAfter 完全一致;静默钳位)
+      const mi = prev.findIndex(b => b.type === 'member');
+      const cap = mi >= 0 ? mi : prev.length;
       const idx = prev.findIndex(b => b.id === blockId);
+      const insertAt = idx === -1 ? Math.min(prev.length, cap) : Math.min(idx + 1, cap);
       const next = [...prev];
-      next.splice(idx === -1 ? next.length : idx + 1, 0, ...created);
+      next.splice(insertAt, 0, ...created);
       return next;
     });
     scrollToBlock(created[created.length - 1].id);
@@ -3588,7 +3693,10 @@ const BlockBuilder = ({
     if (!files.length) return;
     const created = files.map(createPendingImageBlock);
     setBlocks(prev => {
-      const idx = Math.max(0, Math.min(insertIndex, prev.length));
+      // R5-C R2:文件插入路径钳制——插入点一律 ≤ marker(公开区不变量对所有插入源成立;静默钳位)
+      const mi = prev.findIndex(b => b.type === 'member');
+      const cap = mi >= 0 ? mi : prev.length;
+      const idx = Math.max(0, Math.min(insertIndex, cap));
       const next = [...prev];
       next.splice(idx, 0, ...created);
       return next;
@@ -3721,7 +3829,15 @@ const BlockBuilder = ({
     const files = Array.from(fileList || []).filter(f => /^image\//i.test(f.type));
     if (!files.length) return;
     const created = files.map(createPendingImageBlock);
-    setBlocks(prev => [...prev, ...created]);
+    // R5-C R2:全局粘贴追加也按插入源钳制——存在 marker 时落到 marker 之前,
+    // 否则粘贴截图会落在会员区之后(静默变成会员内容,破坏尾置不变量)
+    setBlocks(prev => {
+      const mi = prev.findIndex(b => b.type === 'member');
+      const at = mi >= 0 ? mi : prev.length;
+      const next = [...prev];
+      next.splice(at, 0, ...created);
+      return next;
+    });
     scrollToBlock(created[created.length - 1].id);
   };
 
@@ -3780,6 +3896,8 @@ const BlockBuilder = ({
   const moveBlock = (index, direction) => {
     if (direction === -1 && index === 0) return;
     if (direction === 1 && index === blocks.length - 1) return;
+    // R5-C C2-1:跨区移动拒绝(member 区固定尾区;不自动钳位,保持用户意图可见)
+    if (memberZoneGuardMove(index, index + direction)) return;
     const newBlocks = [...blocks];
     const targetIndex = index + direction;
     [newBlocks[index], newBlocks[targetIndex]] = [newBlocks[targetIndex], newBlocks[index]];
@@ -3791,6 +3909,7 @@ const BlockBuilder = ({
 
   const moveToTop = (index) => {
     if (index === 0) return;
+    if (memberZoneGuardMove(index, 0)) return;
     const newBlocks = [...blocks];
     const [item] = newBlocks.splice(index, 1);
     newBlocks.unshift(item);
@@ -3802,6 +3921,7 @@ const BlockBuilder = ({
 
   const moveToBottom = (index) => {
     if (index === blocks.length - 1) return;
+    if (memberZoneGuardMove(index, blocks.length - 1)) return;
     const newBlocks = [...blocks];
     const [item] = newBlocks.splice(index, 1);
     newBlocks.push(item);
@@ -3831,6 +3951,8 @@ const BlockBuilder = ({
     const oldIndex = blocks.findIndex(b => b.id === active.id);
     const newIndex = blocks.findIndex(b => b.id === over.id);
     if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+    // R5-C C2-5:微图拖拽跨区判定(同移动钮口径:拒绝+toast+不回写;marker disabled 后非 droppable 目标)
+    if (memberZoneGuardMove(oldIndex, newIndex)) return;
     const nextBlocks = arrayMove(blocks, oldIndex, newIndex);
     setBlocks(nextBlocks);
     setMovingId(nextBlocks[newIndex].id);
@@ -3894,6 +4016,9 @@ const BlockBuilder = ({
   const handleMinimapClick = (blockId) => {
     if (minimapDragMovedRef.current) return;
     if (compactMultiSelect) {
+      // R5-C R1:多选模式下 marker 行不可勾选(批量删除守卫的前置口径)
+      const target = blocks.find(b => b.id === blockId);
+      if (target && target.type === 'member') return;
       toggleCompactBlockSelect(blockId);
       return;
     }
@@ -3921,6 +4046,14 @@ const BlockBuilder = ({
   const activeSortBlock = activeSortId ? (blocks.find((b) => b.id === activeSortId) || null) : null;
   // 站点会员 B3:首条 member 分隔线下标(-1=无);其后块属会员专属分区(纯推导,无新增 state)
   const firstMemberIndex = blocks.findIndex((b) => b.type === 'member');
+  // R5-C C3-5:文本模式下区段块(index>marker)从展开区与微图隐藏——可见渲染集合一次推导,
+  // 供 minimap map / SortableContext items / 序号徽标(M3 可见序号,防跳号)三处同源共用
+  const memberZoneHideInLists = memberZoneTextMode && firstMemberIndex >= 0;
+  const visibleMinimapBlocks = memberZoneHideInLists
+    ? blocks.slice(0, firstMemberIndex + 1)
+    : blocks;
+  const minimapOrdinalById = {};
+  visibleMinimapBlocks.forEach((b, i) => { minimapOrdinalById[b.id] = i; });
   return (
     <div className="block-builder-shell" style={{marginTop:'30px'}}>
       {renderFloatingBlockTypeMenu()}
@@ -4087,16 +4220,19 @@ const BlockBuilder = ({
                 onDragEnd={handleMinimapSortEnd}
                 onDragCancel={handleMinimapSortCancel}
               >
-                <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={visibleMinimapBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
                   <div className={`block-minimap-list${activeSortId ? ' is-sorting' : ''}`}>
               {blocks.map((b, index) => {
                 // 站点会员 B3:minimap 分区标记(member 卡片/会员区卡片)
                 const inMemberZone = firstMemberIndex >= 0 && index > firstMemberIndex;
+                // R5-C C3-5:文本模式下区段块不出现在微图列表(items 同源排除,防 dnd-kit 错位)
+                if (memberZoneHideInLists && inMemberZone) return null;
                 return (
                 <React.Fragment key={b.id}>
                   <BlockMinimapSortableItem
                     block={b}
                     index={index}
+                    displayIndex={minimapOrdinalById[b.id] ?? index}
                     isCover={b.id === coverImageBlockId}
                     isMemberMarker={b.type === 'member'}
                     inMemberZone={inMemberZone}
@@ -4121,6 +4257,7 @@ const BlockBuilder = ({
                     <BlockMinimapCard
                       block={activeSortBlock}
                       index={blocks.findIndex((b) => b.id === activeSortBlock.id)}
+                      displayIndex={minimapOrdinalById[activeSortBlock.id] ?? blocks.findIndex((b) => b.id === activeSortBlock.id)}
                       isCover={activeSortBlock.id === coverImageBlockId}
                       isMemberMarker={activeSortBlock.type === 'member'}
                       inMemberZone={firstMemberIndex >= 0 && blocks.findIndex((b) => b.id === activeSortBlock.id) > firstMemberIndex}
@@ -4158,6 +4295,8 @@ const BlockBuilder = ({
           // 站点会员 B3:会员专属分区(分隔线之后的块)与多余分隔线(第 2+ 条)标记
           const inMemberZone = firstMemberIndex >= 0 && index > firstMemberIndex;
           const isExtraMember = b.type === 'member' && index > firstMemberIndex;
+          // R5-C C3-5:文本模式下区段块不出现在展开区卡片列表(唯一编辑入口=输入区)
+          if (memberZoneHideInLists && inMemberZone) return null;
           return (
           <div
             key={b.id}
@@ -4166,12 +4305,14 @@ const BlockBuilder = ({
             onDrop={(e) => handleExpandedFileDrop(e, index)}
           >
           <div id={`block-${b.id}`} className={`block-card ${movingId === b.id ? 'just-moved' : ''}${isEditorBlockLocked(b) ? ' is-locked' : ''}`}>
+            {b.type !== 'member' && (
             <div className="block-left-ctrl">
                <div className="move-btn" onClick={() => moveToTop(index)} title="置顶"><Icons.Top /></div>
                <div className="move-btn" onClick={() => moveBlock(index, -1)}><Icons.ArrowUp /></div>
                <div className="move-btn" onClick={() => moveBlock(index, 1)}><Icons.ArrowDown /></div>
                <div className="move-btn" onClick={() => moveToBottom(index)} title="置底"><Icons.Bottom /></div>
             </div>
+            )}
             <div className="block-label-row">
               <div className="block-label">{getBlockLabel(b.type)}</div>
               {b.type !== 'member' && (
@@ -4334,18 +4475,37 @@ const BlockBuilder = ({
              )}
               {b.type === 'member' && (
                 /* R2-B5b W1-c:区段头卡(静态头部,不做折叠——SortableContext/DragOverlay 错位风险,§10.3);
-                   计数 N=标记之后全部块数(含多余分隔线) */
+                   计数:文本模式=非空段数(R5-C);回退模式=标记之后全部块数(含多余分隔线) */
                 <div className="member-marker-box">
                   <div className="member-marker-head">
                     <span className="member-marker-crown" aria-hidden="true">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 18h20M3 7l4.5 4L12 4l4.5 7L21 7l-1.6 9H4.6L3 7z"/></svg>
                     </span>
                     <span className="member-marker-title">会员专属内容区</span>
-                    <span className="member-marker-count">{blocks.length - index - 1} 个内容块</span>
+                    <span className="member-marker-count">{memberZoneTextMode ? `${memberZoneParagraphCount(memberZoneText)} 段` : `${blocks.length - index - 1} 个内容块`}</span>
                   </div>
                   <div className="member-marker-caption">以下内容仅登录会员可见；不会出现在文章源码中</div>
                   {memberGate.loaded && !memberGate.canAdd && <div className="member-marker-warn">站点会员当前不可用：以下内容访客不可见</div>}
                   {isExtraMember && <div className="member-marker-warn">已有其它分隔线生效：保存后仅保留第一条，此条将被移除</div>}
+                  {memberZoneTextMode ? (
+                    <>
+                      {/* R5-C C3-4:纯文本输入区(自动高度,上限 560 内部滚动;blur 落块) */}
+                      <textarea
+                        id="member-zone-input"
+                        className="member-zone-textarea"
+                        placeholder="在此输入会员专属内容…（仅登录会员可见）"
+                        value={memberZoneText}
+                        onChange={(e) => { if (onMemberZoneTextChange) onMemberZoneTextChange(e.target.value); }}
+                        onBlur={() => { if (onMemberZoneTextBlur) onMemberZoneTextBlur(); }}
+                        onInput={(e) => autoSizeMemberZoneInput(e.currentTarget)}
+                        ref={(el) => { if (el) autoSizeMemberZoneInput(el); }}
+                      />
+                      <div className="member-zone-hint">输入完成后点击左侧保存按钮即可；空白行分段</div>
+                    </>
+                  ) : (
+                    /* R5-C C4:存量回退模式提示(同会话不动态切换;清理为纯文本后重新打开生效) */
+                    <div className="member-marker-warn">当前会员区包含历史媒体或格式内容，暂以原块模式编辑；清理为纯文本后可切换文本输入区</div>
+                  )}
                 </div>
               )}
              {b.type === 'image' && (
@@ -4429,22 +4589,27 @@ const BlockBuilder = ({
                  {b.error && <div className="img-err">⚠ {b.error}</div>}
                </label>
             )}
-            <div className={`block-add-btn-wrap${addMenuFor === `expanded-after-${b.id}` ? ' is-open' : ''}`}>
-              <div
-                className={`block-add-btn ${addMenuFor === `expanded-after-${b.id}` ? 'open' : ''}`}
-                title="在此块下方添加新块"
-                onClick={(e) =>
-                  toggleAddMenu(`expanded-after-${b.id}`, e, (type) =>
-                    addBlockAfter(index, type)
-                  )
-                }
-              ><span style={{ fontSize: '16px', lineHeight: 1 }}>＋</span> 添加块</div>
-            </div>
-            </div>
-            <div className="block-del" onClick={()=>removeBlock(b.id)} title="删除此块"><Icons.Trash /></div>
-          </div>
-          );
-        })}
+             {/* R5-C L2(b):文本模式下隐藏 marker 卡下方的行内「＋ 添加块」钮(插入点恒在 marker 前,避免误导);回退模式保留 */}
+             {!(b.type === 'member' && memberZoneTextMode) && (
+             <div className={`block-add-btn-wrap${addMenuFor === `expanded-after-${b.id}` ? ' is-open' : ''}`}>
+               <div
+                 className={`block-add-btn ${addMenuFor === `expanded-after-${b.id}` ? 'open' : ''}`}
+                 title="在此块下方添加新块"
+                 onClick={(e) =>
+                   toggleAddMenu(`expanded-after-${b.id}`, e, (type) =>
+                     addBlockAfter(index, type)
+                   )
+                 }
+               ><span style={{ fontSize: '16px', lineHeight: 1 }}>＋</span> 添加块</div>
+             </div>
+             )}
+             </div>
+             {b.type !== 'member' && (
+             <div className="block-del" onClick={()=>removeBlock(b.id)} title="删除此块"><Icons.Trash /></div>
+             )}
+           </div>
+           );
+         })}
         {blocks.length === 0 && (
           <div style={{ position:'relative' }}>
             <div
@@ -4583,6 +4748,19 @@ const [mounted, setMounted] = useState(false);
   const [editorBlocks, setEditorBlocks] = useState([]);
   const editorBlocksRef = useRef(editorBlocks);
   editorBlocksRef.current = editorBlocks;
+  // R5-C:会员区纯文本输入区 state(父层持有,随编辑会话重置;BlockBuilder 只经 props 渲染与回调)。
+  // memberZoneFallback 为会话级闩锁:载入时重算一次,同会话不动态切换(避免丢失输入中间态,C4)。
+  const [memberZoneText, setMemberZoneText] = useState('');
+  const [memberZoneTextDirty, setMemberZoneTextDirty] = useState(false);
+  const [memberZoneFallback, setMemberZoneFallback] = useState(false);
+  const [memberZoneFocusSignal, setMemberZoneFocusSignal] = useState(0);
+  // ref 镜像:saveDraftSnapshot(useCallback)/enqueuePublish 等回调读最新值,避免闭包旧值与依赖抖动(R3)
+  const memberZoneTextRef = useRef(memberZoneText);
+  const memberZoneTextDirtyRef = useRef(memberZoneTextDirty);
+  const memberZoneFallbackRef = useRef(memberZoneFallback);
+  memberZoneTextRef.current = memberZoneText;
+  memberZoneTextDirtyRef.current = memberZoneTextDirty;
+  memberZoneFallbackRef.current = memberZoneFallback;
   const editingSlugRef = useRef(null);
   const editingCategoryRef = useRef(null);
   const editingTagsRef = useRef(null);
@@ -4626,6 +4804,57 @@ const [mounted, setMounted] = useState(false);
     markDirty();
     setEditorBlocks(next);
   }, [markDirty]);
+
+  // === R5-C:会员区文本输入区——载入重算 / 会话重置 / 变更 / 失焦落块 / 保存前 flush ===
+  // ①③ 载入与草稿恢复:由区段块重算文本与回退闩锁(dirty 归零)
+  const applyMemberZoneFromBlocks = (blocks) => {
+    const mi = (blocks || []).findIndex((b) => b.type === 'member');
+    if (mi < 0) {
+      setMemberZoneFallback(false);
+      setMemberZoneText('');
+      setMemberZoneTextDirty(false);
+      return;
+    }
+    setMemberZoneFallback(!isMemberZoneTextConvertible(blocks, mi));
+    setMemberZoneText(memberZoneTextFromBlocks(blocks.slice(mi + 1)));
+    setMemberZoneTextDirty(false);
+  };
+  // ②④⑤ 新建/入队清空/离开编辑视图:整组重置
+  const resetMemberZoneState = () => {
+    setMemberZoneFallback(false);
+    setMemberZoneText('');
+    setMemberZoneTextDirty(false);
+  };
+  // M1:onChange 同步 markDirty(防无 blur 场景 F5/关标签页静默丢输入)
+  const handleMemberZoneTextChange = (v) => {
+    setMemberZoneText(v);
+    setMemberZoneTextDirty(true);
+    markDirty();
+  };
+  // C3-6:失焦即落块(仅文本模式且 dirty 时;落块后 dirty 归零,计数随渲染刷新)
+  const handleMemberZoneTextBlur = () => {
+    if (!memberZoneTextDirtyRef.current) return;
+    const blocks = editorBlocksRef.current || [];
+    const mi = blocks.findIndex((b) => b.type === 'member');
+    if (mi < 0 || memberZoneFallbackRef.current) return;
+    const next = flushMemberZoneBlocks(blocks, memberZoneTextRef.current);
+    setEditorBlocksDirty(next);
+    editorBlocksRef.current = next;
+    setMemberZoneTextDirty(false);
+  };
+  // C5:保存前 flush(存草稿/发布共用)——文本模式把输入区文本落为 marker 后的纯 text 块;
+  // 回退模式原样返回(零丢失硬要求);写回 ref 仅为本 tick 后续读一致(R3,下一次渲染会被重赋)
+  const flushMemberZoneForSave = () => {
+    const blocks = editorBlocksRef.current || [];
+    const mi = blocks.findIndex((b) => b.type === 'member');
+    if (mi < 0 || memberZoneFallbackRef.current) return blocks;
+    if (!memberZoneTextDirtyRef.current) return blocks;
+    const next = flushMemberZoneBlocks(blocks, memberZoneTextRef.current);
+    setEditorBlocks(next);
+    editorBlocksRef.current = next;
+    setMemberZoneTextDirty(false);
+    return next;
+  };
 
   // P18-C4-5: Step7 商品信息只填商品码;链接/价格在发布时由 post.js 服务端
   // 查系统商品自动写入(查到=系统权威价覆盖,查不到=清空三字段并回执提示),
@@ -4974,6 +5203,8 @@ const [mounted, setMounted] = useState(false);
       revokePendingEditorMedia(prev);
       return [];
     });
+    // R5-C R4-⑤:离开编辑视图重置会员区文本 state
+    resetMemberZoneState();
     setView('list');
   };
 
@@ -5158,10 +5389,12 @@ const [mounted, setMounted] = useState(false);
   // === Phase3: 草稿快照 ===
   // 把当前编辑器内容写入 localStorage（pending 本地图片无法序列化，保存时自动剔除）
   const saveDraftSnapshot = useCallback(() => {
+    // R5-C C5-1:存草稿前先把输入区文本落块(经 ref 镜像读取,R3);写回 ref 供本 tick 后续读一致
+    const flushedBlocks = flushMemberZoneForSave();
     const snap = {
       // M1: 传原始 blocks / galleryItems，由 saveEditorDraftSnapshot 内部统一净化并统计 droppedMediaCount
       // （预先净化会让未上传媒体数恒为 0，恢复后无法提示补图）
-      blocks: editorBlocksRef.current || [],
+      blocks: flushedBlocks,
       form: { ...form },
       galleryItems,
       cover: form?.cover || '',
@@ -5200,6 +5433,8 @@ const [mounted, setMounted] = useState(false);
     }
     setForm(snap.form || {});
     setEditorBlocks(Array.isArray(snap.blocks) ? snap.blocks : []);
+    // R5-C R4-③:草稿恢复——snap.blocks 已是 flush 后形态,直接重算会员区文本与回退闩锁
+    applyMemberZoneFromBlocks(Array.isArray(snap.blocks) ? snap.blocks : []);
     setGalleryItems(Array.isArray(snap.galleryItems) ? snap.galleryItems : []);
     if (snap.coverSettings && typeof snap.coverSettings === 'object') {
       setCoverSettings({ ...createInitialCoverSettings(), ...snap.coverSettings });
@@ -6288,6 +6523,8 @@ const [mounted, setMounted] = useState(false);
       revokePendingEditorMedia(prev);
       return [];
     });
+    // R5-C R4-①(前置):载入开始先重置会员区文本 state(失败路径不留脏值)
+    resetMemberZoneState();
     try {
       const post = await fetchPostById(p.id);
       if (post) {
@@ -6314,6 +6551,8 @@ const [mounted, setMounted] = useState(false);
         });
         setCoverSettings(restored.coverSettings);
         setEditorBlocks(restored.blocks);
+        // R5-C R4-①:载入完成点——由区段块重算文本与回退闩锁(清理为纯文本后重新打开即自动进文本模式)
+        applyMemberZoneFromBlocks(restored.blocks);
         setGalleryItems(restored.galleryItems);
         setGalleryDirty(false);
         setCurrentId(p.id);
@@ -6341,6 +6580,8 @@ const [mounted, setMounted] = useState(false);
       revokePendingEditorMedia(prev);
       return [];
     });
+    // R5-C R4-②:新建重置会员区文本 state
+    resetMemberZoneState();
     setForm({ title: '', slug: generateAdminPostSlug(), excerpt:'', content:'', category:'', tags:'', cover:'', status:'Published', type: 'Post', date: new Date().toISOString().split('T')[0], download: '', download_size: '', download_count: '', article_password: '', linked_product_sku: '', linked_product_url: '', linked_product_price: '' });
     setCurrentId(null);
     editingSlugRef.current = null;
@@ -6659,6 +6900,7 @@ const [mounted, setMounted] = useState(false);
     loadPricingCopy();
   };
   // R4-C3:会员专属内容独立入口——定位或插入(单条约束;父层直改 editorBlocks,不经 BlockBuilder 信号 prop)
+  // R5-C C1/M4:入口=定位+聚焦文本输入区(一次性信号 prop 递增);回退模式仍仅定位;创建分支尾置+经信号定位聚焦
   const handleMemberBlockEntry = () => {
     if (!memberMode) {
       // 复用 :11638-11644 同源 hint 文案(未加载/未开通(>贩售变体)/专业版)
@@ -6674,16 +6916,22 @@ const [mounted, setMounted] = useState(false);
     }
     const existing = editorBlocksRef.current.find((b) => b.type === 'member');
     if (existing) {
-      const el = document.getElementById(`block-${existing.id}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (memberZoneFallbackRef.current) {
+        // 回退模式:无输入区,仅定位(既有口径)
+        const el = document.getElementById(`block-${existing.id}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        // 文本模式:定位并聚焦(M4 信号=切展开视图→滚至 marker→聚焦 #member-zone-input)
+        setMemberZoneFocusSignal((n) => n + 1);
+      }
       return;
     }
     const newBlock = createEditorBlock('member');
     setEditorBlocksDirty([...editorBlocksRef.current, newBlock]);
+    // 创建分支:空区可转换→文本模式;滚动+聚焦统一走 M4 信号(等渲染挂载)
     setTimeout(() => {
-      const el = document.getElementById(`block-${newBlock.id}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
+      setMemberZoneFocusSignal((n) => n + 1);
+    }, 120);
   };
   const updatePricingBenefit = (idx, value) => {
     setPricingCopyBenefits((prev) => prev.map((item, i) => (i === idx ? String(value || '').slice(0, 120) : item)));
@@ -8038,7 +8286,8 @@ const [mounted, setMounted] = useState(false);
     if (isThemeLoading) return alert('请等待当前任务完成...');
 
     const isWidget = form.type === 'Widget';
-    const blocks = editorBlocksRef.current || [];
+    // R5-C C5-2:发布快照先 flush 会员区文本(早于 countPendingEditorMedia);回退模式原样(零丢失)
+    const blocks = flushMemberZoneForSave();
     const pendingMediaCount = isWidget ? 0 : countPendingEditorMedia(blocks);
     const pendingGalleryCount = isWidget ? 0 : countPendingGalleryItems(galleryItems);
     const willSyncGallery =
@@ -8091,6 +8340,8 @@ const [mounted, setMounted] = useState(false);
     clearDirty();
     resetCoverSettings();
     setEditorBlocks([]);
+    // R5-C R4-④:入队清空——重置会员区文本 state
+    resetMemberZoneState();
     editingSlugRef.current = null;
     editingCategoryRef.current = null;
     editingTagsRef.current = null;
@@ -11573,17 +11824,19 @@ const [mounted, setMounted] = useState(false);
                    </button>
                    {memberMode && <div style={{fontSize:'11px', color:'#777', marginTop:'6px', lineHeight:1.6}}>会员模式启用中，暂不可绑定商品</div>}
                   </div>
-                  {/* R4-C3:会员专属内容独立入口(移出正文块体系;置于绑定商品按钮下方;data-tour 锚点外置保持纯净) */}
-                  <div style={{marginTop:'10px'}}>
-                    <button type="button" onClick={handleMemberBlockEntry}
-                    onMouseEnter={(e) => { if (memberMode) e.currentTarget.style.background = 'rgba(234,179,8,0.12)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(234,179,8,0.07)'; }}
-                     style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border:'1px solid rgba(234,179,8,0.5)', background:'rgba(234,179,8,0.07)', color:'#eab308', fontSize:'13px', fontWeight:'bold', cursor: memberMode ? 'pointer' : 'not-allowed', opacity: memberMode ? 1 : 0.55, transition:'background 0.2s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px'}}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M2 18h20M3 7l4.5 4L12 4l4.5 7L21 7l-1.6 9H4.6L3 7z"/></svg>
-                      会员专属内容
-                    </button>
-                    <div style={{fontSize:'11px', color:'#777', marginTop:'6px', lineHeight:1.6}}>{editorBlocks.some((b) => b.type === 'member') ? '已存在会员专属内容区：点击定位' : '在正文中插入会员专属内容区；区段内内容仅登录会员可见'}</div>
-                  </div>
+                   {/* R4-C3:会员专属内容独立入口(移出正文块体系;置于绑定商品按钮下方;data-tour 锚点外置保持纯净) */}
+                   {/* R5-C C1:改名「添加会员区内容」+蓝色(照「绑定商品信息」范式);金冠 svg 删除(区段头金冠保留) */}
+                   <div style={{marginTop:'10px'}}>
+                     <button type="button" onClick={handleMemberBlockEntry}
+                     onMouseEnter={(e) => { if (!memberMode) return; e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.45)'; }}
+                     onMouseLeave={(e) => { if (!memberMode) return; e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.35)'; e.currentTarget.style.transform = 'none'; }}
+                     onMouseDown={(e) => { if (!memberMode) return; e.currentTarget.style.transform = 'translateY(1px)'; }}
+                     onMouseUp={(e) => { if (!memberMode) return; e.currentTarget.style.transform = 'none'; }}
+                      style={{width:'100%', padding:'13px 14px', borderRadius:'12px', border: memberMode ? 'none' : '1px solid #4a4a52', background: memberMode ? '#2563eb' : '#3a3a40', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor: memberMode ? 'pointer' : 'not-allowed', opacity: memberMode ? 1 : 0.55, transition:'background 0.2s, box-shadow 0.2s, transform 0.15s', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', boxShadow: memberMode ? '0 4px 12px rgba(37,99,235,0.35)' : 'none'}}>
+                       <span style={{fontSize:'15px', lineHeight:1}}>＋</span> 添加会员区内容
+                     </button>
+                     <div style={{fontSize:'11px', color:'#777', marginTop:'6px', lineHeight:1.6}}>{editorBlocks.some((b) => b.type === 'member') ? '已存在会员内容区：点击定位' : '点击展开会员内容输入区；内容仅登录会员可见，自动显示在正文底部'}</div>
+                   </div>
                 {productLookup.open && (
                 <div
                   onMouseDown={(e) => { if (e.target === e.currentTarget) setProductLookup((p) => ({ ...p, open: false })); }}
@@ -11664,6 +11917,12 @@ const [mounted, setMounted] = useState(false);
               onSetBodyCover={handleSetBodyCover}
               onClearBodyCover={handleClearBodyCover}
               onToast={showAdminToast}
+              // R5-C:会员区纯文本输入区接线(marker 存在且未回退=文本模式)
+              memberZoneTextMode={!memberZoneFallback && editorBlocks.some((b) => b.type === 'member')}
+              memberZoneText={memberZoneText}
+              onMemberZoneTextChange={handleMemberZoneTextChange}
+              onMemberZoneTextBlur={handleMemberZoneTextBlur}
+              memberZoneFocusSignal={memberZoneFocusSignal}
               memberGate={{
                 loaded: memberGateState.loaded,
                 canAdd: memberMode,
