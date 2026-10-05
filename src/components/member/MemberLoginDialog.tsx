@@ -22,6 +22,10 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  *   会员码输入眼睛开关(Q5:Tab 可达、aria-label 随态)、QR 拖拽区(虚线框+拖入高亮,
  *   Q9:busy 态忽略交互、dragover/drop 均 preventDefault)、表单「登录」提交钮品牌红
  *   (Q4:「继续浏览」维持中性色)。
+ * - R4-B1:遮罩改半透明(#0c0c0e/60 + blur,背景可见)+ 开窗过渡(遮罩渐入 ~180ms →
+ *   probing 居中 spinner〔此期不渲染面板,容器 aria-busy〕→ 面板 soft-reveal
+ *   240ms);会话探测模块级缓存(60s TTL,登录/登出/onDisabled 失效;仅存展示态,
+ *   不存凭据);输入框占位文案改 7A(INPUT_PLACEHOLDER_TEXT)。
  */
 
 export const LOGIN_ERROR_TEXT: Record<string, string> = {
@@ -37,11 +41,22 @@ export const QR_DECODE_FAILED_TEXT = '未识别到二维码，请重试或直接
 const QR_DECODING_TEXT = '识别中…'
 const QR_DROPZONE_TEXT = '拖拽二维码图片到此处，或点击选择'
 const INPUT_HINT_TEXT = '可直接粘贴，空格与连字符会被忽略'
+/** R4-B1(7A):输入框占位文案(逐字,含「登录」字样) */
+export const INPUT_PLACEHOLDER_TEXT = '请输入登录key或上传身份码'
 
 type SessionProbe =
   | { phase: 'probing' }
   | { phase: 'form' }
   | { phase: 'loggedIn'; status: 'active' | 'expired'; expiresAt: string | null }
+
+type SessionProbeResult = Exclude<SessionProbe, { phase: 'probing' }>
+
+/** R4-B1:会话探测模块级缓存 TTL(60s) */
+export const SESSION_CACHE_TTL_MS = 60_000
+
+/** R4-B1:模块级探测缓存(跨组件实例共享;仅存展示态 status/expiresAt,不存凭据;
+ *  submitLogin 成功/登出/onDisabled 路径清缓存;网络失败不写) */
+let sessionProbeCache: { probe: SessionProbeResult; at: number } | null = null
 
 type MemberLoginDialogProps = {
   open: boolean
@@ -174,22 +189,32 @@ export function MemberLoginDialog({
       if (status === 'active' || status === 'expired') {
         const expiresAt =
           typeof data?.expires_at === 'string' ? data.expires_at : null
-        setProbe({ phase: 'loggedIn', status, expiresAt })
+        const next: SessionProbeResult = { phase: 'loggedIn', status, expiresAt }
+        sessionProbeCache = { probe: next, at: Date.now() }
+        setProbe(next)
         return
       }
-      setProbe({ phase: 'form' })
+      const next: SessionProbeResult = { phase: 'form' }
+      sessionProbeCache = { probe: next, at: Date.now() }
+      setProbe(next)
     } catch {
-      // 探测失败按表单呈现(登录提交会再走服务端校验)
+      // 探测失败按表单呈现(登录提交会再走服务端校验);失败不写缓存
       setProbe({ phase: 'form' })
     }
   }, [])
 
-  // 打开时:探测一次 session + 注入一次性错误行
+  // 打开时:新鲜缓存命中 → 直接应用为当前 probe 状态(跳过网络请求,面板即时呈现);
+  // 未命中 → 照现状探测一次 + 注入一次性错误行
   useEffect(() => {
     if (!open) return
     setLoginError(typeof initialError === 'string' && initialError ? initialError : '')
     setQrHint('')
     setQrDecoding(false)
+    const cached = sessionProbeCache
+    if (cached && Date.now() - cached.at <= SESSION_CACHE_TTL_MS) {
+      setProbe(cached.probe)
+      return
+    }
     void probeSession()
   }, [open, initialError, probeSession])
 
@@ -208,6 +233,7 @@ export function MemberLoginDialog({
       if (res.ok && data?.success) {
         // 关窗+清输入;session 重跑交调用方(active → 渲染内容;
         // expired → 到期面板;B1 login 对到期会员亦发 cookie)
+        sessionProbeCache = null
         setAccessKeyInput('')
         onClose()
         onSuccess?.()
@@ -217,6 +243,7 @@ export function MemberLoginDialog({
       if (err === 'disabled') {
         // 关窗并交调用方重跑 session(session 返回 disabled → 面板消失;
         // page props 的 membershipConfig 是 ISR 旧值,不可作为消失依据)
+        sessionProbeCache = null
         onClose()
         onDisabled?.()
         return
@@ -261,6 +288,8 @@ export function MemberLoginDialog({
       // 清 cookie 为服务端行为;失败也回落表单重探
     }
     setLoggingOut(false)
+    // 清缓存后重探(重探结果自然写缓存)
+    sessionProbeCache = null
     await probeSession()
   }, [loggingOut, probeSession])
 
@@ -336,16 +365,49 @@ export function MemberLoginDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9998] flex items-center justify-center bg-[#0c0c0e] p-4"
+      className="member-overlay-in fixed inset-0 z-[9998] flex items-center justify-center bg-[#0c0c0e]/60 p-4 backdrop-blur-[6px]"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="member-login-title"
+      {...(probe.phase === 'probing'
+        ? { 'aria-busy': 'true', 'aria-label': '登录' }
+        : { 'aria-labelledby': 'member-login-title' })}
       onClick={() => {
         if (!loginSubmitting) onClose()
       }}
     >
+      {/* R4-B1:遮罩渐入 + 面板 soft-reveal + spinner,同一 style jsx 块(StatsWidget 先例) */}
+      <style jsx>{`
+        @keyframes memberOverlayIn {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        @keyframes memberPanelReveal {
+          0% { opacity: 0; transform: scale(0.97) translateY(6px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes memberSpinnerRotate {
+          to { transform: rotate(360deg); }
+        }
+        .member-overlay-in { animation: memberOverlayIn 180ms ease-out both; }
+        .member-panel-reveal {
+          animation: memberPanelReveal 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .member-spinner {
+          display: inline-block;
+          width: 2rem;
+          height: 2rem;
+          border-radius: 9999px;
+          border: 2px solid rgba(255, 255, 255, 0.25);
+          border-top-color: #dc2626;
+          animation: memberSpinnerRotate 0.8s linear infinite;
+        }
+      `}</style>
+      {probe.phase === 'probing' ? (
+        /* R4-B1:先加载遮罩后现窗口——probing 期不渲染面板,仅居中 spinner(禁亮绿) */
+        <span className="member-spinner" aria-hidden="true" />
+      ) : (
       <div
-        className={`w-full max-w-[400px] rounded-xl border shadow-xl ${panelCls}`}
+        className={`member-panel-reveal w-full max-w-[400px] rounded-xl border shadow-xl ${panelCls}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col gap-4 px-6 py-7 select-none sm:px-7">
@@ -356,9 +418,7 @@ export function MemberLoginDialog({
             登录
           </p>
 
-          {probe.phase === 'probing' ? (
-            <p className={`text-center text-xs ${mutedCls}`}>…</p>
-          ) : probe.phase === 'loggedIn' ? (
+          {probe.phase === 'loggedIn' ? (
             <div className="flex flex-col gap-3">
               <p className={`text-center text-sm ${titleCls}`}>
                 {probe.status === 'active' ? '已登录' : '会员已到期'}
@@ -390,7 +450,7 @@ export function MemberLoginDialog({
               <div className="relative">
                 <input
                   type={showAccessKey ? 'text' : 'password'}
-                  placeholder="会员码"
+                  placeholder={INPUT_PLACEHOLDER_TEXT}
                   className={`w-full rounded-lg border-2 px-3 py-2 pr-9 text-sm outline-none transition-all ${inputSurfaceCls} ${
                     loginError ? 'border-red-500 focus:border-red-500' : inputIdleCls
                   }`}
@@ -498,6 +558,7 @@ export function MemberLoginDialog({
           )}
         </div>
       </div>
+      )}
     </div>,
     document.body
   )

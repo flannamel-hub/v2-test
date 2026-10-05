@@ -21,6 +21,12 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  *   disabled → 整体不渲染(Context null 已保证,session disabled 双保险);
  * - R3-6(5A):standard/standard-mobile 未登录不渲染任何内容(登录入口移至公告卡),
  *   见 resolveMemberNavStandardRender;gallery/tweet 变体行为不变;
+ * - R4-B2:挂载先同步判 sm_member_no cookie——有值且仍是初始 guest → 置临时态
+ *   {status:'active', memberNo: cookie 值, expiresAt: null} chip 即显(有效期缺失
+ *   走「会员生效中」兜底),随后探测补全/纠偏(实为 guest → chip 消失;active/expired
+ *   → 填充有效期);探测失败且 cookie 仍含 member_no → 保留临时态(§11.1-S4 cookie
+ *   判据;登出成功 cookie 已清 → 回落 guest);resolveMemberNavState/
+ *   resolveMemberNavStandardRender 纯函数合同不变;
  * - member_no 来源:session 响应 > sm_member_no cookie(非 HttpOnly 展示值)> 缺省;
  * - chip 浮窗:createPortal 挂 document.body(祖先可能带 backdrop-blur/transform,
  *   仓内两次 fixed 劫持事故先例;R1 红线,禁止原位渲染);hover 与 click 均可开,
@@ -122,7 +128,8 @@ export function isMemberExpiringSoon(
   return time - now <= MEMBER_NAV_EXPIRING_SOON_DAYS * 86400_000
 }
 
-const CrownIcon = ({ className = '' }: { className?: string }) => (
+/** 皇冠图标(R4-B3 起导出,供 pricing CTA/公告卡按钮复用) */
+export const CrownIcon = ({ className = '' }: { className?: string }) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
@@ -200,13 +207,23 @@ export function MemberNav({ variant }: { variant: MemberNavVariant }) {
       }
       setSession({ status: 'guest', memberNo: '', expiresAt: null })
     } catch {
-      // 探测失败按 guest 呈现(登录提交会再走服务端校验)
+      // 探测失败:cookie 仍含 member_no → 保留当前临时态(chip 不消失,§11.1-S4
+      // cookie 判据;登出成功则 cookie 已清 → 落到下方 guest);否则按现状 guest
+      if (readMemberNoFromCookieString(document.cookie)) return
       setSession({ status: 'guest', memberNo: '', expiresAt: null })
     }
   }, [])
 
-  // 挂载单次探测(无轮询)
+  // 挂载单次探测(无轮询);R4-B2:先同步判 cookie 置临时态 chip 快显,探测仅补全/纠偏
   useEffect(() => {
+    const cookieMemberNo = readMemberNoFromCookieString(document.cookie)
+    if (cookieMemberNo) {
+      setSession((prev) =>
+        prev.status === 'guest' && !prev.memberNo
+          ? { status: 'active', memberNo: cookieMemberNo, expiresAt: null }
+          : prev
+      )
+    }
     void probeSession()
   }, [probeSession])
 

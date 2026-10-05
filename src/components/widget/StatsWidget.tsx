@@ -8,8 +8,10 @@ import {
 } from '@/src/lib/blog/vendingDefaults'
 import { useMemberNavConfig } from '@/src/components/theme/SitePlanContext'
 import {
+  CrownIcon,
   MEMBER_NAV_JOIN_LABEL,
   MEMBER_NAV_LOGIN_LABEL,
+  readMemberNoFromCookieString,
 } from '@/src/components/member/MemberNav'
 import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
 // @ts-ignore
@@ -71,6 +73,11 @@ export const StatsWidget = ({
 
   useEffect(() => {
     if (!memberMode) return
+    // R4-B2:同步快判——无 member_no cookie → 立即 guest(双按钮即刻显示,零网络等待);
+    // 有 → 维持 probing(会员不闪);随后探测仅作确认,结果覆盖
+    if (!readMemberNoFromCookieString(document.cookie)) {
+      setMemberSession('guest')
+    }
     void probeMemberSession()
   }, [memberMode, probeMemberSession])
 
@@ -282,12 +289,13 @@ export const StatsWidget = ({
                     window.location.assign('/pricing');
                   }}
                   type="button"
-                  className="w-full h-9 rounded-xl flex items-center justify-center
-                    bg-[#dc2626]
+                  className="w-full h-8 rounded-xl flex items-center justify-center gap-1.5
+                    bg-gradient-to-b from-[#e24a4a] to-[#c51f25]
                     text-xs font-bold text-white tracking-wide
                     transition-all duration-300
-                    hover:bg-[#b91c1c] hover:scale-[1.02] active:scale-95"
+                    hover:from-[#d94040] hover:to-[#b81c22] hover:scale-[1.02] active:scale-95"
                 >
+                  <CrownIcon className="h-3 w-3 shrink-0 text-amber-300" />
                   <span>{MEMBER_NAV_JOIN_LABEL}</span>
                 </button>
                 <button
@@ -297,11 +305,11 @@ export const StatsWidget = ({
                     setLoginOpen(true);
                   }}
                   type="button"
-                  className="w-full h-9 rounded-xl flex items-center justify-center
-                    bg-white
+                  className="w-full h-8 rounded-xl flex items-center justify-center
+                    bg-gradient-to-b from-white to-[#f0f0f2]
                     text-xs font-bold text-neutral-900 tracking-wide
                     transition-all duration-300
-                    hover:bg-neutral-100 hover:scale-[1.02] active:scale-95"
+                    hover:to-[#e7e7ea] hover:scale-[1.02] active:scale-95"
                 >
                   <span>{MEMBER_NAV_LOGIN_LABEL}</span>
                 </button>

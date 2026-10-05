@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { MemberLoginDialog, formatMembershipTierLabel } from '@/src/components/member/MemberLoginDialog'
+import { CrownIcon } from '@/src/components/member/MemberNav'
 import { MEMBER_HANDOFF_FAILED_TEXT } from '@/src/components/member/MemberCenter'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import type {
@@ -175,12 +176,8 @@ export function PricingPageContent({
       : panelTheme === 'light'
         ? 'text-neutral-900'
         : 'text-neutral-900 dark:text-white'
-  const primaryButtonCls =
-    panelTheme === 'dark'
-      ? 'bg-blue-600 hover:bg-blue-500'
-      : panelTheme === 'light'
-        ? 'bg-neutral-900 hover:bg-neutral-700'
-        : 'bg-neutral-900 hover:bg-neutral-700 dark:bg-blue-600 dark:hover:bg-blue-500'
+  // R4-B3:CTA 统一红底+黄冠(primaryButtonCls 三处引用均在 renderCta 内,已随改移除)
+  const ctaButtonCls = 'bg-[#dc2626] hover:bg-[#b91c1c]'
 
   const storeUrl = resolveStoreUrl()
   const pricingCopy = resolvePricingCopy(membership.copy)
@@ -193,9 +190,10 @@ export function PricingPageContent({
           type="button"
           onClick={() => void requestRenew(days)}
           disabled={busy}
-          className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${primaryButtonCls}`}
+          className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${ctaButtonCls}`}
         >
-          {busy ? '跳转中…' : '续费'}
+          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+          <span>{busy ? '跳转中…' : '续费'}</span>
         </button>
       )
     }
@@ -208,13 +206,14 @@ export function PricingPageContent({
           onClick={(e) => {
             if (!storeUrl) e.preventDefault()
           }}
-          className={`block w-full rounded-lg px-4 py-2 text-center text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
+          className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
         >
-          订阅
+          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+          <span>立即订阅</span>
         </a>
       )
     }
-    // guest(含 probing;R1 直达化:主按钮「订阅」直链同窗,登录转次级入口)
+    // guest(含 probing;R1 直达化:主按钮「立即订阅」直链同窗,登录转次级入口)
     return (
       <div className="flex flex-col gap-2">
         <a
@@ -222,9 +221,10 @@ export function PricingPageContent({
           onClick={(e) => {
             if (!storeUrl) e.preventDefault()
           }}
-          className={`block w-full rounded-lg px-4 py-2 text-center text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
+          className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
         >
-          订阅
+          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+          <span>立即订阅</span>
         </a>
         <button
           type="button"
