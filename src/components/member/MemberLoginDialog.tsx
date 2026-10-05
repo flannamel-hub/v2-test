@@ -26,6 +26,11 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  *   probing 居中 spinner〔此期不渲染面板,容器 aria-busy〕→ 面板 soft-reveal
  *   240ms);会话探测模块级缓存(60s TTL,登录/登出/onDisabled 失效;仅存展示态,
  *   不存凭据);输入框占位文案改 7A(INPUT_PLACEHOLDER_TEXT)。
+ * - R5-B2:弹窗双视图重构——标题行加站标 LOGO(favicon 32 资产,18px);登录视图
+ *   (输入框+红登录钮+「或」分隔线+QR 图标钮〔切上传视图〕+「以游客模式继续 →」
+ *   替换原「取消」);上传视图(大号虚线上传区+提示/错误行+「返回登录」);占位
+ *   文案改 R5 版(INPUT_PLACEHOLDER_TEXT);删输入框下方常规提示行;QR 解码成功
+ *   自动回登录视图(6A),失败留驻上传视图;每次打开复位登录视图。
  */
 
 export const LOGIN_ERROR_TEXT: Record<string, string> = {
@@ -39,10 +44,16 @@ export const LOGIN_ERROR_TEXT: Record<string, string> = {
 export const QR_BAD_FILE_TEXT = '文件过大或格式不支持'
 export const QR_DECODE_FAILED_TEXT = '未识别到二维码，请重试或直接粘贴会员码'
 const QR_DECODING_TEXT = '识别中…'
-const QR_DROPZONE_TEXT = '拖拽二维码图片到此处，或点击选择'
-const INPUT_HINT_TEXT = '可直接粘贴，空格与连字符会被忽略'
-/** R4-B1(7A):输入框占位文案(逐字,含「登录」字样) */
-export const INPUT_PLACEHOLDER_TEXT = '请输入登录key或上传身份码'
+/** R5-B2：上传区文案（逐字；原拖拽区文案改写并转导出供测试断言） */
+export const QR_DROPZONE_TEXT = '拖拽或点击上传登录码'
+/** R5-B2:输入框占位文案(逐字,含「会员」字样) */
+export const INPUT_PLACEHOLDER_TEXT = '请输入会员key或上传会员身份码'
+/** R5-B2：上传视图标题（逐字） */
+export const UPLOAD_VIEW_TITLE_TEXT = '使用登录码登录'
+/** R5-B2：游客模式按钮（逐字；含尾随空格+箭头 U+2192） */
+export const GUEST_CONTINUE_TEXT = '以游客模式继续 →'
+/** R5-B2：返回登录按钮（逐字） */
+export const BACK_TO_LOGIN_TEXT = '返回登录'
 
 type SessionProbe =
   | { phase: 'probing' }
@@ -154,6 +165,44 @@ const EyeOffIcon = ({ className = '' }: { className?: string }) => (
   </svg>
 )
 
+/** R5-B2：QR 扫描图标（圆角方＋扫描角标；提示为参考骨架，可微调细节） */
+const QrScanIcon = ({ className = '' }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M4 8V6a2 2 0 0 1 2-2h2" />
+    <path d="M16 4h2a2 2 0 0 1 2 2v2" />
+    <path d="M20 16v2a2 2 0 0 1-2 2h-2" />
+    <path d="M8 20H6a2 2 0 0 1-2-2v-2" />
+    <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+  </svg>
+)
+
+/** R5-B2：上传图标（上箭头＋底托） */
+const UploadIcon = ({ className = '' }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M12 15V5" />
+    <path d="m7 10 5-5 5 5" />
+    <path d="M5 19h14" />
+  </svg>
+)
+
 export function MemberLoginDialog({
   open,
   onClose,
@@ -172,6 +221,8 @@ export function MemberLoginDialog({
   const [qrDecoding, setQrDecoding] = useState(false)
   const [qrDragActive, setQrDragActive] = useState(false)
   const [showAccessKey, setShowAccessKey] = useState(false)
+  // R5-B2:弹窗双视图(login=登录表单;upload=登录码上传;每次打开复位 login)
+  const [view, setView] = useState<'login' | 'upload'>('login')
   const [loggingOut, setLoggingOut] = useState(false)
   const [mounted, setMounted] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -210,6 +261,8 @@ export function MemberLoginDialog({
     setLoginError(typeof initialError === 'string' && initialError ? initialError : '')
     setQrHint('')
     setQrDecoding(false)
+    // R5-B2:每次打开复位登录视图
+    setView('login')
     const cached = sessionProbeCache
     if (cached && Date.now() - cached.at <= SESSION_CACHE_TTL_MS) {
       setProbe(cached.probe)
@@ -263,10 +316,12 @@ export function MemberLoginDialog({
     try {
       const result = await decodeMemberQrFromFile(file)
       if (result.ok) {
-        // 解码文本规范化后自动填充输入框(不自动提交)
+        // 解码文本规范化后自动填充输入框(不自动提交);
+        // R5-B2(6A):成功后自动回登录视图(输入框在该视图,便于直接提交)
         setAccessKeyInput(normalizeMemberAccessKey(result.text))
         setQrHint('')
         setLoginError('')
+        setView('login')
       } else if (result.error === 'bad_file') {
         setQrHint(QR_BAD_FILE_TEXT)
       } else {
@@ -351,6 +406,20 @@ export function MemberLoginDialog({
       : panelTheme === 'light'
         ? 'border-neutral-200 hover:bg-neutral-100'
         : 'border-neutral-200 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800'
+  // R5-B2:「或」分隔线(三态主题)
+  const dividerLineCls =
+    panelTheme === 'dark'
+      ? 'bg-neutral-700'
+      : panelTheme === 'light'
+        ? 'bg-neutral-200'
+        : 'bg-neutral-200 dark:bg-neutral-700'
+  // R5-B2:QR 图标钮 hover 底色(三态主题)
+  const qrButtonHoverCls =
+    panelTheme === 'dark'
+      ? 'hover:bg-neutral-800'
+      : panelTheme === 'light'
+        ? 'hover:bg-neutral-100'
+        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
 
   // R3-3:登录态有效期行(永久 →「永久有效」;限时 → 前缀+日期;缺失/无效 → 不渲染)
   const loggedInValidityText =
@@ -411,12 +480,16 @@ export function MemberLoginDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col gap-4 px-6 py-7 select-none sm:px-7">
-          <p
-            id="member-login-title"
-            className={`text-center text-lg font-semibold ${titleCls}`}
-          >
-            登录
-          </p>
+          {/* R5-B2:标题行(LOGO+标题,两视图共用;loggedIn 时 view 恒为 login) */}
+          <div className="flex items-center justify-center gap-2">
+            <img src="/favicon-32x32.png" alt="" aria-hidden="true" className="h-[18px] w-[18px] rounded-[4px]" />
+            <p
+              id="member-login-title"
+              className={`text-lg font-semibold ${titleCls}`}
+            >
+              {view === 'upload' ? UPLOAD_VIEW_TITLE_TEXT : '登录'}
+            </p>
+          </div>
 
           {probe.phase === 'loggedIn' ? (
             <div className="flex flex-col gap-3">
@@ -445,7 +518,7 @@ export function MemberLoginDialog({
                 {loggingOut ? '退出中…' : '退出登录'}
               </button>
             </div>
-          ) : (
+          ) : view === 'login' ? (
             <>
               <div className="relative">
                 <input
@@ -484,21 +557,49 @@ export function MemberLoginDialog({
                   {loginError}
                 </p>
               ) : null}
-              {qrHint ? (
-                <p className={`text-center text-xs ${mutedCls}`}>{qrHint}</p>
-              ) : (
-                <p className={`text-center text-[11px] ${mutedCls}`}>{INPUT_HINT_TEXT}</p>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => {
-                  void handleQrFile(e.target.files?.[0])
-                  e.target.value = ''
-                }}
-              />
+              <div className="flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => void submitLogin()}
+                  disabled={loginSubmitting || !accessKeyInput.trim()}
+                  className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${loginSubmitButtonCls}`}
+                >
+                  {loginSubmitting ? '登录中…' : '登录'}
+                </button>
+                {/* R5-B2:「或」分隔线 */}
+                <div className="flex items-center gap-3">
+                  <span aria-hidden="true" className={`h-px flex-1 ${dividerLineCls}`} />
+                  <span className={`text-xs ${mutedCls}`}>或</span>
+                  <span aria-hidden="true" className={`h-px flex-1 ${dividerLineCls}`} />
+                </div>
+                {/* R5-B2:QR 图标钮 → 切上传视图(busy 守卫沿用拖拽区口径) */}
+                <button
+                  type="button"
+                  aria-label={UPLOAD_VIEW_TITLE_TEXT}
+                  aria-disabled={qrDecoding || loginSubmitting}
+                  onClick={() => {
+                    if (!qrDecoding && !loginSubmitting) setView('upload')
+                  }}
+                  className={`w-full rounded-lg border-2 px-4 py-3 flex items-center justify-center transition-colors ${dropzoneIdleCls} ${qrButtonHoverCls}`}
+                >
+                  <QrScanIcon className="h-5 w-5" />
+                </button>
+                {/* R5-B2:「以游客模式继续 →」= 关闭弹窗(承担原「取消」职责,样式照「退出登录」范式) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!loginSubmitting) onClose()
+                  }}
+                  disabled={loginSubmitting}
+                  className={`w-full rounded-lg border px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${secondaryButtonCls} ${mutedCls}`}
+                >
+                  {GUEST_CONTINUE_TEXT}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* R5-B2:大号虚线上传区(承接原拖拽/点击/decode 全部逻辑与 handlers,busy 守卫口径不变) */}
               <button
                 type="button"
                 aria-disabled={qrDecoding || loginSubmitting}
@@ -526,34 +627,37 @@ export function MemberLoginDialog({
                     void handleQrFile(e.dataTransfer?.files?.[0])
                   }
                 }}
-                className={`w-full rounded-lg border-2 border-dashed px-4 py-3.5 text-center text-xs transition-colors ${mutedCls} ${
+                className={`w-full rounded-xl border-2 border-dashed px-6 py-12 flex flex-col items-center justify-center gap-3 transition-colors ${mutedCls} ${
                   qrDragActive
                     ? 'border-red-500/80 bg-red-500/10'
                     : dropzoneIdleCls
                 } ${qrDecoding || loginSubmitting ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}
               >
-                {QR_DROPZONE_TEXT}
+                <UploadIcon className="h-7 w-7" />
+                <span className="text-xs">{QR_DROPZONE_TEXT}</span>
               </button>
-              <div className="flex flex-col gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => void submitLogin()}
-                  disabled={loginSubmitting || !accessKeyInput.trim()}
-                  className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${loginSubmitButtonCls}`}
-                >
-                  {loginSubmitting ? '登录中…' : '登录'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!loginSubmitting) onClose()
-                  }}
-                  disabled={loginSubmitting}
-                  className={`w-full rounded-lg px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${mutedCls} hover:opacity-80`}
-                >
-                  取消
-                </button>
-              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  void handleQrFile(e.target.files?.[0])
+                  e.target.value = ''
+                }}
+              />
+              {/* R5-B2:提示/错误行(识别中/两类失败文案;仅上传视图渲染,视图切换不清) */}
+              {qrHint ? (
+                <p className={`text-center text-xs ${mutedCls}`}>{qrHint}</p>
+              ) : null}
+              {/* R5-B2:返回登录(品牌红文字钮;解码失败留驻本视图) */}
+              <button
+                type="button"
+                onClick={() => setView('login')}
+                className="w-full rounded-lg px-4 py-2 text-center text-sm font-semibold text-[#dc2626] transition-colors hover:text-[#b91c1c]"
+              >
+                {BACK_TO_LOGIN_TEXT}
+              </button>
             </>
           )}
         </div>

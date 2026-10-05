@@ -128,18 +128,9 @@ export function isMemberExpiringSoon(
   return time - now <= MEMBER_NAV_EXPIRING_SOON_DAYS * 86400_000
 }
 
-/** 皇冠图标(R4-B3 起导出,供 pricing CTA/公告卡按钮复用) */
+/** 皇冠图标（R4-B3 起导出；R5-B1 改实心填充，色由调用方 className 给出） */
 export const CrownIcon = ({ className = '' }: { className?: string }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    aria-hidden="true"
-  >
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
     <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.6 10.2a1 1 0 0 1-1 .8H5.6a1 1 0 0 1-1-.8L3 8z" />
   </svg>
 )
@@ -284,7 +275,7 @@ function JoinButton({ variant }: { variant: MemberNavVariant }) {
         aria-label={MEMBER_NAV_JOIN_LABEL}
         className="flex h-[26px] items-center justify-center gap-1.5 rounded-md bg-[#dc2626] px-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#b91c1c]"
       >
-        <CrownIcon className="h-4 w-4 shrink-0" />
+        <CrownIcon className="h-4 w-4 shrink-0 text-[#FACC15]" />
         <span className="whitespace-nowrap">{MEMBER_NAV_JOIN_LABEL}</span>
       </Link>
     )
@@ -296,7 +287,7 @@ function JoinButton({ variant }: { variant: MemberNavVariant }) {
         aria-label={MEMBER_NAV_JOIN_LABEL}
         className="flex h-10 w-full items-center justify-center gap-1.5 rounded-2xl bg-[#dc2626] px-4 text-sm font-semibold text-white shadow-[0px_0px_14px_-5px_rgb(186_186_186/70%)] transition-all hover:bg-[#b91c1c] active:scale-[0.98]"
       >
-        <CrownIcon className="h-4 w-4 shrink-0" />
+        <CrownIcon className="h-4 w-4 shrink-0 text-[#FACC15]" />
         <span>{MEMBER_NAV_JOIN_LABEL}</span>
       </Link>
     )
@@ -308,7 +299,7 @@ function JoinButton({ variant }: { variant: MemberNavVariant }) {
         aria-label={MEMBER_NAV_JOIN_LABEL}
         className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-red-500/70 py-2 text-center text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
       >
-        <CrownIcon className="h-4 w-4 shrink-0" />
+        <CrownIcon className="h-4 w-4 shrink-0 text-[#FACC15]" />
         <span>{MEMBER_NAV_JOIN_LABEL}</span>
       </Link>
     )

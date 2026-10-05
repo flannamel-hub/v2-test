@@ -295,7 +295,7 @@ export const StatsWidget = ({
                     transition-all duration-300
                     hover:from-[#d94040] hover:to-[#b81c22] hover:scale-[1.02] active:scale-95"
                 >
-                  <CrownIcon className="h-3 w-3 shrink-0 text-amber-300" />
+                  <CrownIcon className="h-3 w-3 shrink-0 text-[#FACC15]" />
                   <span>{MEMBER_NAV_JOIN_LABEL}</span>
                 </button>
                 <button

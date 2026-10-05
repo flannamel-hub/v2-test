@@ -18,11 +18,10 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  *   intro/benefits/guarantee 逐段取 membership.copy,缺省/空回落内置默认
  *   (未编辑站零视觉变化);
  * - 档位/权益卡组:config.plans 逐档({days} 天 / ¥{price} + 权益要点);
- * - 主 CTA:guest →「订阅」直链 ${NEXT_PUBLIC_STORE_URL}/p/{sku}?go=1 同窗
- *   (R1 直达化;storeUrl 空时 preventDefault 先例照旧;登录转次级入口
- *   「已有会员码？登录」开 W1 弹窗);active →「订阅」跳 store 新开链
- *   ${NEXT_PUBLIC_STORE_URL}/p/{sku}(Q4:无 renew 场景取环境变量,不取中心 store_url);
- *   expired →「续费」走 /api/member/renew-url;
+ * - 主 CTA:guest →「立即购买」直链 ${NEXT_PUBLIC_STORE_URL}/p/{sku}?go=1 同窗
+ *   (R1 直达化;storeUrl 空时 preventDefault 先例照旧);active →「立即购买」跳
+ *   store 新开链 ${NEXT_PUBLIC_STORE_URL}/p/{sku}(Q4:无 renew 场景取环境变量,
+ *   不取中心 store_url);expired →「续费」走 /api/member/renew-url;
  * - R2-B5a R2:挂载读一次 router.query.handoff === 'failed' → 一次性轻提示行
  *   (handoff 失败落点已改 /pricing?handoff=failed)+ 登录弹窗次入口;
  * - 保障说明块。挂载即探测一次 session(无双轮询)。
@@ -176,7 +175,7 @@ export function PricingPageContent({
       : panelTheme === 'light'
         ? 'text-neutral-900'
         : 'text-neutral-900 dark:text-white'
-  // R4-B3:CTA 统一红底+黄冠(primaryButtonCls 三处引用均在 renderCta 内,已随改移除)
+  // R4-B3:CTA 统一红底;R5-B1:皇冠改实心金 #FACC15(primaryButtonCls 三处引用均在 renderCta 内,已随改移除)
   const ctaButtonCls = 'bg-[#dc2626] hover:bg-[#b91c1c]'
 
   const storeUrl = resolveStoreUrl()
@@ -192,7 +191,7 @@ export function PricingPageContent({
           disabled={busy}
           className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${ctaButtonCls}`}
         >
-          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
           <span>{busy ? '跳转中…' : '续费'}</span>
         </button>
       )
@@ -208,32 +207,23 @@ export function PricingPageContent({
           }}
           className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
         >
-          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-300" />
-          <span>立即订阅</span>
+          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
+          <span>立即购买</span>
         </a>
       )
     }
-    // guest(含 probing;R1 直达化:主按钮「立即订阅」直链同窗,登录转次级入口)
+    // guest(含 probing;R1 直达化:主按钮「立即购买」直链同窗;R5-B3 删登录次级行,单钮与 active 同构)
     return (
-      <div className="flex flex-col gap-2">
-        <a
-          href={storeUrl ? `${storeUrl}/p/${sku}?go=1` : '#'}
-          onClick={(e) => {
-            if (!storeUrl) e.preventDefault()
-          }}
-          className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
-        >
-          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-300" />
-          <span>立即订阅</span>
-        </a>
-        <button
-          type="button"
-          onClick={() => setLoginOpen(true)}
-          className={`text-xs font-medium transition-colors hover:underline ${mutedCls}`}
-        >
-          已有会员码？登录
-        </button>
-      </div>
+      <a
+        href={storeUrl ? `${storeUrl}/p/${sku}?go=1` : '#'}
+        onClick={(e) => {
+          if (!storeUrl) e.preventDefault()
+        }}
+        className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
+      >
+        <CrownIcon className="h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
+        <span>立即购买</span>
+      </a>
     )
   }
 

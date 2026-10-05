@@ -101,12 +101,23 @@ export const getStaticProps: GetStaticProps = withNavFooterStaticProps(
       null
 
     if (!page) {
+      // 站点会员 R5-B4:pricing 无 Notion 页兜底也补 widgets(tweet 壳 profile 依赖);
+      // R1 门控:仅 pricingMembership 非空才加载(未知 slug/404 不触发 loadHomeWidgets 全链)
+      let widgets: Record<string, unknown> = {}
+      if (pricingMembership) {
+        try {
+          widgets = await loadHomeWidgets()
+        } catch (widgetError) {
+          console.error(`[page/${slug}] widgets error:`, widgetError)
+        }
+      }
       return {
         props: JSON.parse(
           JSON.stringify({
             ...sharedPageStaticProps.props,
             page: null,
             blocks: [],
+            widgets,
             pricingMembership,
           })
         ),
