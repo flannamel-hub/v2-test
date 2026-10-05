@@ -13,6 +13,7 @@ import { fetchMerchantProductBySku, isMerchantProductOnSale } from '@/src/lib/sh
 import { getStoreUrl, buildProductUrl } from '@/src/lib/shop/shopCart';
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
 import { getGalleryFeatureEnabled } from '@/src/lib/blog/galleryFeatureGate';
+import { getEffectiveMembershipConfig } from '@/src/lib/blog/membershipGate';
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue';
 import { collectPostRevalidatePaths } from '@/src/lib/blog/contentRevalidation';
 import { invalidateMemberContentCache } from '@/src/lib/blog/memberContentCache';
@@ -26,6 +27,18 @@ const notion = new Client({
 const n2m = new NotionToMarkdown({ notionClient: notion });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * R2-B5b W4:shop 系主题归一判定(纯函数,导出供 tests/member-r2-theme-guard 直测)。
+ * 镜像 src/themes/registry.ts resolveThemeId 的 shop 别名族:
+ * shop/mall → shop、shop-v2/shopv2 → shop-v2(大小写/首尾空白容错)。
+ * 不直接 import registry——那会把 React 主题组件树(Home 组件 tsx 链)拉进
+ * API 路由 bundle 与 node 测试链;此处仅取其归一语义(勿照抄裸串比较,勘误 E4)。
+ */
+export function isShopThemeCode(code) {
+  const c = String(code || '').trim().toLowerCase();
+  return c === 'shop' || c === 'mall' || c === 'shop-v2' || c === 'shopv2';
+}
 
 // 网络抖动(ECONNRESET 等)自动重试：本地到 api.notion.com 偶发连接重置时不至于整单失败
 const isTransient = (e) => {
@@ -1054,6 +1067,16 @@ export default async function handler(req, res) {
             const galleryEnabled = await getGalleryFeatureEnabled();
             if (!galleryEnabled) {
               return res.status(403).json({ success: false, error: '该主题当前不可用' });
+            }
+          }
+          // R2-B5b W4:站点会员模式下禁用 shop 系主题(归一判定,覆盖 mall/shopv2 别名)。
+          // 双门口径 = getEffectiveMembershipConfig()(plan pro 且 membership.enabled);
+          // 落点在 gallery 守卫之后、配额校验之前;拒绝即 return——
+          // 不写 Notion、不写 DB、不耗主题切换配额。
+          if (isShopThemeCode(nextThemeCode)) {
+            const membershipConfig = await getEffectiveMembershipConfig();
+            if (membershipConfig) {
+              return res.status(403).json({ success: false, error: '已启用站点会员，shop 主题不可用' });
             }
           }
           try {

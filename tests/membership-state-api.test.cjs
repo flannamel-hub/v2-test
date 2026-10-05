@@ -1,4 +1,6 @@
 /** 站点会员 B3:GET /api/admin/membership-state 端点测试(§9.3)。
+ * R2-B5b R1:响应新增 vending(blog_site_settings.vending_enabled 镜像,fail-open false)
+ * ——deepEqual 断言改逐字段,并补 vending true/false 用例。
  * 路线=复用既有桩(§16-Q6):真实 membershipGate/quotaState +
  * 既有 tests/stubs/membership-admin-stub.cjs / membership-blogsite-stub.cjs +
  * 新增 verifyAdminRequest 桩(与 roundtrip 测试共享)。 */
@@ -183,12 +185,49 @@ test('非 GET → 405 + Allow: GET', async () => {
   assert.equal(res.headers.allow, 'GET')
 })
 
-test('成功(pro+enabled) → {success:true, plan:pro, enabled:true}', async () => {
+test('成功(pro+enabled) → {success:true, plan:pro, enabled:true, vending}', async () => {
   enableMembership({ plan: 'pro', enabled: true })
   const res = createResponse()
   await stateHandler(createRequest(), res)
   assert.equal(res.statusCode, 200)
-  assert.deepEqual(res.body, { success: true, plan: 'pro', enabled: true })
+  // R2-B5b W3:响应新增 vending 字段——deepEqual 改逐字段断言
+  assert.equal(res.body.success, true)
+  assert.equal(res.body.plan, 'pro')
+  assert.equal(res.body.enabled, true)
+  assert.equal(res.body.vending, false)
+})
+
+test('成功(pro+enabled+vending_enabled 镜像) → vending:true', async () => {
+  enableMembership({
+    plan: 'pro',
+    enabled: true,
+    membershipRow: {
+      membership: { enabled: true, plans: [{ days: 30, price: 29, sku: 'MEM-30' }], copy: null },
+      vending_enabled: true,
+    },
+  })
+  const res = createResponse()
+  await stateHandler(createRequest(), res)
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.success, true)
+  assert.equal(res.body.enabled, true)
+  assert.equal(res.body.vending, true)
+})
+
+test('free+enabled+vending_enabled → vending:true(与 plan 双门无关)', async () => {
+  enableMembership({
+    plan: 'free',
+    membershipRow: {
+      membership: { enabled: true, plans: [], copy: null },
+      vending_enabled: true,
+    },
+  })
+  const res = createResponse()
+  await stateHandler(createRequest(), res)
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.plan, 'free')
+  assert.equal(res.body.enabled, true)
+  assert.equal(res.body.vending, true)
 })
 
 test('free → plan:free(enabled 为原始读不受 plan 双门影响)', async () => {
@@ -201,12 +240,15 @@ test('free → plan:free(enabled 为原始读不受 plan 双门影响)', async (
   assert.equal(res.body.enabled, true)
 })
 
-test('membership 读 null(未配置行) → enabled:false', async () => {
+test('membership 读 null(未配置行) → enabled:false, vending:false', async () => {
   enableMembership({ plan: 'pro', membershipRow: null })
   const res = createResponse()
   await stateHandler(createRequest(), res)
   assert.equal(res.statusCode, 200)
-  assert.deepEqual(res.body, { success: true, plan: 'pro', enabled: false })
+  assert.equal(res.body.success, true)
+  assert.equal(res.body.plan, 'pro')
+  assert.equal(res.body.enabled, false)
+  assert.equal(res.body.vending, false)
 })
 
 test('依赖抛错 → 500 {success:false}', async () => {

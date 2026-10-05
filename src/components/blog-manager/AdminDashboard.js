@@ -51,7 +51,7 @@ import EditorTourDoneModal from './EditorTourDoneModal';
 import WelcomeTourModal from './WelcomeTourModal';
 // 派工单 B3:后台「数据统计」面板(独立文件,AdminDashboard 只做引入与视图接线)
 import StatsPanel from './StatsPanel';
-import { FiBarChart2, FiTool } from 'react-icons/fi';
+import { FiBarChart2, FiTool, FiAward } from 'react-icons/fi';
 import {
   createEditorBlock,
   getEditorBlockLockPwd,
@@ -399,16 +399,19 @@ const GlobalStyle = () => (
     .block-cover-hint { margin-bottom: 16px; font-size: 12px; color: #999; background: #202024; border-radius: 8px; padding: 12px 14px; line-height: 1.7; border: 1px solid #333; }
     .block-card-wrap.is-file-drop-before .block-card { border-color: greenyellow; box-shadow: inset 0 4px 0 0 greenyellow, 0 0 18px rgba(173, 255, 47, 0.4); }
     .block-card-wrap.is-file-drop-after .block-card { border-color: greenyellow; box-shadow: inset 0 -4px 0 0 greenyellow, 0 0 18px rgba(173, 255, 47, 0.4); }
-    /* 站点会员 B3:member 分隔线卡片与「会员专属」分区(灰阶;细实线+内微光+柔和投影) */
+    /* 站点会员 B3/R2-B5b:member 区段头卡与「会员专属」分区(灰阶;细实线+内微光+柔和投影;禁大面积亮绿) */
     .block-card-wrap.is-member-marker .block-card { border-color:#45454d; background:#26262a; }
     .block-card-wrap.is-member-marker:hover .block-card { border-color:#55555e; }
-    .block-card-wrap.in-member-zone .block-card { border-color:#3a3a42; background:#26262a; box-shadow: inset 3px 0 0 rgba(255,255,255,0.10); }
-    .block-card-wrap.in-member-zone:hover .block-card { border-color:#4a4a52; }
-    .member-marker-box { padding: 2px 0; }
-    .member-marker-line { display:flex; align-items:center; gap:12px; color:#d6d6db; font-size:13px; font-weight:600; letter-spacing:0.5px; }
-    .member-marker-line::before, .member-marker-line::after { content:''; flex:1; height:1px; background:#3d3d44; }
-    .member-marker-caption { margin-top:8px; font-size:12px; color:#8a8a92; text-align:center; }
-    .member-marker-warn { margin-top:6px; font-size:12px; color:#fbbf24; text-align:center; }
+    .block-card-wrap.in-member-zone .block-card { border-color:#3a3a42; background:#242428; box-shadow: inset 2px 0 0 rgba(255,255,255,0.09); }
+    .block-card-wrap.in-member-zone:hover .block-card { border-color:#4a4a52; box-shadow: inset 2px 0 0 rgba(255,255,255,0.12), 0 0 14px rgba(255,255,255,0.04); }
+    /* R2-B5b W1-c:分隔线卡 → 区段头卡(皇冠线性图标 + 标题 + 右侧块计数) */
+    .member-marker-box { padding: 4px 2px; }
+    .member-marker-head { display: flex; align-items: center; gap: 10px; color: #d6d6db; }
+    .member-marker-crown { display: inline-flex; color: #c9c9d1; flex-shrink: 0; }
+    .member-marker-title { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+    .member-marker-count { margin-left: auto; font-size: 12px; color: #8a8a92; border: 1px solid #3d3d44; border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
+    .member-marker-caption { margin-top: 8px; font-size: 12px; color: #8a8a92; }
+    .member-marker-warn { margin-top: 6px; font-size: 12px; color: #fbbf24; }
     .block-add-toolbar .neo-btn.is-disabled { opacity:.45; cursor:not-allowed; }
     .block-add-toolbar .neo-btn.is-disabled:hover { transform:none; box-shadow:none; background:var(--bg); color:#fff; border-color:var(--bg); }
     .block-minimap-item.is-member-marker { border-color:#5a5a64; }
@@ -2900,6 +2903,19 @@ function formatThemeSwitchQuotaHint(quota) {
   return `24 小时内最多切换 ${quota.maxSwitches} 次`;
 }
 const lightSpinStyle = { width: '13px', height: '13px', border: '2px solid rgba(255,255,255,0.25)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'imgspin 0.8s linear infinite', verticalAlign: 'middle' };
+// R2-B5b W1-a:会员说明页默认文案——镜像 src/components/member/PricingPageContent.tsx 的
+// PRICING_INTRO_TEXT/PRICING_BENEFIT_ITEMS/PRICING_GUARANTEE_TEXT(不 import 该文件,
+// 避免把 'use client' 组件链拉进后台 bundle);两处需同步修改。
+const PRICING_COPY_DEFAULTS = {
+  intro: '本博客开通了站点会员。订阅后即可阅读站内全部会员专属内容；会员期内不限次数阅读，到期后会员内容将重新锁定，续费即可恢复。',
+  benefits: ['解锁站内全部会员专属内容', '会员期内不限次数阅读', '到期前可随时续费，时长顺延'],
+  guarantee: '权益保障：会员权益调整会提前公告；如遇不可用问题可通过站内联系方式反馈，我们会尽快处理。',
+};
+/** benefits 编辑器初值:有非空条目用库值,否则回落默认 3 条(与前台 resolvePricingCopy 口径一致) */
+const normalizePricingBenefitsForEditor = (benefits) => {
+  const list = Array.isArray(benefits) ? benefits.filter((s) => typeof s === 'string' && s.trim()) : [];
+  return list.length > 0 ? list.map((s) => s.trim().slice(0, 120)) : [...PRICING_COPY_DEFAULTS.benefits];
+};
 const blogRefreshSpinStyle = { width: '13px', height: '13px', border: '2px solid rgba(173,255,47,0.25)', borderTopColor: 'greenyellow', borderRadius: '50%', display: 'inline-block', animation: 'imgspin 0.8s linear infinite', verticalAlign: 'middle', flexShrink: 0 };
 const fmtStyle = (b) => ({
   fontWeight: b.bold ? 'bold' : 'normal',
@@ -2950,7 +2966,8 @@ const BLOCK_TYPE_SHORT = {
   ul: '无序',
   todo: '待办',
   toggle: '折叠',
-  member: '会员',
+  // R2-B5b W1-c:minimap 分区标记标题化「会员区」
+  member: '会员区',
 };
 
 // R19: 纯展示卡片（序号徽标/类型行/锁标/封面标/缩略图/预览文本），供排序列表项与 DragOverlay 幽灵卡共用；
@@ -2983,7 +3000,7 @@ const BlockMinimapCard = ({
     ).trim();
     if (block.type === 'link') return raw || block.url || '';
     if (block.type === 'lock') return raw || (block.images?.length ? `${block.images.length} 张加密图片` : '');
-    if (block.type === 'member') return '下方为会员专属内容';
+    if (block.type === 'member') return '以下为会员专属内容区';
     return raw;
   })();
   const thumbUrl =
@@ -3127,7 +3144,7 @@ const BLOCK_TYPE_OPTIONS = [
   { type: 'link', label: '🔗 超链文字' },
   { type: 'note', label: '💬 注释' },
   { type: 'lock', label: '🔒 加密盒子' },
-  { type: 'member', label: '会员内容分隔线' },
+  { type: 'member', label: '👑 会员专属内容区' },
   { type: 'ol', label: '🔢 有序列表' },
   { type: 'ul', label: '• 无序列表' },
   { type: 'toggle', label: '▶ 折叠内容' },
@@ -3889,7 +3906,7 @@ const BlockBuilder = ({
   const getBlockLabel = (type) => {
       if (type === 'h1') return 'H1 标题';
       if (type === 'lock') return '🔒 加密盒子';
-      if (type === 'member') return '会员内容分隔线';
+      if (type === 'member') return '👑 会员专属内容区';
       if (type === 'note') return '💬 注释';
       if (type === 'image') return '🖼️ 图片块';
       if (type === 'quote') return '❝ 引用';
@@ -4008,7 +4025,7 @@ const BlockBuilder = ({
           <div className="neo-btn" onClick={()=>addBlock('image')}>正文图片</div>
           <div className="neo-btn" onClick={()=>addBlock('link')}>超链文字</div>
           <div className="neo-btn" onClick={()=>addBlock('lock')}>🔒 加密盒子</div>
-          <div className={`neo-btn${memberGate.canAdd ? '' : ' is-disabled'}`} onClick={()=>addBlock('member')} title={memberGate.canAdd ? '插入会员内容分隔线：分隔线以下内容仅登录会员可见（仅允许一条）' : memberGate.hint}>会员内容分隔线</div>
+          <div className={`neo-btn${memberGate.canAdd ? '' : ' is-disabled'}`} onClick={()=>addBlock('member')} title={memberGate.canAdd ? '插入会员专属内容区：区段内内容仅登录会员可见（仅允许一条）' : memberGate.hint}>会员专属内容区</div>
           <div className="neo-btn" onClick={()=>addBlock('quote')}>❝ 引用</div>
           <div className="neo-btn" onClick={()=>addBlock('note')}>💬 注释</div>
           <div className="neo-btn" onClick={()=>addBlock('ol')}>🔢 有序列表</div>
@@ -4319,14 +4336,22 @@ const BlockBuilder = ({
                   {b.error && <div className="img-err">⚠ {b.error}</div>}
                 </div>
              )}
-             {b.type === 'member' && (
-               <div className="member-marker-box">
-                 <div className="member-marker-line"><span>会员专属内容</span></div>
-                 <div className="member-marker-caption">分隔线以下内容仅登录会员可见；不会出现在文章源码中</div>
-                 {memberGate.loaded && !memberGate.canAdd && <div className="member-marker-warn">站点会员当前不可用：分隔线以下内容访客不可见</div>}
-                 {isExtraMember && <div className="member-marker-warn">已有其它分隔线生效：保存后仅保留第一条，此条将被移除</div>}
-               </div>
-             )}
+              {b.type === 'member' && (
+                /* R2-B5b W1-c:区段头卡(静态头部,不做折叠——SortableContext/DragOverlay 错位风险,§10.3);
+                   计数 N=标记之后全部块数(含多余分隔线) */
+                <div className="member-marker-box">
+                  <div className="member-marker-head">
+                    <span className="member-marker-crown" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 18h20M3 7l4.5 4L12 4l4.5 7L21 7l-1.6 9H4.6L3 7z"/></svg>
+                    </span>
+                    <span className="member-marker-title">会员专属内容</span>
+                    <span className="member-marker-count">{blocks.length - index - 1} 个内容块</span>
+                  </div>
+                  <div className="member-marker-caption">以下内容仅登录会员可见；不会出现在文章源码中</div>
+                  {memberGate.loaded && !memberGate.canAdd && <div className="member-marker-warn">站点会员当前不可用：以下内容访客不可见</div>}
+                  {isExtraMember && <div className="member-marker-warn">已有其它分隔线生效：保存后仅保留第一条，此条将被移除</div>}
+                </div>
+              )}
              {b.type === 'image' && (
                <label
                  className={`img-drop ${b.error ? 'err' : ''}`}
@@ -4494,7 +4519,7 @@ const NotionView = ({ blocks }) => {
         if(type==='divider') return <hr key={i} style={{border:'none', borderTop:'1px solid #444', margin:'24px 0'}} />;
         if(type==='image') { const url = data?.file?.url || data?.external?.url; if (!url) return null; const isVideo = url.match(/\.(mp4|mov|webm|ogg)(\?|$)/i); if(isVideo) return <div key={i} style={{display:'flex', justifyContent:'center', margin:'20px 0'}}><div style={{width:'100%', maxHeight:'500px', borderRadius:'8px', background:'#000', display:'flex', justifyContent:'center'}}><video src={url} controls preload="metadata" style={{maxWidth:'100%', maxHeight:'100%'}} /></div></div>; return <div key={i} style={{display:'flex', justifyContent:'center', margin:'20px 0'}}><div style={{width: '100%', height: '500px', background: '#000', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden'}}><img src={url} style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain'}} alt="" /></div></div>; }
         if(type==='video' || type==='embed') { let url = data?.file?.url || data?.external?.url || data?.url; if(!url) return null; const isY = url.includes('youtube')||url.includes('youtu.be'); if(isY){if(url.includes('watch?v='))url=url.replace('watch?v=','embed/');if(url.includes('youtu.be/'))url=url.replace('youtu.be/','www.youtube.com/embed/');} return <div key={i} style={{display:'flex', justifyContent:'center', margin:'20px 0'}}>{(type==='embed'||isY)?<iframe src={url} style={{width:'100%',maxWidth:'800px',height:'450px',border:'none',borderRadius:'8px',background:'#000'}} allowFullScreen />:<video src={url} controls style={{width:'100%',maxHeight:'500px',borderRadius:'8px',background:'#000'}}/>}</div>; }
-        if(type==='callout' && (text || '').trim() === 'MEMBER:') return <div key={i} style={{background:'#2d2d30', padding:'20px', borderRadius:'12px', border:'1px solid #3e3e42', margin:'20px 0', color:'#a8a8b0', fontSize:'13px', letterSpacing:'0.5px', textAlign:'center'}}>—— 会员内容分隔线 ——（下方为会员专属内容）</div>;
+        if(type==='callout' && (text || '').trim() === 'MEMBER:') return <div key={i} style={{background:'#2d2d30', padding:'20px', borderRadius:'12px', border:'1px solid #3e3e42', margin:'20px 0', color:'#a8a8b0', fontSize:'13px', letterSpacing:'0.5px', textAlign:'center'}}>—— 会员专属内容区 ——（以下仅登录会员可见）</div>;
         if(type==='callout') return <div key={i} style={{background:'#2d2d30', padding:'20px', borderRadius:'12px', border:'1px solid #3e3e42', display:'flex', gap:'15px', margin:'20px 0'}}><div style={{fontSize:'1.4em'}}>{b.callout.icon?.emoji || '🔒'}</div><div style={{flex:1}}><div style={{fontWeight:'bold', color:'greenyellow', marginBottom:'4px'}}>{text}</div><div style={{fontSize:'12px', opacity:0.5}}>[ 加密内容已受保护 ]</div></div></div>;
         return null;
       })}
@@ -4740,7 +4765,16 @@ const [mounted, setMounted] = useState(false);
   const [galleryFeatureEnabled, setGalleryFeatureEnabled] = useState(false);
   const [galleryFeatureLoaded, setGalleryFeatureLoaded] = useState(false);
   // 站点会员 B3:编辑器门控(只读;失败/未加载一律按不可用 fail-closed)
-  const [memberGateState, setMemberGateState] = useState({ loaded: false, plan: null, enabled: false });
+  // R2-B5b W3:vending=贩售模式镜像态(/api/admin/membership-state 新增字段;fail-open false)
+  const [memberGateState, setMemberGateState] = useState({ loaded: false, plan: null, enabled: false, vending: false });
+  // R2-B5b W1-a:「会员说明页」文案面板(GET/POST /api/admin/pricing-copy;plans 只读随商户联动)
+  const [pricingCopyLoading, setPricingCopyLoading] = useState(false);
+  const [pricingCopySaving, setPricingCopySaving] = useState(false);
+  const [pricingCopyIntro, setPricingCopyIntro] = useState('');
+  const [pricingCopyBenefits, setPricingCopyBenefits] = useState(['', '', '']);
+  const [pricingCopyGuarantee, setPricingCopyGuarantee] = useState('');
+  const [pricingCopyPlans, setPricingCopyPlans] = useState([]);
+  const [pricingCopyDirty, setPricingCopyDirty] = useState(false);
   // 【版本修复】页:解锁弹窗与页内保存状态
   const [versionRepairUnlockOpen, setVersionRepairUnlockOpen] = useState(false);
   const [versionRepairUnlockClosing, setVersionRepairUnlockClosing] = useState(false);
@@ -5419,13 +5453,37 @@ const [mounted, setMounted] = useState(false);
   };
 
   // 站点会员 B3:读取编辑器门控(plan+平台开通态;失败按 free/未开通 fail-closed)
+  // R2-B5b W3:响应新增 vending(贩售模式镜像;读失败按 false)
   const loadMembershipState = async () => {
     try {
       const r = await fetch('/api/admin/membership-state', { cache: 'no-store' });
       const d = await r.json();
-      if (d && d.success) setMemberGateState({ loaded: true, plan: d.plan === 'pro' ? 'pro' : 'free', enabled: !!d.enabled });
-      else setMemberGateState({ loaded: true, plan: 'free', enabled: false });
-    } catch { setMemberGateState({ loaded: true, plan: 'free', enabled: false }); }
+      if (d && d.success) setMemberGateState({ loaded: true, plan: d.plan === 'pro' ? 'pro' : 'free', enabled: !!d.enabled, vending: d.vending === true });
+      else setMemberGateState({ loaded: true, plan: 'free', enabled: false, vending: false });
+    } catch { setMemberGateState({ loaded: true, plan: 'free', enabled: false, vending: false }); }
+  };
+
+  // R2-B5b W1-a:拉取会员说明页文案(copy 三字段 + plans 只读区;失败按空态显示)
+  const loadPricingCopy = async () => {
+    setPricingCopyLoading(true);
+    try {
+      const r = await fetch('/api/admin/pricing-copy', { cache: 'no-store' });
+      const d = await r.json();
+      if (d && d.success) {
+        setPricingCopyPlans(Array.isArray(d.plans) ? d.plans : []);
+        const copy = d.copy || null;
+        setPricingCopyIntro(copy?.intro || PRICING_COPY_DEFAULTS.intro);
+        setPricingCopyBenefits(normalizePricingBenefitsForEditor(copy?.benefits));
+        setPricingCopyGuarantee(copy?.guarantee || PRICING_COPY_DEFAULTS.guarantee);
+      } else {
+        setPricingCopyPlans([]);
+      }
+    } catch {
+      setPricingCopyPlans([]);
+    } finally {
+      setPricingCopyLoading(false);
+      setPricingCopyDirty(false);
+    }
   };
 
   // 🟢 4. 数据拉取函数 (提前定义)
@@ -6587,6 +6645,69 @@ const [mounted, setMounted] = useState(false);
   // 派工单 B3:数据统计面板(面板自身挂载时拉取 /api/admin/stats,此处仅切视图)
   const openStats = () => {
     setView('stats');
+  };
+  // R2-B5b W1-a:「会员说明页」面板(挂载拉取;与贩售机面板同级入口)
+  // 门控三态原因,优先级:未开通 > 贩售 > 专业版(free+enabled+vending 边缘组合显示贩售原因,同样锁定)
+  const pricingCopyLockedReason = !memberGateState.enabled
+    ? '站点会员未开通'
+    : memberGateState.vending
+      ? '贩售模式启用中'
+      : memberGateState.plan !== 'pro'
+        ? '专业版权益'
+        : '';
+  const pricingCopyLocked = Boolean(pricingCopyLockedReason);
+  const openPricingCopy = () => {
+    setView('pricing-copy');
+    loadPricingCopy();
+  };
+  const updatePricingBenefit = (idx, value) => {
+    setPricingCopyBenefits((prev) => prev.map((item, i) => (i === idx ? String(value || '').slice(0, 120) : item)));
+    setPricingCopyDirty(true);
+  };
+  const addPricingBenefit = () => {
+    if (pricingCopyBenefits.length >= 8) return;
+    setPricingCopyBenefits((prev) => [...prev, '']);
+    setPricingCopyDirty(true);
+  };
+  const removePricingBenefit = (idx) => {
+    setPricingCopyBenefits((prev) => prev.filter((_, i) => i !== idx));
+    setPricingCopyDirty(true);
+  };
+  const movePricingBenefit = (idx, dir) => {
+    const target = idx + dir;
+    if (target < 0 || target >= pricingCopyBenefits.length) return;
+    setPricingCopyBenefits((prev) => {
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+    setPricingCopyDirty(true);
+  };
+  const savePricingCopy = async () => {
+    if (pricingCopySaving) return; // 进行中早退
+    if (pricingCopyLocked) return; // 门控灰态兜底(按钮已禁用)
+    setPricingCopySaving(true);
+    try {
+      const r = await fetch('/api/admin/pricing-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intro: pricingCopyIntro.trim(),
+          benefits: pricingCopyBenefits.map((s) => String(s || '').trim()).filter(Boolean),
+          guarantee: pricingCopyGuarantee.trim(),
+        }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        const copy = d.copy || null;
+        setPricingCopyIntro(copy?.intro || PRICING_COPY_DEFAULTS.intro);
+        setPricingCopyBenefits(normalizePricingBenefitsForEditor(copy?.benefits));
+        setPricingCopyGuarantee(copy?.guarantee || PRICING_COPY_DEFAULTS.guarantee);
+        setPricingCopyDirty(false);
+        showAdminToast('已保存，约 1 分钟内生效');
+      } else alert('保存失败：' + (d.error || '未知错误'));
+    } catch (e) { alert('保存失败：' + e.message); }
+    finally { setPricingCopySaving(false); }
   };
   const toggleContentProtect = async (next) => {
     if (contentProtectSaving) return; // P11-C3: 进行中早退
@@ -9577,8 +9698,13 @@ const [mounted, setMounted] = useState(false);
                           {formatThemeSwitchQuotaHint(themeSwitchQuota) || '选择主题'}
                         </div>
                         {/* 图库基座手术批2:图库开关关闭时菜单隐藏 gallery 项;特例(评审C9)——当前主题已是 gallery 时保留当前项与「生效中」标记;触发按钮标签仍按全量 currentTheme 计算 */}
+                        {/* R2-B5b W1-b:会员模式(双门=pro 且 enabled)下 shop/shop-v2 灰态只封「切入」——
+                            当前主题=shop 时保留「生效中」并允许切出,存量 shop 站不被锁死 */}
                         {ADMIN_THEMES.filter(t => galleryFeatureEnabled || t.id !== 'gallery' || currentActiveTheme === 'gallery').map(t => {
                           const active = currentActiveTheme === t.id;
+                          const memberShopLocked = memberGateState.loaded && memberGateState.plan === 'pro' && memberGateState.enabled === true;
+                          // 灰态只封切入:当前生效中的 shop 卡不灰(允许切出到其它主题)
+                          const shopLocked = !active && memberShopLocked && (t.id === 'shop' || t.id === 'shop-v2');
                           const switchBlocked = !active && themeSwitchQuota.blocked;
                           const blockedHint = switchBlocked
                             ? formatThemeSwitchQuotaRemaining(themeSwitchQuota.remainingMs)
@@ -9586,6 +9712,10 @@ const [mounted, setMounted] = useState(false);
                           return (
                             <div key={t.id}
                               onClick={() => {
+                                if (shopLocked) {
+                                  alert('已启用站点会员，shop 主题不可用');
+                                  return;
+                                }
                                 if (active || switchBlocked) {
                                   if (switchBlocked) {
                                     alert(blockedHint || '24 小时内主题切换已达上限');
@@ -9595,15 +9725,15 @@ const [mounted, setMounted] = useState(false);
                                 setThemeMenuOpen(false);
                                 handleThemeChange(t.id);
                               }}
-                              style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', cursor: active ? 'default' : (switchBlocked ? 'not-allowed' : 'pointer'), background: active ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${active ? t.color : 'transparent'}`, marginBottom: '4px', opacity: switchBlocked ? 0.45 : 1 }}
-                              onMouseEnter={e => { if (!active && !switchBlocked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                              onMouseLeave={e => { if (!active && !switchBlocked) e.currentTarget.style.background = 'transparent'; }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', cursor: active ? 'default' : (switchBlocked || shopLocked ? 'not-allowed' : 'pointer'), background: active ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${active ? t.color : 'transparent'}`, marginBottom: '4px', opacity: switchBlocked || shopLocked ? 0.45 : 1 }}
+                              onMouseEnter={e => { if (!active && !switchBlocked && !shopLocked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                              onMouseLeave={e => { if (!active && !switchBlocked && !shopLocked) e.currentTarget.style.background = 'transparent'; }}
                             >
                               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: t.color, flexShrink: 0, boxShadow: active ? `0 0 8px ${t.color}` : 'none' }} />
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>{t.label}</div>
-                                <div style={{ fontSize: '11px', color: switchBlocked ? '#f97316' : '#888', marginTop: '2px' }}>
-                                  {switchBlocked ? blockedHint : t.desc}
+                                <div style={{ fontSize: '11px', color: shopLocked ? '#f97316' : switchBlocked ? '#f97316' : '#888', marginTop: '2px' }}>
+                                  {shopLocked ? '已启用会员服务，shop 主题不可用' : switchBlocked ? blockedHint : t.desc}
                                 </div>
                               </div>
                               {active && <span style={{ color: t.color, fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>● 生效中</span>}
@@ -9789,6 +9919,16 @@ const [mounted, setMounted] = useState(false);
                     <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>今日实时与近 30 天浏览、访客来源</div>
                   </div>
                   <div style={{ color: '#c084fc', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
+                </div>
+              )}
+              {activeTab === 'Widget' && viewMode !== 'folder' && (
+                <div onClick={openPricingCopy} className="card-item" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 24px', background: 'linear-gradient(90deg,#3a3a3f,#2c2c30)', borderRadius: '12px', marginBottom: '12px', border: '1px solid #eab308', cursor: 'pointer' }}>
+                  <div style={{ width: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FiAward size={24} color="#eab308" /></div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '17px', color: '#fff' }}>会员说明页</div>
+                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>编辑「会员说明」页文案；档位与价格由商户平台设置</div>
+                  </div>
+                  <div style={{ color: '#eab308', fontSize: '13px', fontWeight: 'bold' }}>进入 →</div>
                 </div>
               )}
               {activeTab === 'Ads' && viewMode !== 'folder' && (
@@ -11004,6 +11144,98 @@ const [mounted, setMounted] = useState(false);
         ) : view === 'stats' ? (
           /* 派工单 B3:数据统计面板(自包含组件,挂载时拉取,失败显示暂无数据) */
           <StatsPanel />
+        ) : view === 'pricing-copy' ? (
+          /* R2-B5b W1-a:会员说明页文案面板(档位只读随商户联动;门控三态灰化) */
+          <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
+              <div style={{fontSize:'20px', fontWeight:'bold', color:'#fff'}}>会员说明页</div>
+              <div style={{fontSize:'12px', color:'#888'}}>档位与价格由商户后台设置，此处只可修改文案</div>
+            </div>
+
+            {pricingCopyLoading ? (
+              <div style={{color:'#888', textAlign:'center', padding:'30px'}}>加载中...</div>
+            ) : (
+              <>
+                {pricingCopyLocked && (
+                  <div style={ADS_LOCKED_NOTICE_STYLE}>{pricingCopyLockedReason}，会员说明页文案暂不可编辑</div>
+                )}
+                <div style={{padding:'18px 18px 20px', background:'#333', border:'1px solid #555', borderRadius:'14px', opacity: pricingCopyLocked ? 0.55 : 1}}>
+                  <div style={{marginBottom:'16px'}}>
+                    <label style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>
+                      概述段
+                      <span style={{color:'#8d8d8d'}}>{pricingCopyIntro.length}/500</span>
+                    </label>
+                    <textarea className="glow-input" value={pricingCopyIntro} disabled={pricingCopyLocked || pricingCopySaving}
+                      onChange={(e) => { setPricingCopyIntro(e.target.value.slice(0, 500)); setPricingCopyDirty(true); }}
+                      placeholder="展示在会员说明页顶部的介绍文字"
+                      style={{minHeight:'90px', width:'100%', boxSizing:'border-box'}} />
+                  </div>
+
+                  <div style={{marginBottom:'16px'}}>
+                    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>
+                      权益要点
+                      <span style={{color:'#8d8d8d'}}>{pricingCopyBenefits.length}/8 行 · 每行 ≤120 字</span>
+                    </div>
+                    {pricingCopyBenefits.map((item, idx) => (
+                      <div key={idx} style={{display:'flex', gap:'8px', alignItems:'center', marginBottom:'8px'}}>
+                        <input className="glow-input" value={item} disabled={pricingCopyLocked || pricingCopySaving}
+                          onChange={(e) => updatePricingBenefit(idx, e.target.value)}
+                          placeholder={`要点 ${idx + 1}`}
+                          style={{flex:1}} />
+                        <button type="button" disabled={pricingCopyLocked || pricingCopySaving} onClick={() => movePricingBenefit(idx, -1)}
+                          style={{width:'30px', height:'34px', flexShrink:0, cursor: pricingCopyLocked ? 'not-allowed' : 'pointer', border:'1px solid #555', background:'#2a2a2e', color:'#ccc', borderRadius:'8px'}} title="上移">↑</button>
+                        <button type="button" disabled={pricingCopyLocked || pricingCopySaving} onClick={() => movePricingBenefit(idx, 1)}
+                          style={{width:'30px', height:'34px', flexShrink:0, cursor: pricingCopyLocked ? 'not-allowed' : 'pointer', border:'1px solid #555', background:'#2a2a2e', color:'#ccc', borderRadius:'8px'}} title="下移">↓</button>
+                        <button type="button" disabled={pricingCopyLocked || pricingCopySaving} onClick={() => removePricingBenefit(idx)}
+                          style={{width:'30px', height:'34px', flexShrink:0, cursor: pricingCopyLocked ? 'not-allowed' : 'pointer', border:'1px solid #664', background:'#2a2a2e', color:'#fbbf24', borderRadius:'8px'}} title="删除此行">×</button>
+                      </div>
+                    ))}
+                    <button type="button" disabled={pricingCopyLocked || pricingCopySaving || pricingCopyBenefits.length >= 8} onClick={addPricingBenefit}
+                      style={{padding:'9px 18px', cursor: pricingCopyLocked || pricingCopyBenefits.length >= 8 ? 'not-allowed' : 'pointer', border:'1px dashed #666', background:'transparent', color:'#ccc', borderRadius:'10px', fontSize:'13px', fontWeight:'bold'}}>
+                      ＋ 添加要点
+                    </button>
+                  </div>
+
+                  <div style={{marginBottom:'16px'}}>
+                    <label style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>
+                      保障说明
+                      <span style={{color:'#8d8d8d'}}>{pricingCopyGuarantee.length}/300</span>
+                    </label>
+                    <textarea className="glow-input" value={pricingCopyGuarantee} disabled={pricingCopyLocked || pricingCopySaving}
+                      onChange={(e) => { setPricingCopyGuarantee(e.target.value.slice(0, 300)); setPricingCopyDirty(true); }}
+                      placeholder="展示在会员说明页底部的保障说明"
+                      style={{minHeight:'70px', width:'100%', boxSizing:'border-box'}} />
+                  </div>
+
+                  <div style={{height:1, background:'#4a4a4a', margin:'14px 2px 16px'}} />
+                  <div style={{fontSize:'11px', color:'#8d8d8d', letterSpacing:'.08em', margin:'2px 2px 8px'}}>档位（只读，随商户平台联动）</div>
+                  {pricingCopyPlans.length > 0 ? (
+                    <div style={{display:'flex', flexWrap:'wrap', gap:'10px'}}>
+                      {pricingCopyPlans.map((plan, idx) => (
+                        <div key={idx} style={{background:'#2c2c2c', border:'1px solid #4b4b4b', borderRadius:'12px', padding:'10px 16px', fontSize:'13px', color:'#ececec'}}>
+                          {plan.days} 天 · ¥{plan.price}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{background:'#2c2c2c', border:'1px solid #4b4b4b', borderRadius:'12px', padding:'12px 16px', fontSize:'12.5px', color:'#9d9d9d'}}>
+                      暂无档位（由商户平台配置后自动展示）
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => pricingCopyLocked ? alert(pricingCopyLockedReason + '，会员说明页文案暂不可编辑') : savePricingCopy()}
+                    disabled={pricingCopySaving || !pricingCopyDirty}
+                    style={{width:'100%', marginTop:'20px', padding:'15px', background: pricingCopySaving || !pricingCopyDirty ? '#333' : '#fff', color: pricingCopySaving || !pricingCopyDirty ? '#666' : '#000', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'15px', cursor: pricingCopySaving ? 'wait' : (pricingCopyDirty ? 'pointer' : 'not-allowed')}}
+                  >
+                    {pricingCopySaving ? '保存中…' : '保存文案'}
+                  </button>
+                  <div style={{fontSize:'11px', color:'#8f8f8f', marginTop:'10px', lineHeight:1.65}}>三段全部留空保存即恢复默认文案；保存后约 1 分钟内生效。</div>
+                </div>
+              </>
+            )}
+          </div>
         ) : view === 'friends' ? (
           <div style={{background: '#424242', padding: 30, borderRadius: 20}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'22px'}}>
@@ -11397,12 +11629,19 @@ const [mounted, setMounted] = useState(false);
               memberGate={{
                 loaded: memberGateState.loaded,
                 canAdd: memberGateState.loaded && memberGateState.plan === 'pro' && memberGateState.enabled === true,
-                menuSuffix: !memberGateState.loaded ? '' : memberGateState.plan !== 'pro' ? '（专业版）' : memberGateState.enabled ? '' : '（未开通）',
+                // R2-B5b:门控文案优先级 未开通(>贩售变体) > 专业版;贩售态仅在未开通时作为原因展示
+                menuSuffix: !memberGateState.loaded
+                  ? ''
+                  : !memberGateState.enabled
+                    ? (memberGateState.vending ? '（贩售模式）' : '（未开通）')
+                    : memberGateState.plan !== 'pro' ? '（专业版）' : '',
                 hint: !memberGateState.loaded
                   ? '站点会员状态读取中，请稍后再试'
-                  : memberGateState.plan !== 'pro'
-                    ? '站点会员为专业版功能，升级专业版后可用'
-                    : memberGateState.enabled ? '' : '站点会员尚未开通，暂不可添加会员分隔线',
+                  : !memberGateState.enabled
+                    ? (memberGateState.vending ? '贩售模式启用中，会员内容不可用' : '站点会员尚未开通，暂不可添加会员内容')
+                    : memberGateState.plan !== 'pro'
+                      ? '站点会员为专业版功能，升级专业版后可用'
+                      : '',
               }}
             />
             </div>
