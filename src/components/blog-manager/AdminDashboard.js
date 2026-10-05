@@ -2915,17 +2915,33 @@ function formatThemeSwitchQuotaHint(quota) {
 }
 const lightSpinStyle = { width: '13px', height: '13px', border: '2px solid rgba(255,255,255,0.25)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'imgspin 0.8s linear infinite', verticalAlign: 'middle' };
 // R2-B5b W1-a:会员说明页默认文案——镜像 src/components/member/PricingPageContent.tsx 的
-// PRICING_INTRO_TEXT/PRICING_BENEFIT_ITEMS/PRICING_GUARANTEE_TEXT(不 import 该文件,
+// PRICING_INTRO_TEXT/PRICING_BENEFIT_ITEMS/PRICING_GUARANTEE_TEXT/PRICING_FAQ_DEFAULT(不 import 该文件,
 // 避免把 'use client' 组件链拉进后台 bundle);两处需同步修改。
 const PRICING_COPY_DEFAULTS = {
   intro: '本博客开通了站点会员。订阅后即可阅读站内全部会员专属内容；会员期内不限次数阅读，到期后会员内容将重新锁定，续费即可恢复。',
   benefits: ['解锁站内全部会员专属内容', '会员期内不限次数阅读', '到期前可随时续费，时长顺延'],
   guarantee: '权益保障：会员权益调整会提前公告；如遇不可用问题可通过站内联系方式反馈，我们会尽快处理。',
+  faq: [
+    { q: '可以使用哪些付款方式？', a: '以平台付款页显示为准，所有会员方案都是一次性购买，不会自动续费。' },
+    { q: '付款未成功怎么办？', a: '没付款成功可以更换支付渠道或切换付款通道，如页面异常请立即联系平台客服，付款后等待跳转，不要重复发起购买。' },
+    { q: '购买后多久生效？', a: '立即生效。' },
+    { q: '会员资格可以跨设备使用吗？', a: '可以，使用会员key或身份二维码即可登录' },
+    { q: '购买后可以取消或退款吗？', a: '如当前网站存在欺诈行为，可以联系平台客服退款，其他情况不能退款。退款请提供开通会员的网站地址、订单号、支付时间及说明退款原因。' },
+  ],
 };
 /** benefits 编辑器初值:有非空条目用库值,否则回落默认 3 条(与前台 resolvePricingCopy 口径一致) */
 const normalizePricingBenefitsForEditor = (benefits) => {
   const list = Array.isArray(benefits) ? benefits.filter((s) => typeof s === 'string' && s.trim()) : [];
   return list.length > 0 ? list.map((s) => s.trim().slice(0, 120)) : [...PRICING_COPY_DEFAULTS.benefits];
+};
+/** FAQ 编辑器初值:有有效组用库值,否则回落默认 5 组(与前台 resolvePricingCopy 口径一致) */
+const normalizePricingFaqForEditor = (faq) => {
+  const list = Array.isArray(faq)
+    ? faq
+        .filter((it) => it && typeof it === 'object' && typeof it.q === 'string' && it.q.trim() && typeof it.a === 'string' && it.a.trim())
+        .map((it) => ({ q: it.q.trim().slice(0, 80), a: it.a.trim().slice(0, 300) }))
+    : [];
+  return list.length > 0 ? list : PRICING_COPY_DEFAULTS.faq.map((it) => ({ ...it }));
 };
 const blogRefreshSpinStyle = { width: '13px', height: '13px', border: '2px solid rgba(173,255,47,0.25)', borderTopColor: 'greenyellow', borderRadius: '50%', display: 'inline-block', animation: 'imgspin 0.8s linear infinite', verticalAlign: 'middle', flexShrink: 0 };
 const fmtStyle = (b) => ({
@@ -5000,6 +5016,7 @@ const [mounted, setMounted] = useState(false);
   const [pricingCopyIntro, setPricingCopyIntro] = useState('');
   const [pricingCopyBenefits, setPricingCopyBenefits] = useState(['', '', '']);
   const [pricingCopyGuarantee, setPricingCopyGuarantee] = useState('');
+  const [pricingCopyFaq, setPricingCopyFaq] = useState([]);
   const [pricingCopyPlans, setPricingCopyPlans] = useState([]);
   const [pricingCopyDirty, setPricingCopyDirty] = useState(false);
   // 【版本修复】页:解锁弹窗与页内保存状态
@@ -5696,7 +5713,7 @@ const [mounted, setMounted] = useState(false);
     } catch { setMemberGateState({ loaded: true, plan: 'free', enabled: false, vending: false }); }
   };
 
-  // R2-B5b W1-a:拉取会员说明页文案(copy 三字段 + plans 只读区;失败按空态显示)
+  // R2-B5b W1-a:拉取会员说明页文案(copy 四字段 + plans 只读区;失败按空态显示)
   const loadPricingCopy = async () => {
     setPricingCopyLoading(true);
     try {
@@ -5708,6 +5725,7 @@ const [mounted, setMounted] = useState(false);
         setPricingCopyIntro(copy?.intro || PRICING_COPY_DEFAULTS.intro);
         setPricingCopyBenefits(normalizePricingBenefitsForEditor(copy?.benefits));
         setPricingCopyGuarantee(copy?.guarantee || PRICING_COPY_DEFAULTS.guarantee);
+        setPricingCopyFaq(normalizePricingFaqForEditor(copy?.faq));
       } else {
         setPricingCopyPlans([]);
       }
@@ -6956,6 +6974,33 @@ const [mounted, setMounted] = useState(false);
     });
     setPricingCopyDirty(true);
   };
+  const updatePricingFaqQ = (idx, value) => {
+    setPricingCopyFaq((prev) => prev.map((item, i) => (i === idx ? { ...item, q: String(value || '').slice(0, 80) } : item)));
+    setPricingCopyDirty(true);
+  };
+  const updatePricingFaqA = (idx, value) => {
+    setPricingCopyFaq((prev) => prev.map((item, i) => (i === idx ? { ...item, a: String(value || '').slice(0, 300) } : item)));
+    setPricingCopyDirty(true);
+  };
+  const addPricingFaq = () => {
+    if (pricingCopyFaq.length >= 8) return;
+    setPricingCopyFaq((prev) => [...prev, { q: '', a: '' }]);
+    setPricingCopyDirty(true);
+  };
+  const removePricingFaq = (idx) => {
+    setPricingCopyFaq((prev) => prev.filter((_, i) => i !== idx));
+    setPricingCopyDirty(true);
+  };
+  const movePricingFaq = (idx, dir) => {
+    const target = idx + dir;
+    if (target < 0 || target >= pricingCopyFaq.length) return;
+    setPricingCopyFaq((prev) => {
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+    setPricingCopyDirty(true);
+  };
   const savePricingCopy = async () => {
     if (pricingCopySaving) return; // 进行中早退
     if (pricingCopyLocked) return; // 门控灰态兜底(按钮已禁用)
@@ -6968,6 +7013,12 @@ const [mounted, setMounted] = useState(false);
           intro: pricingCopyIntro.trim(),
           benefits: pricingCopyBenefits.map((s) => String(s || '').trim()).filter(Boolean),
           guarantee: pricingCopyGuarantee.trim(),
+          faq: pricingCopyFaq
+            .map((item) => ({
+              q: String(item?.q || '').trim().slice(0, 80),
+              a: String(item?.a || '').trim().slice(0, 300),
+            }))
+            .filter((item) => item.q.length > 0 && item.a.length > 0),
         }),
       });
       const d = await r.json();
@@ -6976,6 +7027,7 @@ const [mounted, setMounted] = useState(false);
         setPricingCopyIntro(copy?.intro || PRICING_COPY_DEFAULTS.intro);
         setPricingCopyBenefits(normalizePricingBenefitsForEditor(copy?.benefits));
         setPricingCopyGuarantee(copy?.guarantee || PRICING_COPY_DEFAULTS.guarantee);
+        setPricingCopyFaq(normalizePricingFaqForEditor(copy?.faq));
         setPricingCopyDirty(false);
         showAdminToast('已保存，约 1 分钟内生效');
       } else alert('保存失败：' + (d.error || '未知错误'));
@@ -11474,6 +11526,36 @@ const [mounted, setMounted] = useState(false);
                   </div>
 
                   <div style={{marginBottom:'16px'}}>
+                    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>
+                      常见问答
+                      <span style={{color:'#8d8d8d'}}>{pricingCopyFaq.length}/8 组 · 问题 ≤80 字 · 回答 ≤300 字</span>
+                    </div>
+                    {pricingCopyFaq.map((item, idx) => (
+                      <div key={idx} style={{border:'1px solid #4a4a4a', borderRadius:'10px', padding:'10px 12px', marginBottom:'8px'}}>
+                        <div style={{display:'flex', gap:'8px', alignItems:'center', marginBottom:'6px'}}>
+                          <input className="glow-input" value={item.q} disabled={pricingCopyLocked || pricingCopySaving}
+                            onChange={(e) => updatePricingFaqQ(idx, e.target.value)}
+                            placeholder={`问题 ${idx + 1}`} style={{flex:1}} />
+                          <button type="button" disabled={pricingCopyLocked || pricingCopySaving} onClick={() => movePricingFaq(idx, -1)}
+                            style={{width:'30px', height:'34px', flexShrink:0, cursor: pricingCopyLocked ? 'not-allowed' : 'pointer', border:'1px solid #555', background:'#2a2a2e', color:'#ccc', borderRadius:'8px'}} title="上移">↑</button>
+                          <button type="button" disabled={pricingCopyLocked || pricingCopySaving} onClick={() => movePricingFaq(idx, 1)}
+                            style={{width:'30px', height:'34px', flexShrink:0, cursor: pricingCopyLocked ? 'not-allowed' : 'pointer', border:'1px solid #555', background:'#2a2a2e', color:'#ccc', borderRadius:'8px'}} title="下移">↓</button>
+                          <button type="button" disabled={pricingCopyLocked || pricingCopySaving} onClick={() => removePricingFaq(idx)}
+                            style={{width:'30px', height:'34px', flexShrink:0, cursor: pricingCopyLocked ? 'not-allowed' : 'pointer', border:'1px solid #664', background:'#2a2a2e', color:'#fbbf24', borderRadius:'8px'}} title="删除此组">×</button>
+                        </div>
+                        <textarea className="glow-input" value={item.a} disabled={pricingCopyLocked || pricingCopySaving}
+                          onChange={(e) => updatePricingFaqA(idx, e.target.value)}
+                          placeholder={`回答 ${idx + 1}`}
+                          style={{width:'100%', minHeight:'56px', boxSizing:'border-box'}} />
+                      </div>
+                    ))}
+                    <button type="button" disabled={pricingCopyLocked || pricingCopySaving || pricingCopyFaq.length >= 8} onClick={addPricingFaq}
+                      style={{padding:'9px 18px', cursor: pricingCopyLocked || pricingCopyFaq.length >= 8 ? 'not-allowed' : 'pointer', border:'1px dashed #666', background:'transparent', color:'#ccc', borderRadius:'10px', fontSize:'13px', fontWeight:'bold'}}>
+                      ＋ 添加问答
+                    </button>
+                  </div>
+
+                  <div style={{marginBottom:'16px'}}>
                     <label style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>
                       保障说明
                       <span style={{color:'#8d8d8d'}}>{pricingCopyGuarantee.length}/300</span>
@@ -11508,7 +11590,7 @@ const [mounted, setMounted] = useState(false);
                   >
                     {pricingCopySaving ? '保存中…' : '保存文案'}
                   </button>
-                  <div style={{fontSize:'11px', color:'#8f8f8f', marginTop:'10px', lineHeight:1.65}}>三段全部留空保存即恢复默认文案；保存后约 1 分钟内生效。</div>
+                  <div style={{fontSize:'11px', color:'#8f8f8f', marginTop:'10px', lineHeight:1.65}}>四段全部留空保存即恢复默认文案；保存后约 1 分钟内生效。</div>
                 </div>
               </>
             )}

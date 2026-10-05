@@ -205,14 +205,15 @@ test('PUT → 405 + Allow: GET, POST', async () => {
 })
 
 test('GET(pro+enabled) → copy/plans/plan/enabled 齐全', async () => {
-  setupSite({ copy: { intro: '站内介绍', benefits: ['要点A'], guarantee: '保障' } })
+  setupSite({ copy: { intro: '站内介绍', benefits: ['要点A'], guarantee: '保障', faq: [{ q: '问题', a: '回答' }] } })
   const res = createResponse()
   await pricingCopyHandler(createRequest(), res)
   assert.equal(res.statusCode, 200)
   assert.equal(res.body.success, true)
   assert.equal(res.body.plan, 'pro')
   assert.equal(res.body.enabled, true)
-  assert.deepEqual(res.body.copy, { intro: '站内介绍', benefits: ['要点A'], guarantee: '保障' })
+  assert.deepEqual(res.body.copy, { intro: '站内介绍', benefits: ['要点A'], guarantee: '保障', faq: [{ q: '问题', a: '回答' }] })
+  assert.equal(res.body.copy.faq[0].q, '问题')
   assert.equal(Array.isArray(res.body.plans), true)
   assert.equal(res.body.plans.length, 2)
   assert.equal(res.body.plans[0].days, 30)
@@ -274,9 +275,17 @@ test('POST sanitize:超长截断/非字符串剔除/空行丢弃/条数封顶', 
     ...Array.from({ length: 10 }, (_, i) => `条目${i}`), // 超出 8 条截断
   ]
   const longGuarantee = '保'.repeat(400)
+  const faq = [
+    { q: '  可用哪些付款方式？ ', a: '  以付款页为准。 ' },   // trim
+    { q: '问'.repeat(100), a: '答'.repeat(400) },               // 80/300 截断
+    { q: '', a: 'x' },                                          // q 空 → 丢
+    { q: 'x', a: '' },                                          // a 空 → 丢
+    'bad', 42, null,                                            // 非对象 → 丢
+    ...Array.from({ length: 10 }, (_, i) => ({ q: `问题${i}`, a: `回答${i}` })), // 超 8 截断
+  ]
   const res = createResponse()
   await pricingCopyHandler(
-    createRequest({ method: 'POST', body: { intro: longIntro, benefits, guarantee: longGuarantee } }),
+    createRequest({ method: 'POST', body: { intro: longIntro, benefits, guarantee: longGuarantee, faq } }),
     res
   )
   assert.equal(res.statusCode, 200)
@@ -286,18 +295,23 @@ test('POST sanitize:超长截断/非字符串剔除/空行丢弃/条数封顶', 
   assert.equal(copy.benefits.length, 8)
   assert.equal(copy.benefits[0], '要点一')
   assert.equal(copy.benefits[1].length, 120)
+  assert.equal(copy.faq.length, 8)
+  assert.deepEqual(copy.faq[0], { q: '可用哪些付款方式？', a: '以付款页为准。' })
+  assert.equal(copy.faq[1].q.length, 80)
+  assert.equal(copy.faq[1].a.length, 300)
   assert.equal(typeof copy.updatedAt, 'string')
   // 写库对账:membership.copy 已替换,enabled/plans 保留原值
   assert.equal(settingsRow.membership.enabled, true)
   assert.equal(settingsRow.membership.plans.length, 2)
   assert.equal(settingsRow.membership.copy.intro.length, 500)
+  assert.equal(settingsRow.membership.copy.faq.length, 8)
 })
 
 test('POST 全部留空 → copy:null(恢复默认),enabled/plans 不动', async () => {
   const { settingsRow } = setupSite({ copy: { intro: '旧文案' } })
   const res = createResponse()
   await pricingCopyHandler(
-    createRequest({ method: 'POST', body: { intro: '', benefits: [], guarantee: '' } }),
+    createRequest({ method: 'POST', body: { intro: '', benefits: [], guarantee: '', faq: [] } }),
     res
   )
   assert.equal(res.statusCode, 200)
@@ -305,6 +319,21 @@ test('POST 全部留空 → copy:null(恢复默认),enabled/plans 不动', async
   assert.equal(settingsRow.membership.copy, null)
   assert.equal(settingsRow.membership.enabled, true)
   assert.equal(settingsRow.membership.plans.length, 2)
+})
+
+test('POST 仅 faq → copy 只含 faq(+updatedAt),其他字段缺省', async () => {
+  const { settingsRow } = setupSite()
+  const res = createResponse()
+  await pricingCopyHandler(
+    createRequest({ method: 'POST', body: { faq: [{ q: 'q1', a: 'a1' }, { q: 'q2', a: 'a2' }] } }),
+    res
+  )
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.copy.intro, undefined)
+  assert.equal(res.body.copy.faq.length, 2)
+  assert.equal(res.body.copy.faq[1].a, 'a2')
+  assert.equal(typeof res.body.copy.updatedAt, 'string')
+  assert.equal(settingsRow.membership.copy.faq.length, 2)
 })
 
 test('POST body 携带 enabled/plans → 显式忽略,不写入', async () => {

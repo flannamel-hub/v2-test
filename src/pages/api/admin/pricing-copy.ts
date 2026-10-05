@@ -6,6 +6,7 @@ import {
   getMembershipConfig,
   getEffectiveMembershipConfig,
   type SiteMembershipCopy,
+  type SiteMembershipCopyFaqItem,
 } from '@/src/lib/blog/membershipGate'
 import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue'
@@ -13,7 +14,7 @@ import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue'
 /**
  * 站点会员 R2-B5b W2:「会员说明页」文案读写端点(仅 BLOG 后台浏览器调用)。
  * - GET:读 membership 配置,返回 copy + plans(只读区数据)+ plan/enabled 门控态;
- * - POST:仅允许编辑 copy 三字段(intro/benefits/guarantee),服务端 sanitize 后
+ * - POST:仅允许编辑 copy 四字段(intro/benefits/guarantee/faq),服务端 sanitize 后
  *   读-改-写 merge 回 membership(保留 enabled/plans 原值不动;绝不接受/透传这两字段);
  * - 竞态缓解三件套(§10.3):模块级单飞串行(in-flight 写入排队,不与在途写交错)+
  *   写前紧邻重读 + 写后 updatedAt 对账回读;残余跨进程窗口=接受并记录(零 SQL 无法原子化);
@@ -26,14 +27,18 @@ const COPY_INTRO_MAX = 500
 const COPY_BENEFIT_MAX_ITEMS = 8
 const COPY_BENEFIT_ITEM_MAX = 120
 const COPY_GUARANTEE_MAX = 300
+const COPY_FAQ_MAX_ITEMS = 8
+const COPY_FAQ_Q_MAX = 80
+const COPY_FAQ_A_MAX = 300
 
 type PricingCopyPostBody = {
   intro?: unknown
   benefits?: unknown
   guarantee?: unknown
+  faq?: unknown
 }
 
-type SanitizedCopy = Pick<SiteMembershipCopy, 'intro' | 'benefits' | 'guarantee'>
+type SanitizedCopy = Pick<SiteMembershipCopy, 'intro' | 'benefits' | 'guarantee' | 'faq'>
 
 /** 字段级 sanitize:非字符串/空白 → undefined;超长截断(与 membershipGate 读侧口径一致) */
 function sanitizeCopyField(value: unknown, max: number): string | undefined {
@@ -53,6 +58,19 @@ function sanitizeBenefits(value: unknown): string[] | undefined {
   return benefits.length > 0 ? benefits : undefined
 }
 
+function sanitizeFaq(value: unknown): SiteMembershipCopyFaqItem[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const faq = value
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => ({
+      q: typeof item.q === 'string' ? item.q.trim().slice(0, COPY_FAQ_Q_MAX) : '',
+      a: typeof item.a === 'string' ? item.a.trim().slice(0, COPY_FAQ_A_MAX) : '',
+    }))
+    .filter((item) => item.q.length > 0 && item.a.length > 0)
+    .slice(0, COPY_FAQ_MAX_ITEMS)
+  return faq.length > 0 ? faq : undefined
+}
+
 /** 全字段 sanitize;全部缺失/无效 → null(恢复默认文案) */
 function sanitizeCopy(body: PricingCopyPostBody): SanitizedCopy | null {
   const out: SanitizedCopy = {}
@@ -62,6 +80,8 @@ function sanitizeCopy(body: PricingCopyPostBody): SanitizedCopy | null {
   if (benefits !== undefined) out.benefits = benefits
   const guarantee = sanitizeCopyField(body.guarantee, COPY_GUARANTEE_MAX)
   if (guarantee !== undefined) out.guarantee = guarantee
+  const faq = sanitizeFaq(body.faq)
+  if (faq !== undefined) out.faq = faq
   if (Object.keys(out).length === 0) return null
   return out
 }
@@ -196,7 +216,7 @@ export default async function handler(
 
       const body: PricingCopyPostBody =
         typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {}
-      // 安全:绝不接受/透传 enabled/plans 字段(body 只取三字段,其余忽略)
+      // 安全:绝不接受/透传 enabled/plans 字段(body 只取四字段,其余忽略)
       const sanitized = sanitizeCopy(body)
 
       const outcome = await mergeWriteCopy(sanitized)
