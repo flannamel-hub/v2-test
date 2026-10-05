@@ -13,6 +13,7 @@
  * 公开仓红线:用例内不出现真实域名/密钥(占位示例值)。
  */
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
 const path = require('node:path')
 const Module = require('node:module')
 const { test } = require('node:test')
@@ -126,7 +127,16 @@ const {
   isMemberExpiringSoon,
 } = memberNav
 
-const { resolvePricingCopy, PRICING_COPY_BENEFIT_MAX_ITEMS, PRICING_COPY_BENEFIT_ITEM_MAX } = pricingPage
+const {
+  resolvePricingCopy,
+  PRICING_COPY_BENEFIT_MAX_ITEMS,
+  PRICING_COPY_BENEFIT_ITEM_MAX,
+  PRICING_FAQ_TITLE_TEXT,
+  PRICING_COPY_FAQ_MAX_ITEMS,
+  PRICING_COPY_FAQ_Q_MAX,
+  PRICING_COPY_FAQ_A_MAX,
+  PRICING_FAQ_DEFAULT,
+} = pricingPage
 
 const {
   isPermanentMemberExpiry,
@@ -251,6 +261,7 @@ test('resolvePricingCopy:null/undefined → 内置默认(copy 缺省站零视觉
     assert.equal(resolved.intro, pricingPage.PRICING_INTRO_TEXT)
     assert.deepEqual(resolved.benefits, [...pricingPage.PRICING_BENEFIT_ITEMS])
     assert.equal(resolved.guarantee, pricingPage.PRICING_GUARANTEE_TEXT)
+    assert.deepEqual(resolved.faq, [...PRICING_FAQ_DEFAULT])
   }
 })
 
@@ -259,14 +270,17 @@ test('resolvePricingCopy:逐字段覆盖(仅给 intro/benefits/guarantee 之一,
   assert.equal(onlyIntro.intro, '站长自定义说明')
   assert.deepEqual(onlyIntro.benefits, [...pricingPage.PRICING_BENEFIT_ITEMS])
   assert.equal(onlyIntro.guarantee, pricingPage.PRICING_GUARANTEE_TEXT)
+  assert.deepEqual(onlyIntro.faq, [...PRICING_FAQ_DEFAULT])
 
   const onlyGuarantee = resolvePricingCopy({ guarantee: ' 自定义保障 ' })
   assert.equal(onlyGuarantee.intro, pricingPage.PRICING_INTRO_TEXT)
   assert.equal(onlyGuarantee.guarantee, '自定义保障')
+  assert.deepEqual(onlyGuarantee.faq, [...PRICING_FAQ_DEFAULT])
 
   const onlyBenefits = resolvePricingCopy({ benefits: ['自定义权益一', '自定义权益二'] })
   assert.deepEqual(onlyBenefits.benefits, ['自定义权益一', '自定义权益二'])
   assert.equal(onlyBenefits.intro, pricingPage.PRICING_INTRO_TEXT)
+  assert.deepEqual(onlyBenefits.faq, [...PRICING_FAQ_DEFAULT])
 })
 
 test('resolvePricingCopy:benefits 双保险——空串/非串剔除、全无效回落默认、≤8 条、每行 ≤120 截断', () => {
@@ -289,6 +303,79 @@ test('resolvePricingCopy:benefits 双保险——空串/非串剔除、全无效
   // 每行 120 截断
   const longItem = resolvePricingCopy({ benefits: ['x'.repeat(200)] })
   assert.equal(longItem.benefits[0].length, 120)
+
+  // benefits 维度不触碰 faq(独立回落默认)
+  assert.deepEqual(longItem.faq, [...PRICING_FAQ_DEFAULT])
+})
+
+// --- R6-6:PricingPageContent FAQ 分段 ---------------------------------------------------
+
+test('R6 FAQ 默认 5 组逐字', () => {
+  assert.equal(PRICING_FAQ_TITLE_TEXT, '常见问题')
+  assert.equal(PRICING_FAQ_DEFAULT.length, 5)
+  assert.deepEqual(resolvePricingCopy(null).faq, [...PRICING_FAQ_DEFAULT])
+  // 定稿逐字抽查:第 4 组句末无句号、第 3 组有句号、「登录」用字
+  assert.equal(resolvePricingCopy(null).faq[3].q, '会员资格可以跨设备使用吗？')
+  assert.equal(resolvePricingCopy(null).faq[3].a, '可以，使用会员key或身份二维码即可登录')
+  assert.equal(resolvePricingCopy(null).faq[2].a, '立即生效。')
+  // 全量逐字(deepEqual 已含;再对首组标题逐字钉死引号/问号)
+  assert.equal(resolvePricingCopy(null).faq[0].q, '可以使用哪些付款方式？')
+})
+
+test('R6 faq 双保险:混非法项剔除、全无效回落默认、≤8 截断、q≤80/a≤300 截断', () => {
+  assert.equal(PRICING_COPY_FAQ_MAX_ITEMS, 8)
+  assert.equal(PRICING_COPY_FAQ_Q_MAX, 80)
+  assert.equal(PRICING_COPY_FAQ_A_MAX, 300)
+
+  // 空q/空a/非对象/非串字段剔除,合法项保留
+  const mixed = resolvePricingCopy({
+    faq: [
+      { q: ' 有效问题 ', a: ' 有效答案 ' },
+      { q: '', a: '答案' },
+      { q: '问题', a: '   ' },
+      'not-an-object',
+      42,
+      null,
+      { q: '只有q' },
+      { q: '问题二', a: 42 },
+    ],
+  })
+  assert.deepEqual(mixed.faq, [{ q: '有效问题', a: '有效答案' }])
+
+  // 全无效 → 回落默认 5 组
+  const allInvalid = resolvePricingCopy({ faq: [{ q: '', a: '' }, 'x', null] })
+  assert.deepEqual(allInvalid.faq, [...PRICING_FAQ_DEFAULT])
+
+  // ≤8 截断
+  const ten = resolvePricingCopy({
+    faq: Array.from({ length: 10 }, (_, i) => ({ q: `问题${i}`, a: `答案${i}` })),
+  })
+  assert.equal(ten.faq.length, 8)
+  assert.deepEqual(ten.faq, Array.from({ length: 8 }, (_, i) => ({ q: `问题${i}`, a: `答案${i}` })))
+
+  // q≤80、a≤300 截断
+  const long = resolvePricingCopy({ faq: [{ q: 'q'.repeat(200), a: 'a'.repeat(500) }] })
+  assert.equal(long.faq[0].q.length, 80)
+  assert.equal(long.faq[0].a.length, 300)
+})
+
+// --- R6 源文件静态复核(§11.1-R1 定稿口径) ----------------------------------------------
+
+test('R6 源文件静态复核:PricingPageContent !text-white×3/总 text-white×5;MemberLoginDialog 红字零残留', () => {
+  const pricingSrc = fs.readFileSync(path.join(repoRoot, 'src/components/member/PricingPageContent.tsx'), 'utf8')
+  assert.equal((pricingSrc.match(/!text-white/g) || []).length, 3)
+  assert.equal((pricingSrc.match(/font-semibold !text-white transition-all/g) || []).length, 3)
+  assert.equal((pricingSrc.match(/text-white/g) || []).length, 5) // 3 个 ! 版 + priceCls 两处
+  // R6-5 步骤图例两节点逐字 + R6-6 FAQ 标题
+  assert.ok(pricingSrc.includes('选择方案'))
+  assert.ok(pricingSrc.includes('付费方式'))
+  assert.ok(pricingSrc.includes('常见问题'))
+
+  const loginSrc = fs.readFileSync(path.join(repoRoot, 'src/components/member/MemberLoginDialog.tsx'), 'utf8')
+  assert.equal((loginSrc.match(/text-\[#dc2626\]/g) || []).length, 0)
+  assert.equal((loginSrc.match(/hover:text-\[#b91c1c\]/g) || []).length, 0)
+  assert.ok(loginSrc.includes('bg-[#dc2626]')) // 登录提交钮品牌红保留
+  assert.ok(loginSrc.includes('backToLoginCls'))
 })
 
 // --- Q13:formatExpiryDate 单源复用 -----------------------------------------------------

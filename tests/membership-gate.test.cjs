@@ -176,6 +176,7 @@ test('合法配置:plans/copy 规范化(R2-B5a 结构化逐字段:trim、空值�
             intro: ' 会员说明 ',
             benefits: [' 权益一 ', '', '权益二'],
             guarantee: ' 保障说明 ',
+            faq: [{ q: ' 问题一 ', a: ' 答案一 ' }, { q: '好问题', a: '' }],
             updatedAt: ' 2026-10-05 ',
           },
         },
@@ -192,9 +193,84 @@ test('合法配置:plans/copy 规范化(R2-B5a 结构化逐字段:trim、空值�
       intro: '会员说明',
       benefits: ['权益一', '权益二'],
       guarantee: '保障说明',
+      faq: [{ q: '问题一', a: '答案一' }],
       updatedAt: '2026-10-05',
     },
   })
+})
+
+// --- R6-6:copy.faq 归一 --------------------------------------------------------------
+
+test('copy.faq 归一:非数组 → 字段缺失;全非法 → 字段缺失;非对象项丢弃', async () => {
+  blogSiteStub.__setBlogSiteId(SITE_ID)
+
+  adminStub.__setSupabaseClient(
+    createFakeSupabase({
+      membershipRow: {
+        membership: { enabled: true, plans: [], copy: { faq: 'n/a', guarantee: ' 保障 ' } },
+      },
+    })
+  )
+  const nonArray = await getMembershipConfig()
+  assert.deepEqual(nonArray.copy, { guarantee: '保障' })
+
+  adminStub.__setSupabaseClient(
+    createFakeSupabase({
+      membershipRow: {
+        membership: {
+          enabled: true,
+          plans: [],
+          copy: { faq: [{ q: '', a: '答案' }, { q: '问题', a: '  ' }, 'x', 42, null] },
+        },
+      },
+    })
+  )
+  __resetMembershipGateCacheForTest()
+  const allInvalid = await getMembershipConfig()
+  // faq 全非法且无其他合法字段 → 整份 copy 归 null(与 benefits 同口径)
+  assert.equal(allInvalid.copy, null)
+
+  adminStub.__setSupabaseClient(
+    createFakeSupabase({
+      membershipRow: {
+        membership: {
+          enabled: true,
+          plans: [],
+          copy: { faq: [{ q: ' 问题 ', a: ' 答案 ' }, 'bad', { q: 3, a: '答案' }] },
+        },
+      },
+    })
+  )
+  __resetMembershipGateCacheForTest()
+  const mixed = await getMembershipConfig()
+  assert.deepEqual(mixed.copy, { faq: [{ q: '问题', a: '答案' }] })
+})
+
+test('copy.faq 上限宽松截断(读侧双保险):≤8 组、q≤80、a≤300', async () => {
+  blogSiteStub.__setBlogSiteId(SITE_ID)
+
+  adminStub.__setSupabaseClient(
+    createFakeSupabase({
+      membershipRow: {
+        membership: {
+          enabled: true,
+          plans: [],
+          copy: {
+            faq: Array.from({ length: 12 }, (_, i) => ({
+              q: `q${i}`.padEnd(200, 'Q'),
+              a: `a${i}`.padEnd(500, 'A'),
+            })),
+          },
+        },
+      },
+    })
+  )
+  const capped = await getMembershipConfig()
+  assert.equal(capped.copy.faq.length, 8)
+  assert.equal(capped.copy.faq[7].q.length, 80)
+  assert.equal(capped.copy.faq[7].a.length, 300)
+  assert.ok(capped.copy.faq[7].q.startsWith('q7'))
+  assert.ok(capped.copy.faq[7].a.startsWith('a7'))
 })
 
 test('plans 混非法项剔除;全非法 → plans:[];非数组 → plans:[]', async () => {

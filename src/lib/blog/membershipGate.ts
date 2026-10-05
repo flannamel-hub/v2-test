@@ -14,14 +14,18 @@ export type SiteMembershipPlan = { days: number; price: number; sku: string }
 
 /**
  * 站点会员文案(R2-B5a 结构化透传;与 B5B 后台写入口径一一对齐):
- * - intro ≤500 / benefits ≤8 条×≤120 / guarantee ≤300;updatedAt 非串忽略;
+ * - intro ≤500 / benefits ≤8 条×≤120 / guarantee ≤300 / faq ≤8 组×(q≤80/a≤300);
+ *   updatedAt 非串忽略;
  * - 读侧同口径宽松截断(双保险,写侧已归一);
  * - 逐字段校验、非法字段丢弃(置 undefined),仅根对象非法才整份 null。
  */
+/** R6-6:FAQ 组(q/a 逐字文本;读写双保险≤8 组、q≤80、a≤300) */
+export type SiteMembershipCopyFaqItem = { q: string; a: string }
 export type SiteMembershipCopy = {
   intro?: string
   benefits?: string[]
   guarantee?: string
+  faq?: SiteMembershipCopyFaqItem[]
   updatedAt?: string
 }
 export type SiteMembershipConfig = {
@@ -73,6 +77,10 @@ const COPY_BENEFIT_MAX_ITEMS = 8
 const COPY_BENEFIT_ITEM_MAX = 120
 const COPY_GUARANTEE_MAX = 300
 const COPY_UPDATED_AT_MAX = 40
+/** R6-6:FAQ 上限(与组件级双保险常量一致;读侧宽松截断) */
+const COPY_FAQ_MAX_ITEMS = 8
+const COPY_FAQ_Q_MAX = 80
+const COPY_FAQ_A_MAX = 300
 
 function normalizeCopyText(value: unknown, max: number): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -96,6 +104,17 @@ function normalizeCopy(raw: unknown): SiteMembershipCopy | null {
       .filter((item) => item.length > 0)
       .slice(0, COPY_BENEFIT_MAX_ITEMS)
     if (benefits.length > 0) out.benefits = benefits
+  }
+  if (Array.isArray(record.faq)) {
+    const faq = record.faq
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
+      .map((item) => ({
+        q: typeof item.q === 'string' ? item.q.trim().slice(0, COPY_FAQ_Q_MAX) : '',
+        a: typeof item.a === 'string' ? item.a.trim().slice(0, COPY_FAQ_A_MAX) : '',
+      }))
+      .filter((item) => item.q.length > 0 && item.a.length > 0)
+      .slice(0, COPY_FAQ_MAX_ITEMS)
+    if (faq.length > 0) out.faq = faq
   }
   const guarantee = normalizeCopyText(record.guarantee, COPY_GUARANTEE_MAX)
   if (guarantee !== undefined) out.guarantee = guarantee

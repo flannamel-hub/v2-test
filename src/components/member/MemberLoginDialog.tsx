@@ -420,6 +420,13 @@ export function MemberLoginDialog({
       : panelTheme === 'light'
         ? 'hover:bg-neutral-100'
         : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+  // R6-1:「返回登录」中性灰三态(Q4=A;hover 轻微加深/提亮;禁品牌红)
+  const backToLoginCls =
+    panelTheme === 'dark'
+      ? 'text-neutral-400 hover:text-neutral-200'
+      : panelTheme === 'light'
+        ? 'text-neutral-500 hover:text-neutral-700'
+        : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200'
 
   // R3-3:登录态有效期行(永久 →「永久有效」;限时 → 前缀+日期;缺失/无效 → 不渲染)
   const loggedInValidityText =
@@ -650,11 +657,11 @@ export function MemberLoginDialog({
               {qrHint ? (
                 <p className={`text-center text-xs ${mutedCls}`}>{qrHint}</p>
               ) : null}
-              {/* R5-B2:返回登录(品牌红文字钮;解码失败留驻本视图) */}
+              {/* R6-1:返回登录(中性灰三态;解码失败留驻本视图) */}
               <button
                 type="button"
                 onClick={() => setView('login')}
-                className="w-full rounded-lg px-4 py-2 text-center text-sm font-semibold text-[#dc2626] transition-colors hover:text-[#b91c1c]"
+                className={`w-full rounded-lg px-4 py-2 text-center text-sm font-semibold transition-colors ${backToLoginCls}`}
               >
                 {BACK_TO_LOGIN_TEXT}
               </button>
