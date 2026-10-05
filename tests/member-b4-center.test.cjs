@@ -183,8 +183,8 @@ test('文案 C:保障说明逐字一致', () => {
 
 test('LOGIN_ERROR_TEXT:四类文案逐字一致 + 未知错误回落 unavailable', () => {
   const map = loginDialog.LOGIN_ERROR_TEXT
-  assert.equal(map.invalid, '访问串无效')
-  assert.equal(map.revoked, '该访问串已停用')
+  assert.equal(map.invalid, '会员码无效')
+  assert.equal(map.revoked, '该会员码已停用')
   assert.equal(map.rate_limited, '尝试过于频繁，请稍后再试')
   assert.equal(map.unavailable, '暂时不可用，请稍后重试')
   assert.equal(map.unknown_error ?? map.unavailable, '暂时不可用，请稍后重试')
@@ -194,6 +194,6 @@ test('LOGIN_ERROR_TEXT:四类文案逐字一致 + 未知错误回落 unavailable
 
 test('QR 错误文案:bad_file 与 decode_failed 独立映射', () => {
   assert.equal(loginDialog.QR_BAD_FILE_TEXT, '文件过大或格式不支持')
-  assert.equal(loginDialog.QR_DECODE_FAILED_TEXT, '未识别到二维码，请重试或直接粘贴访问串')
+  assert.equal(loginDialog.QR_DECODE_FAILED_TEXT, '未识别到二维码，请重试或直接粘贴会员码')
   assert.notEqual(loginDialog.QR_BAD_FILE_TEXT, loginDialog.QR_DECODE_FAILED_TEXT)
 })

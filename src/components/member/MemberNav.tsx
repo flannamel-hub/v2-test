@@ -4,7 +4,7 @@ import Link from 'next/link'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  formatExpiryDate,
+  formatMemberValidityText,
   MemberLoginDialog,
 } from '@/src/components/member/MemberLoginDialog'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
@@ -17,8 +17,10 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  *   / gallery(侧栏红描边次级)/ tweet、tweet-mobile(仅登录位/chip,无红条);
  * - SSG 安全:挂载后单次探测 /api/member/session;探测完成前按 guest 版式静态渲染
  *   (无跳动;不做轮询);
- * - 状态判定:active/expired → MemberChip(红条隐藏,3A);guest/错误 → 登录按钮;
+ * - 状态判定:active/expired → MemberChip(红条隐藏,3A);guest/错误 → 登录位;
  *   disabled → 整体不渲染(Context null 已保证,session disabled 双保险);
+ * - R3-6(5A):standard/standard-mobile 未登录不渲染任何内容(登录入口移至公告卡),
+ *   见 resolveMemberNavStandardRender;gallery/tweet 变体行为不变;
  * - member_no 来源:session 响应 > sm_member_no cookie(非 HttpOnly 展示值)> 缺省;
  * - chip 浮窗:createPortal 挂 document.body(祖先可能带 backdrop-blur/transform,
  *   仓内两次 fixed 劫持事故先例;R1 红线,禁止原位渲染);hover 与 click 均可开,
@@ -62,6 +64,23 @@ export function resolveMemberNavState(
   if (status === 'active' || status === 'expired') return 'chip'
   // guest / 探测前 / 探测失败 → guest 版式(登录位)
   return 'join'
+}
+
+/** R3-6(5A):standard/standard-mobile 未登录(join,含探测前静态渲染)→ 不渲染任何内容
+ * (登录入口移至公告卡 StatsWidget 双按钮);hidden 态全变体不渲染;
+ * gallery/tweet 变体不受本判定约束(行为不变)。 */
+export function resolveMemberNavStandardRender(
+  variant: MemberNavVariant | string,
+  navState: 'join' | 'chip' | 'hidden'
+): boolean {
+  if (navState === 'hidden') return false
+  if (
+    (variant === 'standard' || variant === 'standard-mobile') &&
+    navState === 'join'
+  ) {
+    return false
+  }
+  return true
 }
 
 /** 展示值清洗:trim → decode(写侧 encode)→ 去控制字符 → 限长 32 */
@@ -194,7 +213,9 @@ export function MemberNav({ variant }: { variant: MemberNavVariant }) {
   if (!config) return null
 
   const navState = resolveMemberNavState(session.status)
-  if (navState === 'hidden') return null
+  // R3-6:hidden 全变体不渲染;standard/standard-mobile 未登录不渲染(探测前按 guest
+  // 静态渲染=空,不闪现按钮;连 MemberLoginDialog 挂载也不渲染)
+  if (!resolveMemberNavStandardRender(variant, navState)) return null
 
   const chip = navState === 'chip' ? { memberNo: session.memberNo, expiresAt: session.expiresAt } : null
 
@@ -203,22 +224,12 @@ export function MemberNav({ variant }: { variant: MemberNavVariant }) {
       {variant === 'standard' ? (
         chip ? (
           <MemberChip variant="standard" config={chip} onProbe={probeSession} />
-        ) : (
-          <div className="flex h-12 flex-col items-stretch justify-center gap-0.5">
-            <JoinButton variant="standard" />
-            <LoginButton variant="standard" onOpen={() => setLoginOpen(true)} />
-          </div>
-        )
+        ) : null
       ) : null}
       {variant === 'standard-mobile' ? (
         chip ? (
           <MemberChip variant="standard-mobile" config={chip} onProbe={probeSession} />
-        ) : (
-          <div className="flex flex-col gap-2">
-            <JoinButton variant="standard-mobile" />
-            <LoginButton variant="standard-mobile" onOpen={() => setLoginOpen(true)} />
-          </div>
-        )
+        ) : null
       ) : null}
       {variant === 'gallery' ? (
         chip ? (
@@ -477,7 +488,8 @@ function MemberChip({
     await onProbe()
   }, [loggingOut, onProbe])
 
-  const expiryLabel = formatExpiryDate(config.expiresAt)
+  // R3-3:有效期行永久映射(永久 →「永久有效」;限时 → 前缀+日期;缺失/无效 → 兜底文案)
+  const validityText = formatMemberValidityText(config.expiresAt)
   const showRenew = isMemberExpiringSoon(config.expiresAt)
 
   const chipBaseCls =
@@ -553,7 +565,7 @@ function MemberChip({
               onMouseLeave={scheduleClose}
             >
               <p className={`text-xs leading-relaxed ${mutedCls}`}>
-                {expiryLabel ? `会员有效期至 ${expiryLabel}` : '会员生效中'}
+                {validityText || '会员生效中'}
               </p>
               {showRenew ? (
                 <button

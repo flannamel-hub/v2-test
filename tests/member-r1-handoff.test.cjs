@@ -676,6 +676,6 @@ test('failed 提示行 predicate:isReady 且 handoff===failed 才显示(与三�
 test('failed 提示行文案常量(§7 粗稿单源,T1 定稿)', () => {
   assert.equal(
     MEMBER_HANDOFF_FAILED_TEXT,
-    '自动登录未完成。若已完成支付，可回到支付页再次点击返回；也可用购买邮件中的访问串登录。'
+    '自动登录未完成。若已完成支付，可回到支付页再次点击返回；也可用购买邮件中的会员码登录。'
   )
 })

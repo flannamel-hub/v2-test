@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import React, { useCallback, useEffect, useState } from 'react'
 import { BlockRender } from '@/src/components/blocks/BlockRender'
-import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
+import { MemberLoginDialog, formatMembershipTierLabel } from '@/src/components/member/MemberLoginDialog'
 import { useMemberContent } from '@/src/components/post/MemberAwareBlockRender'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetTheme'
@@ -325,7 +325,7 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
             {config.plans.map((plan) => (
               <div key={plan.sku} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
                 <span className={`text-sm ${titleCls}`}>
-                  {plan.days} 天 · ¥{plan.price}
+                  {formatMembershipTierLabel(plan.days)} · ¥{plan.price}
                 </span>
                 {storeUrl ? (
                   <a
@@ -356,7 +356,7 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
           }}
           className={`text-xs font-medium transition-colors ${mutedCls} hover:underline`}
         >
-          已有访问串？登录
+          已有会员码？登录
         </button>
       </div>
 

@@ -7,6 +7,9 @@
  * - PricingPageContent:copy 分段解析(缺省回落内置默认、benefits ≤8×≤120 双保险);
  * - 单一事实源交叉断言:MemberNav 本地 cookie 名 === memberPassport 常量;
  *   formatExpiryDate 由 MemberLoginDialog 导出(MemberNav 复用,Q13)。
+ * - R3-B 追加:R3-6 可见性纯函数(resolveMemberNavStandardRender/
+ *   resolveStatsWidgetMemberButtons)、R3-3 永久映射(isPermanentMemberExpiry 含
+ *   恰等 30000 天边界、formatMemberValidityText、formatMembershipTierLabel)。
  * 公开仓红线:用例内不出现真实域名/密钥(占位示例值)。
  */
 const assert = require('node:assert/strict')
@@ -93,6 +96,7 @@ const memberPassport = require('../src/lib/blog/memberPassport.ts')
 const memberNav = require('../src/components/member/MemberNav.tsx')
 const pricingPage = require('../src/components/member/PricingPageContent.tsx')
 const loginDialog = require('../src/components/member/MemberLoginDialog.tsx')
+const statsWidget = require('../src/components/widget/StatsWidget.tsx')
 
 Module._resolveFilename = originalResolveFilename
 require.extensions['.js'] = originalJsLoader
@@ -123,6 +127,15 @@ const {
 } = memberNav
 
 const { resolvePricingCopy, PRICING_COPY_BENEFIT_MAX_ITEMS, PRICING_COPY_BENEFIT_ITEM_MAX } = pricingPage
+
+const {
+  isPermanentMemberExpiry,
+  formatMemberValidityText,
+  formatMembershipTierLabel,
+} = loginDialog
+
+const { resolveMemberNavStandardRender } = memberNav
+const { resolveStatsWidgetMemberButtons } = statsWidget
 
 const DAY_MS = 86400_000
 
@@ -303,4 +316,92 @@ test('默认文案 A/B/C 逐字一致(既有口径零变化)', () => {
     pricingPage.PRICING_GUARANTEE_TEXT,
     '权益保障：会员权益调整会提前公告；如遇不可用问题可通过站内联系方式反馈，我们会尽快处理。'
   )
+})
+
+// --- R3-6:standard 导航可见性 / 公告卡按钮决策纯函数 ------------------------------------
+
+test('resolveMemberNavStandardRender:standard/standard-mobile × join → 不渲染;chip → 渲染;gallery/tweet 不受影响', () => {
+  // 未登录(含探测前 guest 静态渲染)→ 不渲染任何内容(登录入口移至公告卡)
+  assert.equal(resolveMemberNavStandardRender('standard', 'join'), false)
+  assert.equal(resolveMemberNavStandardRender('standard-mobile', 'join'), false)
+  // 登录态 → chip 保留
+  assert.equal(resolveMemberNavStandardRender('standard', 'chip'), true)
+  assert.equal(resolveMemberNavStandardRender('standard-mobile', 'chip'), true)
+  // gallery/tweet 变体不受本判定约束(行为不变)
+  assert.equal(resolveMemberNavStandardRender('gallery', 'join'), true)
+  assert.equal(resolveMemberNavStandardRender('gallery', 'chip'), true)
+  assert.equal(resolveMemberNavStandardRender('tweet', 'join'), true)
+  assert.equal(resolveMemberNavStandardRender('tweet-mobile', 'join'), true)
+  // hidden(disabled)全变体不渲染
+  assert.equal(resolveMemberNavStandardRender('standard', 'hidden'), false)
+  assert.equal(resolveMemberNavStandardRender('gallery', 'hidden'), false)
+})
+
+test('resolveStatsWidgetMemberButtons:guest → dual;active/expired/disabled/probing/未知 → hidden', () => {
+  assert.equal(resolveStatsWidgetMemberButtons('guest'), 'dual')
+  assert.equal(resolveStatsWidgetMemberButtons('active'), 'hidden')
+  assert.equal(resolveStatsWidgetMemberButtons('expired'), 'hidden')
+  assert.equal(resolveStatsWidgetMemberButtons('disabled'), 'hidden')
+  // probing 归入 hidden:登录用户不闪现按钮(无跳动),guest 探测后浮现
+  assert.equal(resolveStatsWidgetMemberButtons('probing'), 'hidden')
+  assert.equal(resolveStatsWidgetMemberButtons(undefined), 'hidden')
+  assert.equal(resolveStatsWidgetMemberButtons(null), 'hidden')
+})
+
+// --- R3-3:永久档显示映射 ----------------------------------------------------------------
+
+test('isPermanentMemberExpiry:365 天否/36500 天是/恰等 30000 天否(严格>)/无效缺失否(now 注入)', () => {
+  const now = Date.parse('2026-10-05T00:00:00Z')
+  // 限时档(365 天内/恰好 365 天)→ false
+  assert.equal(isPermanentMemberExpiry('2026-10-05T00:00:00.000Z', now), false)
+  assert.equal(isPermanentMemberExpiry('2027-10-05T00:00:00.000Z', now), false)
+  // 恰等 30000 天 → false(严格大于,§11.2-建议7 边界)
+  assert.equal(
+    isPermanentMemberExpiry(new Date(now + 30000 * DAY_MS).toISOString(), now),
+    false
+  )
+  // 30000 天 + 1ms → true
+  assert.equal(
+    isPermanentMemberExpiry(new Date(now + 30000 * DAY_MS + 1).toISOString(), now),
+    true
+  )
+  // 36500 天(永久档)→ true
+  assert.equal(
+    isPermanentMemberExpiry(new Date(now + 36500 * DAY_MS).toISOString(), now),
+    true
+  )
+  // 无效/缺失 → false
+  assert.equal(isPermanentMemberExpiry(null, now), false)
+  assert.equal(isPermanentMemberExpiry(undefined, now), false)
+  assert.equal(isPermanentMemberExpiry('', now), false)
+  assert.equal(isPermanentMemberExpiry('not-a-date', now), false)
+})
+
+test('formatMemberValidityText:永久 → 永久有效;限时 → prefix+日期(默认/自定义);无效缺失 → 空串', () => {
+  // 永久(固定远期日期,距测试时刻 > 30000 天)
+  assert.equal(formatMemberValidityText('2126-10-05T00:00:00.000Z'), '永久有效')
+  assert.equal(formatMemberValidityText('2126-10-05T00:00:00.000Z', '到期日'), '永久有效')
+  // 限时(默认前缀/自定义前缀)
+  assert.equal(
+    formatMemberValidityText('2026-11-01T00:00:00.000Z'),
+    '会员有效期至 2026/11/01'
+  )
+  assert.equal(
+    formatMemberValidityText('2026-11-01T00:00:00.000Z', '到期日'),
+    '到期日 2026/11/01'
+  )
+  // 无效/缺失 → ''(消费方兜底:chip「会员生效中」/条件渲染)
+  assert.equal(formatMemberValidityText(null), '')
+  assert.equal(formatMemberValidityText(undefined), '')
+  assert.equal(formatMemberValidityText(''), '')
+  assert.equal(formatMemberValidityText('not-a-date'), '')
+})
+
+test('formatMembershipTierLabel:36500 → 永久;≥36500 同;常规 → N 天', () => {
+  assert.equal(formatMembershipTierLabel(36500), '永久')
+  assert.equal(formatMembershipTierLabel(36501), '永久')
+  assert.equal(formatMembershipTierLabel(365), '365 天')
+  assert.equal(formatMembershipTierLabel(30), '30 天')
+  assert.equal(formatMembershipTierLabel(7), '7 天')
+  assert.equal(formatMembershipTierLabel(1), '1 天')
 })

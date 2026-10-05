@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   DEFAULT_VENDING_TITLE,
@@ -7,8 +7,24 @@ import {
   VendingConfig,
 } from '@/src/lib/blog/vendingDefaults'
 import { useMemberNavConfig } from '@/src/components/theme/SitePlanContext'
+import {
+  MEMBER_NAV_JOIN_LABEL,
+  MEMBER_NAV_LOGIN_LABEL,
+} from '@/src/components/member/MemberNav'
+import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
 // @ts-ignore
 import { createPortal } from 'react-dom'
+
+/**
+ * R3-6:公告卡会员区按钮显示决策——guest → 双按钮(加入会员/登录);
+ * 其余(probing/active/expired/disabled/未知) → 隐藏。
+ * probing 归入 hidden 为无跳动设计(登录用户不闪现按钮;guest 探测后浮现,与 nav chip 同向)。
+ */
+export function resolveStatsWidgetMemberButtons(
+  status: string | null | undefined
+): 'dual' | 'hidden' {
+  return status === 'guest' ? 'dual' : 'hidden'
+}
 
 // 🟢 你的自定义购买地址（请在这里修改为你真实的贩售机链接）
 export const StatsWidget = ({
@@ -29,9 +45,34 @@ export const StatsWidget = ({
   const vendingLabel = vendingConfig?.mode === 'custom' ? vendingTitle : `前往${vendingTitle}`
   // VENDING_MODE2:购买说明弹窗开关；缺省 false=点击直接新标签跳转
   const noteModalEnabled = vendingConfig?.noteModal === true
-  // R2-B5a:会员开通 → 贩售入口让位「加入会员」(红描边/红字,/pricing 同窗);
+  // R2-B5a:会员开通 → 贩售入口让位会员入口(未登录双按钮,见下);
   // 贩售模式(未开通会员)行为零变化
   const memberMode = useMemberNavConfig() !== null
+  // R3-6:公告卡会员区双按钮(仅未登录显示) + 登录弹窗
+  const [memberSession, setMemberSession] = useState<string>('probing')
+  const [loginOpen, setLoginOpen] = useState(false)
+
+  // 会员站挂载单次探测会话(无轮询;SSG 安全;失败按未登录渲染)
+  const probeMemberSession = useCallback(async (): Promise<string> => {
+    let next: string = 'guest'
+    try {
+      const res = await fetch('/api/member/session', { cache: 'no-store' })
+      const data = await res.json().catch(() => null)
+      const status = data?.status
+      if (status === 'active' || status === 'expired' || status === 'disabled') {
+        next = status
+      }
+    } catch {
+      // 探测失败按未登录渲染
+    }
+    setMemberSession(next)
+    return next
+  }, [])
+
+  useEffect(() => {
+    if (!memberMode) return
+    void probeMemberSession()
+  }, [memberMode, probeMemberSession])
 
   // 1. 数据解析 (保持原样不动)
   const post = data || {};
@@ -229,28 +270,43 @@ export const StatsWidget = ({
                </p>
             </Wrapper>
 
-            {/* 下半部分：会员开通 → 加入会员次级入口；否则贩售机入口（有按钮时贴底） */}
+            {/* 下半部分：R3-6 会员开通 → 未登录双按钮(红实心加入会员+白登录,仅 guest 显示)；
+             已登录(active/expired)/disabled/probing → 隐藏(右上 chip 承担)；否则贩售机入口（有按钮时贴底） */}
             {memberMode ? (
-            <div className="w-full mt-auto pt-4 relative z-20">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.location.assign('/pricing');
-                }}
-                type="button"
-                className="w-full h-9 rounded-xl flex items-center justify-center gap-2
-                  bg-transparent border border-red-500/70
-                  text-xs font-bold text-red-400 tracking-wide
-                  transition-all duration-300
-                  hover:bg-red-500/15 hover:scale-[1.02] active:scale-95 active:bg-red-500/10"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-1.6 10.2a1 1 0 0 1-1 .8H5.6a1 1 0 0 1-1-.8L3 8z" />
-                </svg>
-                <span>加入会员</span>
-              </button>
-            </div>
+              resolveStatsWidgetMemberButtons(memberSession) === 'dual' ? (
+              <div className="w-full mt-auto pt-4 relative z-20 flex flex-col gap-2">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.assign('/pricing');
+                  }}
+                  type="button"
+                  className="w-full h-9 rounded-xl flex items-center justify-center
+                    bg-[#dc2626]
+                    text-xs font-bold text-white tracking-wide
+                    transition-all duration-300
+                    hover:bg-[#b91c1c] hover:scale-[1.02] active:scale-95"
+                >
+                  <span>{MEMBER_NAV_JOIN_LABEL}</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setLoginOpen(true);
+                  }}
+                  type="button"
+                  className="w-full h-9 rounded-xl flex items-center justify-center
+                    bg-white
+                    text-xs font-bold text-neutral-900 tracking-wide
+                    transition-all duration-300
+                    hover:bg-neutral-100 hover:scale-[1.02] active:scale-95"
+                >
+                  <span>{MEMBER_NAV_LOGIN_LABEL}</span>
+                </button>
+              </div>
+              ) : null
             ) : showVending ? (
             <div className="w-full mt-auto pt-4 relative z-20">
               <button
@@ -276,6 +332,23 @@ export const StatsWidget = ({
           </div>
         </div>
       </div>
+
+      {/* R3-6:公告卡「登录」入口的全局登录弹窗(M-2:登录成功 → 重探自身;
+          探得 active/expired → 整页刷新,消除「同页无 chip、全页无退出入口」死角) */}
+      {memberMode ? (
+        <MemberLoginDialog
+          open={loginOpen}
+          onClose={() => setLoginOpen(false)}
+          onSuccess={() => {
+            void probeMemberSession().then((status) => {
+              if (status === 'active' || status === 'expired') {
+                window.location.reload()
+              }
+            })
+          }}
+          onDisabled={() => void probeMemberSession()}
+        />
+      ) : null}
     </React.StrictMode>
   )
 }

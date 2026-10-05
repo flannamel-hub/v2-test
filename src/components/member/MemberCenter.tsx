@@ -42,7 +42,7 @@ export const MEMBER_RENEW_ERROR_TEXT = {
 
 /** R1:回跳自动登录失败提示行文案(§7 粗稿,T1 定稿) */
 export const MEMBER_HANDOFF_FAILED_TEXT =
-  '自动登录未完成。若已完成支付，可回到支付页再次点击返回；也可用购买邮件中的访问串登录。'
+  '自动登录未完成。若已完成支付，可回到支付页再次点击返回；也可用购买邮件中的会员码登录。'
 
 /** R1:failed 提示行判定(isReady 门控纯函数,供测试断言;与三态视图无关) */
 export function shouldShowHandoffFailedNotice(

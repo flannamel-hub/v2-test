@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
+import { MemberLoginDialog, formatMembershipTierLabel } from '@/src/components/member/MemberLoginDialog'
 import { MEMBER_HANDOFF_FAILED_TEXT } from '@/src/components/member/MemberCenter'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import type {
@@ -19,7 +19,7 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  * - 档位/权益卡组:config.plans 逐档({days} 天 / ¥{price} + 权益要点);
  * - 主 CTA:guest →「订阅」直链 ${NEXT_PUBLIC_STORE_URL}/p/{sku}?go=1 同窗
  *   (R1 直达化;storeUrl 空时 preventDefault 先例照旧;登录转次级入口
- *   「已有访问串？登录」开 W1 弹窗);active →「订阅」跳 store 新开链
+ *   「已有会员码？登录」开 W1 弹窗);active →「订阅」跳 store 新开链
  *   ${NEXT_PUBLIC_STORE_URL}/p/{sku}(Q4:无 renew 场景取环境变量,不取中心 store_url);
  *   expired →「续费」走 /api/member/renew-url;
  * - R2-B5a R2:挂载读一次 router.query.handoff === 'failed' → 一次性轻提示行
@@ -231,7 +231,7 @@ export function PricingPageContent({
           onClick={() => setLoginOpen(true)}
           className={`text-xs font-medium transition-colors hover:underline ${mutedCls}`}
         >
-          已有访问串？登录
+          已有会员码？登录
         </button>
       </div>
     )
@@ -273,7 +273,7 @@ export function PricingPageContent({
             >
               <div className="flex items-baseline justify-between gap-3">
                 <span className={`text-sm font-medium ${titleCls}`}>
-                  {plan.days} 天
+                  {formatMembershipTierLabel(plan.days)}
                 </span>
                 <span className={`text-2xl font-extrabold ${priceCls}`}>
                   ¥{plan.price}
