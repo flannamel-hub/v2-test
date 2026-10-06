@@ -5008,7 +5008,7 @@ const [mounted, setMounted] = useState(false);
   const [galleryFeatureEnabled, setGalleryFeatureEnabled] = useState(false);
   const [galleryFeatureLoaded, setGalleryFeatureLoaded] = useState(false);
   // 站点会员 B3:编辑器门控(只读;失败/未加载一律按不可用 fail-closed)
-  // R2-B5b W3:vending=贩售模式镜像态(/api/admin/membership-state 新增字段;fail-open false)
+  // R2-B5b W3:vending=商品模式镜像态(/api/admin/membership-state 新增字段;fail-open false)
   const [memberGateState, setMemberGateState] = useState({ loaded: false, plan: null, enabled: false, vending: false });
   // R2-B5b W1-a:「会员说明页」文案面板(GET/POST /api/admin/pricing-copy;plans 只读随商户联动)
   const [pricingCopyLoading, setPricingCopyLoading] = useState(false);
@@ -5703,7 +5703,7 @@ const [mounted, setMounted] = useState(false);
   };
 
   // 站点会员 B3:读取编辑器门控(plan+平台开通态;失败按 free/未开通 fail-closed)
-  // R2-B5b W3:响应新增 vending(贩售模式镜像;读失败按 false)
+  // R2-B5b W3:响应新增 vending(商品模式镜像;读失败按 false)
   const loadMembershipState = async () => {
     try {
       const r = await fetch('/api/admin/membership-state', { cache: 'no-store' });
@@ -6908,7 +6908,7 @@ const [mounted, setMounted] = useState(false);
   // R4-C2/C3(S6):memberMode 统一派生,供 C1/C2/C3 与 BlockBuilder 传参(:11629-11645)同源引用
   const memberMode = memberGateState.loaded && memberGateState.plan === 'pro' && memberGateState.enabled === true;
   const pricingCopyLockedMessage = memberGateState.enabled !== true
-    ? '当前为贩售模式，无法编辑会员说明页，如需开通会员功能，请前往商家后台切换模式。'
+    ? '当前为商品模式，无法编辑会员说明页，如需开通会员功能，请前往商家后台切换模式。'
     : memberGateState.plan !== 'pro'
       ? '专业版权益，会员说明页文案暂不可编辑'
       : '';
@@ -6926,7 +6926,7 @@ const [mounted, setMounted] = useState(false);
         !memberGateState.loaded
           ? '站点会员状态读取中，请稍后再试'
           : !memberGateState.enabled
-            ? (memberGateState.vending ? '贩售模式启用中，会员内容不可用' : '站点会员尚未开通，暂不可添加会员内容')
+            ? (memberGateState.vending ? '商品模式启用中，会员内容不可用' : '站点会员尚未开通，暂不可添加会员内容')
             : '站点会员为专业版功能，升级专业版后可用',
         2800
       );
@@ -12012,12 +12012,12 @@ const [mounted, setMounted] = useState(false);
                 menuSuffix: !memberGateState.loaded
                   ? ''
                   : !memberGateState.enabled
-                    ? (memberGateState.vending ? '（贩售模式）' : '（未开通）')
+                    ? (memberGateState.vending ? '（商品模式）' : '（未开通）')
                     : memberGateState.plan !== 'pro' ? '（专业版）' : '',
                 hint: !memberGateState.loaded
                   ? '站点会员状态读取中，请稍后再试'
                   : !memberGateState.enabled
-                    ? (memberGateState.vending ? '贩售模式启用中，会员内容不可用' : '站点会员尚未开通，暂不可添加会员内容')
+                    ? (memberGateState.vending ? '商品模式启用中，会员内容不可用' : '站点会员尚未开通，暂不可添加会员内容')
                     : memberGateState.plan !== 'pro'
                       ? '站点会员为专业版功能，升级专业版后可用'
                       : '',

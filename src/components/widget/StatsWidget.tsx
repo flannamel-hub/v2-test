@@ -48,7 +48,7 @@ export const StatsWidget = ({
   // VENDING_MODE2:购买说明弹窗开关；缺省 false=点击直接新标签跳转
   const noteModalEnabled = vendingConfig?.noteModal === true
   // R2-B5a:会员开通 → 贩售入口让位会员入口(未登录双按钮,见下);
-  // 贩售模式(未开通会员)行为零变化
+  // 商品模式(未开通会员)行为零变化
   const memberMode = useMemberNavConfig() !== null
   // R3-6:公告卡会员区双按钮(仅未登录显示) + 登录弹窗
   const [memberSession, setMemberSession] = useState<string>('probing')

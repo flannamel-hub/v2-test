@@ -23,7 +23,7 @@ export function TweetProfileCard({
   const description = profile?.description?.trim() || ''
   const showVending = vendingConfig?.enabled ?? vendingEnabled
   // R2-B5a:会员开通时本卡按钮 = 「加入会员」同窗直达 /pricing(internal 模式,
-  // 无 data-blog-vending);贩售模式行为零变化
+  // 无 data-blog-vending);商品模式行为零变化
   const membershipEnabled = useMemberNavConfig() !== null
 
   return (

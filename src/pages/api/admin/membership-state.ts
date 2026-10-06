@@ -11,7 +11,7 @@ const SETTINGS_TABLE = 'blog_site_settings'
  * 仅 BLOG 后台浏览器(编辑器门控)调用;不含 plans/copy 明细。
  * enabled = 原始读(平台是否已为该站开通站点会员,不含 plan 双门;fail-closed);
  * 前端 canAdd 判定 = plan==='pro' && enabled===true。
- * R2-B5b W3:响应扩展 vending(贩售模式镜像态,供编辑器灰态文案/会员说明页面板门控)。
+ * R2-B5b W3:响应扩展 vending(商品模式镜像态,供编辑器灰态文案/会员说明页面板门控)。
  * 路由内鉴权(middleware matcher 不等于鉴权——AGENTS §21 约定)。 */
 type MembershipStateResponse = {
   success: boolean
