@@ -198,7 +198,7 @@ async function uploadAttachmentDirect({ file, slug, onPercent, abortRef }) {
     try {
       const ticket = await requestDirectTicket({
         type: 'attachment',
-        postKey: slug,
+        post_key: slug,
         filename: file.name || 'attachment',
         contentType: file.type || 'application/octet-stream',
         sizeBytes: file.size,

@@ -1248,7 +1248,7 @@ async function uploadViaDirect(file, { onProgress } = {}) {
 
         type: 'image',
 
-        postKey: '',
+        post_key: '',
 
         filename: file.name || 'image.png',
 

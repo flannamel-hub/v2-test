@@ -16,7 +16,7 @@ export const config = {
 // 安全模型：浏览器永远拿不到 MERCHANT_API_TOKEN；本路由服务端持
 // Bearer + BLOG_SITE_ID 转发主站 /api/storage/upload-ticket
 // （鉴权写法照抄 /api/admin/attachments）。
-//   POST { type, postKey, filename, contentType, sizeBytes }
+//   POST { type, post_key, filename, contentType, sizeBytes }
 //        → 主站 { success, key, stagingKey, putUrl, requiredHeaders,
 //                 expiresAt, commitToken, url, downloadUrl }
 //
