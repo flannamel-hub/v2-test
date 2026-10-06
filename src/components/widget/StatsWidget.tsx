@@ -9,7 +9,7 @@ import {
 import { useMemberNavConfig } from '@/src/components/theme/SitePlanContext'
 import {
   CrownIcon,
-  MEMBER_NAV_JOIN_LABEL,
+  MEMBER_NAV_JOIN_LABEL_COMPACT,
   MEMBER_NAV_LOGIN_LABEL,
   readMemberNoFromCookieString,
 } from '@/src/components/member/MemberNav'
@@ -296,7 +296,7 @@ export const StatsWidget = ({
                     hover:from-[#d94040] hover:to-[#b81c22] hover:scale-[1.02] active:scale-95"
                 >
                   <CrownIcon className="h-3 w-3 shrink-0 text-[#FACC15]" />
-                  <span>{MEMBER_NAV_JOIN_LABEL}</span>
+                  <span>{MEMBER_NAV_JOIN_LABEL_COMPACT}</span>
                 </button>
                 <button
                   onClick={(e) => {

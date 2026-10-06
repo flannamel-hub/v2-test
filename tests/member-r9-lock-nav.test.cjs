@@ -5,7 +5,9 @@
  * - ② JoinButton 函数体切片:COMPACT ×4(standard×2+standard-mobile×2);
  *   裸 MEMBER_NAV_JOIN_LABEL ×2(gallery aria+文本);
  * - ③④ MemberContentGate 源文件静态复核(正向新文案/负向档位窗口与直达链零残留);
- * - ⑤ 守护断言:expired/revoked 面板、主按钮、续费链、pricing 链不动。
+ * - ⑤ 守护断言:expired/revoked 面板、主按钮、续费链、pricing 链不动;
+ * - ⑥ §11-B9 追裁:StatsWidget 公告卡红钮 label 改用 COMPACT(「会员」),
+ *   登录白钮/gallery/tweet/其余零改动。
  * gate 侧为纯静态 fs.readFileSync 断言(不 require MemberContentGate,
  * 规避 BlockRender→notion 重链;§11-B6⑤)。
  * 公开仓红线:用例内不出现真实域名/密钥。
@@ -107,6 +109,10 @@ const navSrc = fs.readFileSync(
   path.join(repoRoot, 'src/components/member/MemberNav.tsx'),
   'utf8'
 )
+const statsSrc = fs.readFileSync(
+  path.join(repoRoot, 'src/components/widget/StatsWidget.tsx'),
+  'utf8'
+)
 
 test('R9-6 常量:MEMBER_NAV_JOIN_LABEL 逐字不动;COMPACT === 会员', () => {
   assert.equal(memberNav.MEMBER_NAV_JOIN_LABEL, '加入会员')
@@ -151,4 +157,9 @@ test('守护:expired/revoked 面板与主按钮/pricing 链不动', () => {
   assert.ok(gateSrc.includes('立即续费'))
   assert.ok(gateSrc.includes('加入会员'))
   assert.ok(gateSrc.includes('href="/pricing"'))
+})
+
+test('R9-6 §11-B9:StatsWidget 红钮 label 用 COMPACT(会员);旧裸常量消费零残留', () => {
+  assert.equal(statsSrc.includes('MEMBER_NAV_JOIN_LABEL_COMPACT'), true)
+  assert.equal(statsSrc.includes('{MEMBER_NAV_JOIN_LABEL}'), false)
 })
