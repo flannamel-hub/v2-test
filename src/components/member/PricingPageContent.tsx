@@ -221,13 +221,21 @@ export function PricingPageContent({
       : panelTheme === 'light'
         ? 'bg-neutral-200'
         : 'bg-neutral-200 dark:bg-neutral-700'
-  // R6-6:FAQ 折叠行 hover 底色(三态主题)
+  // R6-FAQ:FAQ 折叠行 hover 底色(三态主题;轻微提亮,替换原整块实色)
   const faqRowHoverCls =
     panelTheme === 'dark'
-      ? 'hover:bg-neutral-800'
+      ? 'hover:bg-white/5'
       : panelTheme === 'light'
-        ? 'hover:bg-neutral-100'
-        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+        ? 'hover:bg-black/[0.03]'
+        : 'hover:bg-black/[0.03] dark:hover:bg-white/5'
+
+  // R6-FAQ:FAQ 问题/答案细分隔线色(三态主题;细实线1px)
+  const faqDividerCls =
+    panelTheme === 'dark'
+      ? 'border-white/10'
+      : panelTheme === 'light'
+        ? 'border-black/[0.07]'
+        : 'border-black/[0.07] dark:border-white/10'
 
   const storeUrl = resolveStoreUrl()
   const pricingCopy = resolvePricingCopy(membership.copy)
@@ -362,7 +370,7 @@ export function PricingPageContent({
                 <span className={`text-sm font-medium ${titleCls}`}>{item.q}</span>
                 <FaqChevronIcon className={`h-4 w-4 shrink-0 ${mutedCls} transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
               </button>
-              <div id={panelId} hidden={!open} className={`px-5 pb-4 text-xs leading-relaxed ${mutedCls}`}>
+              <div id={panelId} hidden={!open} className={`border-t px-5 pt-3 pb-4 text-sm leading-relaxed ${faqDividerCls} ${mutedCls}`}>
                 {item.a}
               </div>
             </div>
