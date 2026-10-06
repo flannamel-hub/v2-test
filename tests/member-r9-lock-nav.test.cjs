@@ -6,12 +6,16 @@
  *   裸 MEMBER_NAV_JOIN_LABEL ×2(gallery aria+文本);
  * - ③④ MemberContentGate 源文件静态复核(正向新文案/负向档位窗口与直达链零残留);
  * - ⑤ 守护断言:expired/revoked 面板、主按钮、续费链、pricing 链不动;
- * - ⑥ §11-B9 追裁:StatsWidget 公告卡红钮 label 改用 COMPACT(「会员」),
- *   登录白钮/gallery/tweet/其余零改动。
- * - R10-B:公告卡红钮皇冠悬挂居中(absolute right-full 悬挂;去 gap-1.5);
- *   guest 面板毛玻璃/新标题/红按钮「获取会员」;③正向断言集更新(§11-B3 补
- *   font-bold)+负向增补(旧标题/旧副标题零残留;「加入会员」仅剩 expired 区
- *   2 处=块注释+回落按钮,§11-B1);⑥追加皇冠悬挂两条断言。
+ * - ⑥ R11-B:StatsWidget 公告卡红钮 label 改回全量 MEMBER_NAV_JOIN_LABEL
+ *   (「加入会员」),皇冠/悬挂包裹删除;登录白钮/gallery/tweet/其余零改动。
+ * - R11-B:锁区 guest 面板登录入口链整体删除(登录按钮/弹窗/state 零残留);
+ *   「获取会员」按钮纯平色轻量化(方案 C·dc2626,无皇冠,文字严格居中)+间距
+ *   重调(gap-5/py-7);③正向断言集翻转(登录入口/CrownIcon/FACC15/悬挂/
+ *   e24a4a 转负向,新增 dc2626)+负向增补(旧标题/旧副标题零残留;「加入会员」
+ *   仅剩 expired 区 2 处=块注释+回落按钮,§11-B1;旧间距 gap-4 px-5 py-8
+ *   防回退);StatsWidget 陈旧页自愈(memberSession !== 'disabled');
+ *   pricing 三 CTA 悬挂式严格居中(justify-center gap-1.5 零残留,
+ *   right-full×3;ul gap-1.5 保留恰 1 处)。
  * gate 侧为纯静态 fs.readFileSync 断言(不 require MemberContentGate,
  * 规避 BlockRender→notion 重链;§11-B6⑤)。
  * 公开仓红线:用例内不出现真实域名/密钥。
@@ -117,6 +121,10 @@ const statsSrc = fs.readFileSync(
   path.join(repoRoot, 'src/components/widget/StatsWidget.tsx'),
   'utf8'
 )
+const pricingSrc = fs.readFileSync(
+  path.join(repoRoot, 'src/components/member/PricingPageContent.tsx'),
+  'utf8'
+)
 
 test('R9-6 常量:MEMBER_NAV_JOIN_LABEL 逐字不动;COMPACT === 会员', () => {
   assert.equal(memberNav.MEMBER_NAV_JOIN_LABEL, '加入会员')
@@ -139,16 +147,21 @@ test('R9-6 JoinButton 切片:COMPACT×4(standard×2+standard-mobile×2);裸 MEMB
   )
 })
 
-test('R10-B gate 源文件正向:新标题/红按钮/皇冠悬挂/毛玻璃', () => {
+test('R11-B gate 源文件正向:新标题/纯平色红按钮/毛玻璃/新间距;登录入口链零残留', () => {
   assert.ok(gateSrc.includes('内容已隐藏，请订阅会员后查看'))
-  assert.ok(gateSrc.includes('已有会员？立即登录→'))
   assert.ok(gateSrc.includes('获取会员'))
-  assert.ok(gateSrc.includes('CrownIcon'))
-  assert.ok(gateSrc.includes('text-[#FACC15]'))
-  assert.ok(gateSrc.includes('absolute right-full'))
   assert.ok(gateSrc.includes('backdrop-blur'))
-  assert.ok(gateSrc.includes('e24a4a'))
   assert.ok(gateSrc.includes('font-bold'))
+  assert.ok(gateSrc.includes('dc2626'))
+  assert.ok(gateSrc.includes('gap-5'))
+  assert.ok(gateSrc.includes('py-7'))
+  assert.equal(gateSrc.includes('已有会员？立即登录→'), false)
+  assert.equal(gateSrc.includes('CrownIcon'), false)
+  assert.equal(gateSrc.includes('MemberLoginDialog'), false)
+  assert.equal(gateSrc.includes('text-[#FACC15]'), false)
+  assert.equal(gateSrc.includes('absolute right-full'), false)
+  assert.equal(gateSrc.includes('e24a4a'), false)
+  assert.equal(gateSrc.includes('gap-4 px-5 py-8'), false)
 })
 
 test('R10-B gate 负向:旧标题/旧副标题零残留;「加入会员」仅剩 expired 区 2 处（注释+回落按钮）', () => {
@@ -173,9 +186,13 @@ test('守护:expired/revoked 面板与主按钮/pricing 链不动', () => {
   assert.ok(gateSrc.includes('href="/pricing"'))
 })
 
-test('R9-6 §11-B9:StatsWidget 红钮 label 用 COMPACT(会员);旧裸常量消费零残留', () => {
-  assert.equal(statsSrc.includes('MEMBER_NAV_JOIN_LABEL_COMPACT'), true)
-  assert.equal(statsSrc.includes('{MEMBER_NAV_JOIN_LABEL}'), false)
-  assert.ok(statsSrc.includes('absolute right-full'))
-  assert.ok(statsSrc.includes('relative inline-flex'))
+test('R11-B StatsWidget 红钮全量 label+皇冠/悬挂/COMPACT 零残留+陈旧页自愈;pricing 三 CTA 悬挂居中', () => {
+  assert.equal(statsSrc.includes('MEMBER_NAV_JOIN_LABEL_COMPACT'), false)
+  assert.equal(statsSrc.includes('{MEMBER_NAV_JOIN_LABEL}'), true)
+  assert.equal(statsSrc.includes('absolute right-full'), false)
+  assert.equal(statsSrc.includes('relative inline-flex'), false)
+  assert.ok(statsSrc.includes("memberSession !== 'disabled'"))
+  assert.equal(pricingSrc.includes('justify-center gap-1.5'), false)
+  assert.equal((pricingSrc.match(/gap-1\.5/g) || []).length, 1)
+  assert.equal((pricingSrc.match(/right-full/g) || []).length, 3)
 })

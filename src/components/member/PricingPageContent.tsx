@@ -248,10 +248,12 @@ export function PricingPageContent({
           type="button"
           onClick={() => void requestRenew(days)}
           disabled={busy}
-          className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${ctaButtonCls}`}
+          className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${ctaButtonCls}`}
         >
-          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
-          <span>{busy ? '跳转中…' : '续费'}</span>
+          <span className="relative inline-flex items-center justify-center">
+            <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
+            <span>{busy ? '跳转中…' : '续费'}</span>
+          </span>
         </button>
       )
     }
@@ -264,10 +266,12 @@ export function PricingPageContent({
           onClick={(e) => {
             if (!storeUrl) e.preventDefault()
           }}
-          className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
+          className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
         >
-          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
-          <span>立即购买</span>
+          <span className="relative inline-flex items-center justify-center">
+            <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
+            <span>立即购买</span>
+          </span>
         </a>
       )
     }
@@ -278,10 +282,12 @@ export function PricingPageContent({
         onClick={(e) => {
           if (!storeUrl) e.preventDefault()
         }}
-        className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
+        className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
       >
-        <CrownIcon className="h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
-        <span>立即购买</span>
+        <span className="relative inline-flex items-center justify-center">
+          <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
+          <span>立即购买</span>
+        </span>
       </a>
     )
   }

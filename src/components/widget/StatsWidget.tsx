@@ -8,8 +8,7 @@ import {
 } from '@/src/lib/blog/vendingDefaults'
 import { useMemberNavConfig } from '@/src/components/theme/SitePlanContext'
 import {
-  CrownIcon,
-  MEMBER_NAV_JOIN_LABEL_COMPACT,
+  MEMBER_NAV_JOIN_LABEL,
   MEMBER_NAV_LOGIN_LABEL,
   readMemberNoFromCookieString,
 } from '@/src/components/member/MemberNav'
@@ -49,10 +48,12 @@ export const StatsWidget = ({
   const noteModalEnabled = vendingConfig?.noteModal === true
   // R2-B5a:会员开通 → 贩售入口让位会员入口(未登录双按钮,见下);
   // 商品模式(未开通会员)行为零变化
-  const memberMode = useMemberNavConfig() !== null
+  const memberModeCtx = useMemberNavConfig() !== null
   // R3-6:公告卡会员区双按钮(仅未登录显示) + 登录弹窗
   const [memberSession, setMemberSession] = useState<string>('probing')
   const [loginOpen, setLoginOpen] = useState(false)
+  // R11-B：陈旧页自愈——探测到 disabled（实际已切商品模式）时回落贩售分支，不再会员区空白
+  const memberMode = memberModeCtx && memberSession !== 'disabled'
 
   // 会员站挂载单次探测会话(无轮询;SSG 安全;失败按未登录渲染)
   const probeMemberSession = useCallback(async (): Promise<string> => {
@@ -295,11 +296,8 @@ export const StatsWidget = ({
                     transition-all duration-300
                     hover:from-[#d94040] hover:to-[#b81c22] hover:scale-[1.02] active:scale-95"
                 >
-                  {/* R10-B：文字严格居中 + 皇冠悬挂左侧（不占居中计算，与下方「登录」同中轴） */}
-                  <span className="relative inline-flex items-center justify-center">
-                    <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3 w-3 shrink-0 text-[#FACC15]" />
-                    <span>{MEMBER_NAV_JOIN_LABEL_COMPACT}</span>
-                  </span>
+                  {/* R11-B：文字严格居中（皇冠已删，与下方「登录」同中轴） */}
+                  <span>{MEMBER_NAV_JOIN_LABEL}</span>
                 </button>
                 <button
                   onClick={(e) => {
