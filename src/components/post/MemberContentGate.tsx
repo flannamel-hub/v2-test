@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import React, { useCallback, useEffect, useState } from 'react'
 import { BlockRender } from '@/src/components/blocks/BlockRender'
-import { MemberLoginDialog, formatMembershipTierLabel } from '@/src/components/member/MemberLoginDialog'
+import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
+import { CrownIcon } from '@/src/components/member/MemberNav'
 import { useMemberContent } from '@/src/components/post/MemberAwareBlockRender'
 import { useActiveTheme } from '@/src/components/theme/ActiveThemeProvider'
 import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetTheme'
@@ -19,7 +20,8 @@ import type { BlockResponse } from '@/src/types/notion'
  *   弹窗状态所有权已移出本组件,勿再留双份;
  * - B4-W5:expired 面板「立即续费」直链(消费 B2-E10):调 /api/member/renew-url
  *   (config.plans[0].days)→ window.open;失败/无档位回落「前往会员中心」;
- * - R1:guest 订阅链接直达化(${storeUrl}/p/{sku}?go=1 同窗,支付后回跳自动登录)。
+ * - R9-5:guest 面板改版(档位窗口与订阅直达链已下线;皇冠标题+中心提示;
+ *   「已有会员？立即登录→」开弹窗路径不变)。
  */
 
 type MemberContentGateProps = {
@@ -61,11 +63,6 @@ const LockIcon = ({ className = '' }: { className?: string }) => (
     <path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
   </svg>
 )
-
-function resolveStoreUrl(): string {
-  if (typeof process === 'undefined') return ''
-  return (process.env.NEXT_PUBLIC_STORE_URL || '').trim().replace(/\/+$/, '')
-}
 
 export function MemberContentGate({ postSlug, variant }: MemberContentGateProps) {
   const ctx = useMemberContent()
@@ -211,12 +208,6 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
       : panelTheme === 'light'
         ? 'text-neutral-500'
         : 'text-neutral-500 dark:text-neutral-400'
-  const borderCls =
-    panelTheme === 'dark'
-      ? 'divide-neutral-700/80'
-      : panelTheme === 'light'
-        ? 'divide-neutral-200/80'
-        : 'divide-neutral-200/80 dark:divide-neutral-700/80'
   const primaryButtonCls =
     panelTheme === 'dark'
       ? 'bg-blue-600 hover:bg-blue-500'
@@ -310,36 +301,16 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
   }
 
   // ---- guest:会员专属面板 ----
-  const storeUrl = resolveStoreUrl()
-
   return (
     <div
       className={`member-gate-panel my-6 overflow-hidden rounded-xl border shadow-sm ${panelCls}`}
     >
       <div className="flex flex-col items-center gap-4 px-5 py-8 text-center select-none">
-        <LockIcon className={`h-5 w-5 ${mutedCls}`} />
-        <p className={`text-sm font-medium ${titleCls}`}>会员专属内容</p>
-
-        {config.plans.length > 0 ? (
-          <div className={`w-full max-w-xs divide-y rounded-lg border ${borderCls} ${panelCls}`}>
-            {config.plans.map((plan) => (
-              <div key={plan.sku} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
-                <span className={`text-sm ${titleCls}`}>
-                  {formatMembershipTierLabel(plan.days)} · ¥{plan.price}
-                </span>
-                {storeUrl ? (
-                  <a
-                    href={`${storeUrl}/p/${plan.sku}?go=1`}
-                    rel="noopener noreferrer"
-                    className={`whitespace-nowrap text-xs font-medium transition-colors ${mutedCls} hover:underline`}
-                  >
-                    订阅
-                  </a>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <CrownIcon className="h-4 w-4 text-[#FACC15]" />
+          <p className={`text-sm font-bold ${titleCls}`}>会员专属内容</p>
+        </div>
+        <p className={`text-sm ${mutedCls}`}>已隐藏，请登录后查看</p>
 
         {/* R2-B5a(E2):主按钮「加入会员」→ /pricing;登录降次级开弹窗 */}
         <Link
@@ -356,7 +327,7 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
           }}
           className={`text-xs font-medium transition-colors ${mutedCls} hover:underline`}
         >
-          已有会员码？登录
+          已有会员？立即登录→
         </button>
       </div>
 

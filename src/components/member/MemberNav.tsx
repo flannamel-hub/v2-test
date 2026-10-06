@@ -41,6 +41,8 @@ export type MemberNavVariant =
   | 'tweet-mobile'
 
 export const MEMBER_NAV_JOIN_LABEL = '加入会员'
+/** R9-6:standard/standard-mobile 变体紧凑 label(「会员」;金冠图标与 /pricing 跳转不变) */
+export const MEMBER_NAV_JOIN_LABEL_COMPACT = '会员'
 export const MEMBER_NAV_LOGIN_LABEL = '登录'
 export const MEMBER_NAV_LOGOUT_LABEL = '退出登录'
 export const MEMBER_NAV_RENEW_LABEL = '续费'
@@ -272,11 +274,11 @@ function JoinButton({ variant }: { variant: MemberNavVariant }) {
     return (
       <Link
         href="/pricing"
-        aria-label={MEMBER_NAV_JOIN_LABEL}
+        aria-label={MEMBER_NAV_JOIN_LABEL_COMPACT}
         className="flex h-[26px] items-center justify-center gap-1.5 rounded-md bg-[#dc2626] px-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#b91c1c]"
       >
         <CrownIcon className="h-4 w-4 shrink-0 text-[#FACC15]" />
-        <span className="whitespace-nowrap">{MEMBER_NAV_JOIN_LABEL}</span>
+        <span className="whitespace-nowrap">{MEMBER_NAV_JOIN_LABEL_COMPACT}</span>
       </Link>
     )
   }
@@ -284,11 +286,11 @@ function JoinButton({ variant }: { variant: MemberNavVariant }) {
     return (
       <Link
         href="/pricing"
-        aria-label={MEMBER_NAV_JOIN_LABEL}
+        aria-label={MEMBER_NAV_JOIN_LABEL_COMPACT}
         className="flex h-10 w-full items-center justify-center gap-1.5 rounded-2xl bg-[#dc2626] px-4 text-sm font-semibold text-white shadow-[0px_0px_14px_-5px_rgb(186_186_186/70%)] transition-all hover:bg-[#b91c1c] active:scale-[0.98]"
       >
         <CrownIcon className="h-4 w-4 shrink-0 text-[#FACC15]" />
-        <span>{MEMBER_NAV_JOIN_LABEL}</span>
+        <span>{MEMBER_NAV_JOIN_LABEL_COMPACT}</span>
       </Link>
     )
   }
