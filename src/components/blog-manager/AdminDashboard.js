@@ -9042,6 +9042,16 @@ const [mounted, setMounted] = useState(false);
       }
 
       pendingPostTypeOverridesRef.current.set(p.id, 'Piece');
+      // R8：删除成功即清除该文章的「新文章同步中」条目——横幅「正在更新刚发布的文章…」不应残留
+      {
+        const removed = pendingPostSyncsRef.current.filter((item) => item.id === p.id || item.slug === p.slug);
+        if (removed.length) {
+          const next = pendingPostSyncsRef.current.filter((item) => item.id !== p.id && item.slug !== p.slug);
+          pendingPostSyncsRef.current = next;
+          setPendingPostSyncs(next);
+          removed.forEach((item) => pendingPostSyncPollingRef.current.delete(item.id));
+        }
+      }
       setPosts((currentPosts) =>
         currentPosts.map((post) =>
           post.id === p.id ? { ...post, type: 'Piece' } : post

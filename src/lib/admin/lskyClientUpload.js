@@ -1062,6 +1062,10 @@ function requestDirectTicket(params) {
 
     credentials: 'same-origin',
 
+    // R8：直传原语 15s 超时护栏——防路由/上游挂起时无限转圈（超时沿既有错误链走）
+
+    signal: AbortSignal.timeout(15_000),
+
     body: JSON.stringify(params),
 
   }).then(async (res) => {
@@ -1095,6 +1099,10 @@ function commitDirectUpload(commitToken) {
     headers: { 'Content-Type': 'application/json' },
 
     credentials: 'same-origin',
+
+    // R8：直传原语 15s 超时护栏——防路由/上游挂起时无限转圈（超时沿既有错误链走）
+
+    signal: AbortSignal.timeout(15_000),
 
     body: JSON.stringify({ commitToken }),
 

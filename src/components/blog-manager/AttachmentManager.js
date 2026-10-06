@@ -34,6 +34,15 @@ export function resolveAttachmentAvailability(capability) {
 // W4-4b：直传失败时允许回退代理通道的文件体积上限（超过则回退无意义，直接报错）
 const DIRECT_FALLBACK_SAFE_BYTES = 4 * 1024 * 1024
 
+// R8：用户取消判据——用户主动 abort（AbortError）/ xhr onabort（「已取消上传：」「直传写入已取消」）；
+// 15s 超时为 TimeoutError（name 不同，天然可判），不属于用户取消
+const isUserAbort = (e) =>
+  e && (
+    e.name === 'AbortError'
+    || String(e.message || '').startsWith('已取消上传：')
+    || String(e.message || '') === '直传写入已取消'
+  )
+
 function formatBytes(bytes) {
   const n = Math.max(0, Number(bytes) || 0)
   if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(2)} GB`
@@ -60,7 +69,8 @@ function formatTime(iso) {
 
 // BLOG-UI-FIX：fetch 无法获取上传进度，改用 XHR（upload.onprogress 回调 0-100）
 // W4-4b：原代理实现保留为 uploadAttachmentViaProxy（回退通道，逻辑不变）
-function uploadAttachmentViaProxy({ file, slug, onPercent }) {
+// R8：可选 abortRef 注入——xhr 句柄存入供「取消」按钮中止
+function uploadAttachmentViaProxy({ file, slug, onPercent, abortRef }) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open(
@@ -92,16 +102,23 @@ function uploadAttachmentViaProxy({ file, slug, onPercent }) {
     xhr.onerror = () => reject(new Error(`上传失败：${file.name}（网络错误）`))
     xhr.onabort = () => reject(new Error(`已取消上传：${file.name}`))
     xhr.ontimeout = () => reject(new Error(`上传超时：${file.name}`))
+    if (abortRef) abortRef.current = { abort: () => xhr.abort() }
     xhr.send(file)
   })
 }
 
 // W4-4b 直传（presign）：ticket → XHR PUT（带进度）→ commit
-function requestDirectTicket(params) {
+// R8：可选 signal（用户取消）与 15s 超时合并——先到者生效
+// （AbortError=用户取消 / TimeoutError=超时，name 不同天然可判）
+function requestDirectTicket(params, signal) {
+  const merged = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+    : AbortSignal.timeout(15_000)
   return fetch('/api/admin/storage-ticket', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
+    signal: merged,
     body: JSON.stringify(params),
   }).then(async (r) => {
     const d = await r.json().catch(() => null)
@@ -114,11 +131,15 @@ function requestDirectTicket(params) {
   })
 }
 
-function commitDirectUpload(commitToken) {
+function commitDirectUpload(commitToken, signal) {
+  const merged = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+    : AbortSignal.timeout(15_000)
   return fetch('/api/admin/storage-commit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
+    signal: merged,
     body: JSON.stringify({ commitToken }),
   }).then(async (r) => {
     const d = await r.json().catch(() => null)
@@ -131,7 +152,7 @@ function commitDirectUpload(commitToken) {
   })
 }
 
-function xhrPutFileToPresignedUrl(putUrl, file, headers, onPercent) {
+function xhrPutFileToPresignedUrl(putUrl, file, headers, onPercent, onXhrCreated) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('PUT', putUrl, true)
@@ -151,13 +172,27 @@ function xhrPutFileToPresignedUrl(putUrl, file, headers, onPercent) {
     xhr.onerror = () => reject(new Error('直传写入失败（网络错误）'))
     xhr.onabort = () => reject(new Error('直传写入已取消'))
     xhr.ontimeout = () => reject(new Error('直传写入超时'))
+    // R8：xhr 局部引用交给调用方（供「取消」按钮中止）
+    if (onXhrCreated) onXhrCreated(xhr)
     xhr.send(file)
   })
 }
 
-async function uploadAttachmentDirect({ file, slug, onPercent }) {
+// R8：可选 abortRef 注入——controller（ticket/commit fetch）+ xhrRef（PUT xhr）
+// 双通道取消句柄；用户取消 ≠ 失败回退
+async function uploadAttachmentDirect({ file, slug, onPercent, abortRef }) {
   let everPutOk = false
   let lastError = null
+  const controller = new AbortController()
+  const xhrRef = { current: null }
+  if (abortRef) {
+    abortRef.current = {
+      abort: () => {
+        controller.abort()
+        if (xhrRef.current) xhrRef.current.abort()
+      },
+    }
+  }
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -167,15 +202,20 @@ async function uploadAttachmentDirect({ file, slug, onPercent }) {
         filename: file.name || 'attachment',
         contentType: file.type || 'application/octet-stream',
         sizeBytes: file.size,
-      })
+      }, controller.signal)
       if (!ticket.putUrl || !ticket.commitToken) {
         throw new Error('直传凭据不完整')
       }
-      await xhrPutFileToPresignedUrl(ticket.putUrl, file, ticket.requiredHeaders, onPercent)
+      await xhrPutFileToPresignedUrl(ticket.putUrl, file, ticket.requiredHeaders, onPercent, (xhr) => { xhrRef.current = xhr })
       everPutOk = true
-      await commitDirectUpload(ticket.commitToken)
+      await commitDirectUpload(ticket.commitToken, controller.signal)
       return
     } catch (e) {
+      // R8：用户取消——跳过重试、跳过 commitFailedNoFallback 分支（取消 ≠ 失败）
+      if (isUserAbort(e)) {
+        e.userAborted = true
+        throw e
+      }
       lastError = e
     }
   }
@@ -191,11 +231,17 @@ async function uploadAttachmentDirect({ file, slug, onPercent }) {
 
 // W4-4b：直传优先 + 自动回退（能力关闭/读取失败/非 storage_base → 代理，零行为变化；
 // 直传失败 ≤4MB 无感回退 /api/admin/attachments；>4MB 明确报错）
-export async function uploadAttachmentWithProgress({ file, slug, onPercent, directEnabled }) {
+// R8：abortRef 透传；用户取消不得回退代理通道
+export async function uploadAttachmentWithProgress({ file, slug, onPercent, directEnabled, abortRef }) {
   if (directEnabled) {
     try {
-      return await uploadAttachmentDirect({ file, slug, onPercent })
+      return await uploadAttachmentDirect({ file, slug, onPercent, abortRef })
     } catch (e) {
+      // R8：用户取消直接 rethrow（双保险，先于 commitFailedNoFallback 判断）
+      if (isUserAbort(e)) {
+        e.userAborted = true
+        throw e
+      }
       if (e && e.commitFailedNoFallback) throw e
       if (file.size > DIRECT_FALLBACK_SAFE_BYTES) {
         throw new Error('上传失败，请检查网络后重试')
@@ -203,7 +249,7 @@ export async function uploadAttachmentWithProgress({ file, slug, onPercent, dire
       // ≤4MB：回退既有代理通道（无感）
     }
   }
-  return uploadAttachmentViaProxy({ file, slug, onPercent })
+  return uploadAttachmentViaProxy({ file, slug, onPercent, abortRef })
 }
 
 export function AttachmentManager({ postSlug }) {
@@ -221,6 +267,9 @@ export function AttachmentManager({ postSlug }) {
   // W4-3：附件能力门（null=加载中或查询失败 → fail-open 按可用渲染）
   const [capability, setCapability] = useState(null)
   const fileInputRef = useRef(null)
+  // R8：附件上传取消——当前批次 abort 句柄 + 取消请求标记
+  const uploadAbortRef = useRef(null)
+  const cancelRequestedRef = useRef(false)
 
   // W4-3：挂载时取附件能力（附件跟随图床基座）；失败按可用（fail-open）
   // W4-4b：同时透传 backend/presignEnabled 供直传判定
@@ -341,6 +390,8 @@ export function AttachmentManager({ postSlug }) {
     setUploading(true)
     setError('')
     setUploadProgress({ done: 0, total: files.length, percent: 0 })
+    // R8：进入新批次时复位取消标记（上一批的取消不带入本批）
+    cancelRequestedRef.current = false
     // W4-4b：直传能力派生（backend=storage_base 且 presignEnabled；能力未知=按代理）
     const directEnabled = !!(
       capability &&
@@ -349,7 +400,11 @@ export function AttachmentManager({ postSlug }) {
     )
     try {
       for (let i = 0; i < files.length; i += 1) {
+        // R8：多文件批次取消=整批停止
+        if (cancelRequestedRef.current) break
         const file = files[i]
+        // R8：每文件重置 abort 句柄，组件级 ref 逐文件下传
+        uploadAbortRef.current = null
         // 整体进度 = 已完成文件数 + 当前文件进度；服务器响应前封顶 99%，响应后记满
         await uploadAttachmentWithProgress({
           file,
@@ -362,6 +417,7 @@ export function AttachmentManager({ postSlug }) {
             setUploadProgress({ done: i, total: files.length, percent: overall })
           },
           directEnabled,
+          abortRef: uploadAbortRef,
         })
         setUploadProgress({
           done: i + 1,
@@ -371,10 +427,17 @@ export function AttachmentManager({ postSlug }) {
       }
       await loadList()
     } catch (e) {
+      // R8：用户取消=静默收尾（error 槽提示，跳过 loadList）；纯代理通道取消（presign 关闭场景）无 userAborted 标记，靠 isUserAbort 判据兜底
+      if ((e && e.userAborted) || isUserAbort(e)) {
+        setError('已取消上传')
+        return
+      }
       setError(e.message || '附件上传失败')
       await loadList()
     } finally {
       setUploading(false)
+      // R8：批次结束清理句柄
+      uploadAbortRef.current = null
       loadUsage()
     }
   }
@@ -476,18 +539,43 @@ export function AttachmentManager({ postSlug }) {
             <span style={{ fontSize: '12px', color: '#bbb' }}>
               正在上传附件（{Math.min(uploadProgress.done + 1, uploadProgress.total)}/{uploadProgress.total}），请勿关闭页面
             </span>
-            <span
-              data-testid="attachment-upload-percent"
-              style={{
-                fontSize: '12px',
-                color: '#ddd',
-                fontWeight: 'bold',
-                fontVariantNumeric: 'tabular-nums',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {uploadProgress.percent}%
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                data-testid="attachment-upload-percent"
+                style={{
+                  fontSize: '12px',
+                  color: '#ddd',
+                  fontWeight: 'bold',
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {uploadProgress.percent}%
+              </span>
+              {/* R8：上传中可取消（中止当前文件；多文件批次整批停止） */}
+              <button
+                type="button"
+                onClick={() => {
+                  cancelRequestedRef.current = true
+                  uploadAbortRef.current && uploadAbortRef.current.abort()
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#888' }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#555' }}
+                style={{
+                  flexShrink: 0,
+                  border: '1px solid #555',
+                  background: 'transparent',
+                  color: '#ccc',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  padding: '2px 10px',
+                  cursor: 'pointer',
+                  lineHeight: 1.5,
+                }}
+              >
+                取消
+              </button>
+            </div>
           </div>
           <div
             role="progressbar"

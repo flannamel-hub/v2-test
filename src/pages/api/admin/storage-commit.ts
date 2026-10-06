@@ -2,6 +2,14 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
 import { forwardMainStorageJsonPost } from '@/src/lib/storage/mainStorage'
 
+// 关闭 Next 自带 body 解析：本路由手动读取 JSON 原始流（readJsonBody）。
+// ⚠ 不关闭时框架会先消费请求流，readJsonBody 的 'end' 永不触发 → 路由挂死。
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}
+
 // ============================================================
 // 存储基座 W4-4b · 直传 commit 代理（浏览器 → 本路由 → 主站）
 // ------------------------------------------------------------
