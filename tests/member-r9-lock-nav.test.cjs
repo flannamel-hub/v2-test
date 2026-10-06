@@ -8,6 +8,10 @@
  * - ⑤ 守护断言:expired/revoked 面板、主按钮、续费链、pricing 链不动;
  * - ⑥ §11-B9 追裁:StatsWidget 公告卡红钮 label 改用 COMPACT(「会员」),
  *   登录白钮/gallery/tweet/其余零改动。
+ * - R10-B:公告卡红钮皇冠悬挂居中(absolute right-full 悬挂;去 gap-1.5);
+ *   guest 面板毛玻璃/新标题/红按钮「获取会员」;③正向断言集更新(§11-B3 补
+ *   font-bold)+负向增补(旧标题/旧副标题零残留;「加入会员」仅剩 expired 区
+ *   2 处=块注释+回落按钮,§11-B1);⑥追加皇冠悬挂两条断言。
  * gate 侧为纯静态 fs.readFileSync 断言(不 require MemberContentGate,
  * 规避 BlockRender→notion 重链;§11-B6⑤)。
  * 公开仓红线:用例内不出现真实域名/密钥。
@@ -135,12 +139,22 @@ test('R9-6 JoinButton 切片:COMPACT×4(standard×2+standard-mobile×2);裸 MEMB
   )
 })
 
-test('R9-5 gate 源文件正向:皇冠标题/中心提示/登录链接', () => {
-  assert.ok(gateSrc.includes('已隐藏，请登录后查看'))
+test('R10-B gate 源文件正向:新标题/红按钮/皇冠悬挂/毛玻璃', () => {
+  assert.ok(gateSrc.includes('内容已隐藏，请订阅会员后查看'))
   assert.ok(gateSrc.includes('已有会员？立即登录→'))
+  assert.ok(gateSrc.includes('获取会员'))
   assert.ok(gateSrc.includes('CrownIcon'))
   assert.ok(gateSrc.includes('text-[#FACC15]'))
+  assert.ok(gateSrc.includes('absolute right-full'))
+  assert.ok(gateSrc.includes('backdrop-blur'))
+  assert.ok(gateSrc.includes('e24a4a'))
   assert.ok(gateSrc.includes('font-bold'))
+})
+
+test('R10-B gate 负向:旧标题/旧副标题零残留;「加入会员」仅剩 expired 区 2 处（注释+回落按钮）', () => {
+  assert.equal(gateSrc.includes('会员专属内容'), false)
+  assert.equal(gateSrc.includes('已隐藏，请登录后查看'), false)
+  assert.equal((gateSrc.match(/加入会员/g) || []).length, 2)
 })
 
 test('R9-5 gate 源文件负向:档位窗口/订阅直达链零残留', () => {
@@ -162,4 +176,6 @@ test('守护:expired/revoked 面板与主按钮/pricing 链不动', () => {
 test('R9-6 §11-B9:StatsWidget 红钮 label 用 COMPACT(会员);旧裸常量消费零残留', () => {
   assert.equal(statsSrc.includes('MEMBER_NAV_JOIN_LABEL_COMPACT'), true)
   assert.equal(statsSrc.includes('{MEMBER_NAV_JOIN_LABEL}'), false)
+  assert.ok(statsSrc.includes('absolute right-full'))
+  assert.ok(statsSrc.includes('relative inline-flex'))
 })

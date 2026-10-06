@@ -22,6 +22,7 @@ import type { BlockResponse } from '@/src/types/notion'
  *   (config.plans[0].days)→ window.open;失败/无档位回落「前往会员中心」;
  * - R9-5:guest 面板改版(档位窗口与订阅直达链已下线;皇冠标题+中心提示;
  *   「已有会员？立即登录→」开弹窗路径不变)。
+ * - R10-B：guest 面板毛玻璃+红按钮「获取会员」（皇冠悬挂居中）+新标题（副标题下线）。
  */
 
 type MemberContentGateProps = {
@@ -214,6 +215,16 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
       : panelTheme === 'light'
         ? 'bg-neutral-900 hover:bg-neutral-700'
         : 'bg-neutral-900 hover:bg-neutral-700 dark:bg-blue-600 dark:hover:bg-blue-500'
+  // R10-B：guest 面板毛玻璃（拍板 1A·基础款；深浅/auto 三态适配）
+  const guestPanelCls =
+    panelTheme === 'dark'
+      ? 'border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.06)] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_14px_34px_-14px_rgba(0,0,0,0.65)]'
+      : panelTheme === 'light'
+        ? 'border-[rgba(0,0,0,0.06)] bg-[rgba(243,246,251,0.55)] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_14px_34px_-18px_rgba(15,23,42,0.22)]'
+        : 'border-[rgba(0,0,0,0.06)] bg-[rgba(243,246,251,0.55)] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_14px_34px_-18px_rgba(15,23,42,0.22)] dark:border-[rgba(255,255,255,0.10)] dark:bg-[rgba(255,255,255,0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_14px_34px_-14px_rgba(0,0,0,0.65)]'
+  // R10-B：guest 主按钮红底（与公告卡红钮同一品牌红渐变；expired/revoked 面板继续用 primaryButtonCls 不动）
+  const gateBrandButtonCls =
+    'bg-gradient-to-b from-[#e24a4a] to-[#c51f25] hover:from-[#d94040] hover:to-[#b81c22]'
 
   // ---- 渲染 ----
   // 页 props membershipConfig 缺失/未启用 → 零可见
@@ -302,22 +313,19 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
 
   // ---- guest:会员专属面板 ----
   return (
-    <div
-      className={`member-gate-panel my-6 overflow-hidden rounded-xl border shadow-sm ${panelCls}`}
-    >
+    <div className={`member-gate-panel my-6 overflow-hidden rounded-xl border ${guestPanelCls}`}>
       <div className="flex flex-col items-center gap-4 px-5 py-8 text-center select-none">
-        <div className="flex items-center gap-2">
-          <CrownIcon className="h-4 w-4 text-[#FACC15]" />
-          <p className={`text-sm font-bold ${titleCls}`}>会员专属内容</p>
-        </div>
-        <p className={`text-sm ${mutedCls}`}>已隐藏，请登录后查看</p>
+        <p className={`text-sm font-bold ${titleCls}`}>内容已隐藏，请订阅会员后查看</p>
 
-        {/* R2-B5a(E2):主按钮「加入会员」→ /pricing;登录降次级开弹窗 */}
+        {/* R10-B：红底主按钮「获取会员」+ 实心皇冠悬挂（文字严格居中，不占居中组） */}
         <Link
           href="/pricing"
-          className={`w-full max-w-xs rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${primaryButtonCls}`}
+          className={`w-full max-w-xs rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all active:scale-[0.98] ${gateBrandButtonCls}`}
         >
-          加入会员
+          <span className="relative inline-flex items-center justify-center">
+            <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3.5 w-3.5 text-[#FACC15]" />
+            <span>获取会员</span>
+          </span>
         </Link>
         <button
           type="button"

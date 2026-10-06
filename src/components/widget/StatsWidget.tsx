@@ -289,14 +289,17 @@ export const StatsWidget = ({
                     window.location.assign('/pricing');
                   }}
                   type="button"
-                  className="w-full h-8 rounded-xl flex items-center justify-center gap-1.5
+                  className="w-full h-8 rounded-xl flex items-center justify-center
                     bg-gradient-to-b from-[#e24a4a] to-[#c51f25]
                     text-xs font-bold text-white tracking-wide
                     transition-all duration-300
                     hover:from-[#d94040] hover:to-[#b81c22] hover:scale-[1.02] active:scale-95"
                 >
-                  <CrownIcon className="h-3 w-3 shrink-0 text-[#FACC15]" />
-                  <span>{MEMBER_NAV_JOIN_LABEL_COMPACT}</span>
+                  {/* R10-B：文字严格居中 + 皇冠悬挂左侧（不占居中计算，与下方「登录」同中轴） */}
+                  <span className="relative inline-flex items-center justify-center">
+                    <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3 w-3 shrink-0 text-[#FACC15]" />
+                    <span>{MEMBER_NAV_JOIN_LABEL_COMPACT}</span>
+                  </span>
                 </button>
                 <button
                   onClick={(e) => {
