@@ -407,14 +407,14 @@ test('默认文案 A/B/C 逐字一致(既有口径零变化)', () => {
 
 // --- R3-6:standard 导航可见性 / 公告卡按钮决策纯函数 ------------------------------------
 
-test('resolveMemberNavStandardRender:standard/standard-mobile × join → 不渲染;chip → 渲染;gallery/tweet 不受影响', () => {
-  // 未登录(含探测前 guest 静态渲染)→ 不渲染任何内容(登录入口移至公告卡)
+test('resolveMemberNavStandardRender:standard/standard-mobile 除 hidden 外一律不渲染;gallery/tweet 不受影响', () => {
+  // R12-B(6A):未登录 join 与登录态 chip 一律不渲染(登录入口与会员面均在公告卡)
   assert.equal(resolveMemberNavStandardRender('standard', 'join'), false)
   assert.equal(resolveMemberNavStandardRender('standard-mobile', 'join'), false)
-  // 登录态 → chip 保留
-  assert.equal(resolveMemberNavStandardRender('standard', 'chip'), true)
-  assert.equal(resolveMemberNavStandardRender('standard-mobile', 'chip'), true)
-  // gallery/tweet 变体不受本判定约束(行为不变)
+  // R12-B(6A):登录态 chip 亦不渲染(登出/续费移至首页与 about 公告卡信息块)
+  assert.equal(resolveMemberNavStandardRender('standard', 'chip'), false)
+  assert.equal(resolveMemberNavStandardRender('standard-mobile', 'chip'), false)
+  // gallery/tweet 变体不受本判定约束(chip 保留,行为不变)
   assert.equal(resolveMemberNavStandardRender('gallery', 'join'), true)
   assert.equal(resolveMemberNavStandardRender('gallery', 'chip'), true)
   assert.equal(resolveMemberNavStandardRender('tweet', 'join'), true)

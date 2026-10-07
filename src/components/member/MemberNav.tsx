@@ -20,7 +20,9 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  * - 状态判定:active/expired → MemberChip(红条隐藏,3A);guest/错误 → 登录位;
  *   disabled → 整体不渲染(Context null 已保证,session disabled 双保险);
  * - R3-6(5A):standard/standard-mobile 未登录不渲染任何内容(登录入口移至公告卡),
- *   见 resolveMemberNavStandardRender;gallery/tweet 变体行为不变;
+ *   gallery/tweet 变体行为不变;R12-B(6A):standard/standard-mobile 登录态 chip
+ *   亦移除(除 hidden 外一律不渲染;会员面/登出=首页与 about 公告卡信息块),
+ *   见 resolveMemberNavStandardRender;
  * - R4-B2:挂载先同步判 sm_member_no cookie——有值且仍是初始 guest → 置临时态
  *   {status:'active', memberNo: cookie 值, expiresAt: null} chip 即显(有效期缺失
  *   走「会员生效中」兜底),随后探测补全/纠偏(实为 guest → chip 消失;active/expired
@@ -30,7 +32,10 @@ import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetThe
  * - member_no 来源:session 响应 > sm_member_no cookie(非 HttpOnly 展示值)> 缺省;
  * - chip 浮窗:createPortal 挂 document.body(祖先可能带 backdrop-blur/transform,
  *   仓内两次 fixed 劫持事故先例;R1 红线,禁止原位渲染);hover 与 click 均可开,
- *   点击外部/Escape 关闭;内容=有效期至 + (临期 ≤7 天/已到期)续费 + 退出登录。
+ *   点击外部/Escape 关闭;内容=欢迎行 + 有效期至 + (临期 ≤7 天/已到期)续费 + 退出登录;
+ *   R12-B(2A):w-72 实底 + 欢迎行(26px 头像档) + 实心蓝续费 + 红退出。
+ * - R12-B(第6条):登录弹窗 onSuccess = 整页 reload(文章页即时解锁;弹窗在
+ *   standard 族已不可达,公告卡弹窗走 StatsWidget 自有 onSuccess)。
  */
 
 export type MemberNavVariant =
@@ -74,18 +79,17 @@ export function resolveMemberNavState(
   return 'join'
 }
 
-/** R3-6(5A):standard/standard-mobile 未登录(join,含探测前静态渲染)→ 不渲染任何内容
- * (登录入口移至公告卡 StatsWidget 双按钮);hidden 态全变体不渲染;
+/** R3-6(5A)→R12-B(6A):standard/standard-mobile 除 hidden 外一律不渲染
+ * (未登录 join=登录入口移至公告卡 StatsWidget 双按钮;R12-B 起登录态 chip 亦
+ * 移除=会员面/登出移至首页与 about 页公告卡信息块);hidden 态全变体不渲染;
  * gallery/tweet 变体不受本判定约束(行为不变)。 */
 export function resolveMemberNavStandardRender(
   variant: MemberNavVariant | string,
   navState: 'join' | 'chip' | 'hidden'
 ): boolean {
   if (navState === 'hidden') return false
-  if (
-    (variant === 'standard' || variant === 'standard-mobile') &&
-    navState === 'join'
-  ) {
+  if (variant === 'standard' || variant === 'standard-mobile') {
+    // R12-B(6A):join 与 chip 一律不渲染(除 hidden 外一律 false)
     return false
   }
   return true
@@ -223,24 +227,14 @@ export function MemberNav({ variant }: { variant: MemberNavVariant }) {
   if (!config) return null
 
   const navState = resolveMemberNavState(session.status)
-  // R3-6:hidden 全变体不渲染;standard/standard-mobile 未登录不渲染(探测前按 guest
-  // 静态渲染=空,不闪现按钮;连 MemberLoginDialog 挂载也不渲染)
+  // R3-6:hidden 全变体不渲染;R12-B(6A):standard/standard-mobile 除 hidden 外
+  // 一律不渲染(chip 分支已删;探测前按 guest 静态渲染=空,不闪现按钮)
   if (!resolveMemberNavStandardRender(variant, navState)) return null
 
   const chip = navState === 'chip' ? { memberNo: session.memberNo, expiresAt: session.expiresAt } : null
 
   return (
     <>
-      {variant === 'standard' ? (
-        chip ? (
-          <MemberChip variant="standard" config={chip} onProbe={probeSession} />
-        ) : null
-      ) : null}
-      {variant === 'standard-mobile' ? (
-        chip ? (
-          <MemberChip variant="standard-mobile" config={chip} onProbe={probeSession} />
-        ) : null
-      ) : null}
       {variant === 'gallery' ? (
         chip ? (
           <MemberChip variant="gallery" config={chip} onProbe={probeSession} />
@@ -261,7 +255,7 @@ export function MemberNav({ variant }: { variant: MemberNavVariant }) {
       <MemberLoginDialog
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
-        onSuccess={() => void probeSession()}
+        onSuccess={() => window.location.reload()}
         onDisabled={() => void probeSession()}
       />
     </>
@@ -354,13 +348,14 @@ function LoginButton({
       </button>
     )
   }
-  // tweet / tweet-mobile:CSS 变量灰阶小字(零新 CSS)
+  // tweet / tweet-mobile:R12-B(3A)登录按钮化——与 .proplus-create-btn 同形;
+  // 颜色随主题灰阶变量(悬停反色,浅/深自动适配;零新 CSS,禁硬编码色值)
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={MEMBER_NAV_LOGIN_LABEL}
-      className="cursor-pointer text-[1rem] leading-6 text-[color:var(--tweet-muted)] transition-colors hover:text-[color:var(--tweet-gray12)]"
+      className="inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-[7px] border px-3 py-2 text-[13px] font-semibold leading-[1.15] transition-colors border-[color:var(--tweet-gray8)] text-[color:var(--tweet-gray12)] hover:bg-[color:var(--tweet-gray12)] hover:text-[color:var(--tweet-gray1)]"
     >
       {MEMBER_NAV_LOGIN_LABEL}
     </button>
@@ -502,9 +497,11 @@ function MemberChip({
   const validityText = formatMemberValidityText(config.expiresAt)
   const showRenew = isMemberExpiringSoon(config.expiresAt)
 
+  // 死面登记(R12-B-9):6A 后 standard/standard-mobile 不再渲染 chip,
+  // 下方 chipBaseCls/avatarCls 的 standard 分支成为死面,保留不删(最小 diff)
   const chipBaseCls =
     variant === 'tweet' || variant === 'tweet-mobile'
-      ? 'cursor-pointer text-[1rem] leading-6 text-[color:var(--tweet-muted)] transition-colors hover:text-[color:var(--tweet-gray12)]'
+      ? 'flex cursor-pointer items-center gap-2 text-[1rem] leading-6 text-[color:var(--tweet-muted)] transition-colors hover:text-[color:var(--tweet-gray12)]'
       : variant === 'gallery'
         ? 'flex w-full items-center gap-1.5 rounded-md border border-neutral-200 px-2 py-1.5 text-[13px] font-medium text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-900'
         : 'flex h-12 items-center gap-1.5 text-xs font-medium text-neutral-600 transition-colors hover:text-black dark:text-neutral-300 dark:hover:text-white'
@@ -514,7 +511,7 @@ function MemberChip({
       ? 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[color:var(--tweet-gray6)] bg-[color:var(--tweet-gray3)] text-[color:var(--tweet-gray11)]'
       : 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
 
-  // ---- 浮窗面板主题三态(与登录弹窗同源) ----
+  // ---- 浮窗面板主题三态(与登录弹窗同源;R12-B(2A)实底去半透明) ----
   const panelTheme =
     isTweetLightTheme(activeTheme) || activeTheme === 'gallery'
       ? 'light'
@@ -523,16 +520,30 @@ function MemberChip({
         : 'auto'
   const panelCls =
     panelTheme === 'dark'
-      ? 'border-neutral-700 bg-[#181818]/95'
+      ? 'border-neutral-700 bg-[#1b1b1e]'
       : panelTheme === 'light'
-        ? 'border-neutral-200/80 bg-white/95'
-        : 'border-neutral-200/80 bg-white/95 dark:border-neutral-700 dark:bg-[#181818]/95'
+        ? 'border-neutral-200/80 bg-white'
+        : 'border-neutral-200/80 bg-white dark:border-neutral-700 dark:bg-[#181818]'
   const mutedCls =
     panelTheme === 'dark'
       ? 'text-neutral-400'
       : panelTheme === 'light'
         ? 'text-neutral-500'
         : 'text-neutral-500 dark:text-neutral-400'
+  // R12-B(2A):浮窗欢迎行(26px 头像档 + 13px 加粗;深浅/auto 三态)
+  const popoverAvatarCls =
+    panelTheme === 'dark'
+      ? 'flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border border-[#46464e] bg-[#2f2f36] text-[#cfcfd6]'
+      : panelTheme === 'light'
+        ? 'flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border border-[#dcdce2] bg-[#f0f0f3] text-[#5a5a66]'
+        : 'flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border border-[#dcdce2] bg-[#f0f0f3] text-[#5a5a66] dark:border-[#46464e] dark:bg-[#2f2f36] dark:text-[#cfcfd6]'
+  const popoverTitleCls =
+    panelTheme === 'dark'
+      ? 'text-[13px] font-bold text-[#f2f2f4]'
+      : panelTheme === 'light'
+        ? 'text-[13px] font-bold text-[#1a1a1f]'
+        : 'text-[13px] font-bold text-[#1a1a1f] dark:text-[#f2f2f4]'
+  // 死面登记(R12-B-9):续费改实心蓝后 primaryButtonCls 不再有消费方,保留不删
   const primaryButtonCls =
     panelTheme === 'dark'
       ? 'bg-blue-600 hover:bg-blue-500'
@@ -570,11 +581,20 @@ function MemberChip({
               aria-label="会员信息"
               tabIndex={-1}
               style={popoverStyle}
-              className={`fixed z-[9997] flex w-56 flex-col gap-2.5 rounded-xl border p-3.5 shadow-xl outline-none ${panelCls}`}
+              className={`fixed z-[9997] flex w-72 flex-col gap-2.5 rounded-xl border p-[18px] shadow-xl outline-none ${panelCls}`}
               onMouseEnter={cancelClose}
               onMouseLeave={scheduleClose}
             >
-              <p className={`text-xs leading-relaxed ${mutedCls}`}>
+              {/* R12-B(2A):欢迎行(小头像 + 欢迎会员) */}
+              <div className="flex items-center gap-2.5">
+                <span className={popoverAvatarCls}>
+                  <PersonIcon className="h-[14px] w-[14px]" />
+                </span>
+                <span className={`max-w-[11rem] truncate ${popoverTitleCls}`}>
+                  {formatMemberWelcomeLabel(config.memberNo)}
+                </span>
+              </div>
+              <p className={`mb-1.5 text-xs leading-relaxed ${mutedCls}`}>
                 {validityText || '会员生效中'}
               </p>
               {showRenew ? (
@@ -582,7 +602,7 @@ function MemberChip({
                   type="button"
                   onClick={() => void requestRenew()}
                   disabled={renewBusy}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${primaryButtonCls}`}
+                  className="h-9 w-full rounded-[9px] bg-[#2563eb] text-[12.5px] font-bold text-white transition-colors hover:bg-[#1d4ed8] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {renewBusy ? '跳转中…' : MEMBER_NAV_RENEW_LABEL}
                 </button>
@@ -594,7 +614,7 @@ function MemberChip({
                 type="button"
                 onClick={() => void handleLogout()}
                 disabled={loggingOut}
-                className={`text-xs transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50 ${mutedCls}`}
+                className="h-9 w-full rounded-[9px] bg-[#dc2626] text-[12.5px] font-bold text-white transition-colors hover:bg-[#b91c1c] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loggingOut ? '退出中…' : MEMBER_NAV_LOGOUT_LABEL}
               </button>

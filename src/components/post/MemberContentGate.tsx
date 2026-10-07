@@ -22,6 +22,9 @@ import type { BlockResponse } from '@/src/types/notion'
  *   登录入口已随 R11-B 移除)。
  * - R11-B：guest 面板毛玻璃保留;「获取会员」按钮纯平色轻量化(零渐变,无皇冠,
  *   文字严格居中)+间距重调(gap-5/py-7)。
+ * - R12-B(4C):active+内容就绪 = 顶底细线分隔 + 中央「会员专属内容」压线小标
+ *   (容器补 relative;小标底色按主题承载面精确映射;文案独立常量,与
+ *   AdminDashboard 会员分区占位文案解耦)。
  */
 
 type MemberContentGateProps = {
@@ -47,6 +50,9 @@ type ContentState =
 const clientMemberContentCache = new Map<string, { etag: string; blocks: BlockResponse[] }>()
 
 const CONTENT_ERROR_TEXT = '加载失败，请刷新重试'
+
+/** R12-B(4C):解锁区压线小标文案(独立常量,与 AdminDashboard 会员分区占位文案解耦) */
+const MEMBER_UNLOCKED_LABEL = '会员专属内容'
 
 const LockIcon = ({ className = '' }: { className?: string }) => (
   <svg
@@ -218,6 +224,24 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
   const gateBrandButtonCls =
     'bg-[#dc2626] hover:bg-[#e03535] shadow-[0_6px_16px_-10px_rgba(220,38,38,0.5)]'
 
+  // ---- R12-B(4C):解锁区分隔线(顶底细线+压线小标;方案 C·杂志分隔线式) ----
+  // 三态边框(auto 双分支);注:border-white/[0.12] 为 R12-B-2「border-white/12」的
+  // JIT 等价拼写(仓内 Tailwind 3.3.1 不支持非标度裸 alpha,实测 /12 不编译)
+  const dividerBorderCls =
+    panelTheme === 'dark'
+      ? 'border-white/[0.12]'
+      : panelTheme === 'light'
+        ? 'border-black/[0.08]'
+        : 'border-black/[0.08] dark:border-white/[0.12]'
+  // 压线小标底色按主题承载面精确映射(R12-B-1):standard=白/黑双分支、
+  // gallery=正文白卡、tweet 系=主题 gray2 变量(一行覆盖四态,零硬编码)
+  const dividerMarkBgCls =
+    variant === 'tweet'
+      ? 'bg-[color:var(--tweet-gray2)]'
+      : variant === 'gallery'
+        ? 'bg-white'
+        : 'bg-white dark:bg-black'
+
   // ---- 渲染 ----
   // 页 props membershipConfig 缺失/未启用 → 零可见
   // (即便碰到异常残留的会员块也不显示任何东西)
@@ -250,7 +274,17 @@ export function MemberContentGate({ postSlug, variant }: MemberContentGateProps)
         <p className={`my-6 text-center text-sm ${mutedCls}`}>{CONTENT_ERROR_TEXT}</p>
       )
     }
-    return <BlockRender blocks={content.blocks} variant={variant} />
+    // R12-B(4C):解锁区=顶底细线 + 中央压线小标(容器 relative 供小标锚定)
+    return (
+      <div className={`relative my-6 border-t border-b py-5 ${dividerBorderCls}`}>
+        <span
+          className={`absolute -top-[9px] left-1/2 -translate-x-1/2 px-2.5 text-[10.5px] tracking-[0.14em] ${dividerMarkBgCls} ${mutedCls}`}
+        >
+          {MEMBER_UNLOCKED_LABEL}
+        </span>
+        <BlockRender blocks={content.blocks} variant={variant} />
+      </div>
+    )
   }
 
   if (sessionPhase === 'error') {

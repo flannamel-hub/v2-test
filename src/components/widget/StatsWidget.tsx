@@ -8,11 +8,19 @@ import {
 } from '@/src/lib/blog/vendingDefaults'
 import { useMemberNavConfig } from '@/src/components/theme/SitePlanContext'
 import {
+  formatMemberWelcomeLabel,
+  isMemberExpiringSoon,
   MEMBER_NAV_JOIN_LABEL,
   MEMBER_NAV_LOGIN_LABEL,
+  MEMBER_NAV_LOGOUT_LABEL,
+  MEMBER_NAV_RENEW_LABEL,
   readMemberNoFromCookieString,
+  sanitizeMemberNo,
 } from '@/src/components/member/MemberNav'
-import { MemberLoginDialog } from '@/src/components/member/MemberLoginDialog'
+import {
+  formatMemberValidityText,
+  MemberLoginDialog,
+} from '@/src/components/member/MemberLoginDialog'
 // @ts-ignore
 import { createPortal } from 'react-dom'
 
@@ -20,11 +28,45 @@ import { createPortal } from 'react-dom'
  * R3-6:公告卡会员区按钮显示决策——guest → 双按钮(加入会员/登录);
  * 其余(probing/active/expired/disabled/未知) → 隐藏。
  * probing 归入 hidden 为无跳动设计(登录用户不闪现按钮;guest 探测后浮现,与 nav chip 同向)。
+ * R12-B(1B):active/expired 由会员信息面板承接(渲染在组件内,不经本纯函数)。
  */
 export function resolveStatsWidgetMemberButtons(
   status: string | null | undefined
 ): 'dual' | 'hidden' {
   return status === 'guest' ? 'dual' : 'hidden'
+}
+
+/** R12-B(1B):会员信息面板续费失败轻提示(文案与 MemberChip 同款) */
+const MEMBER_RENEW_ERROR_TEXT = '暂时不可用，请稍后重试'
+
+/** R12-B(1B):公告卡信息块头像图标(就地复制自 MemberNav,不扩其导出面) */
+const PersonIcon = ({ className = '' }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="8" r="3.5" />
+    <path d="M5 20c.8-3.2 3.6-5 7-5s6.2 1.8 7 5" />
+  </svg>
+)
+
+/** R12-B(1B):会话对象态(status 判渲染;expiresAt/memberNo 供信息面板) */
+type MemberSessionInfo = {
+  status: string
+  expiresAt: string | null
+  memberNo: string
+}
+
+const INITIAL_MEMBER_SESSION: MemberSessionInfo = {
+  status: 'probing',
+  expiresAt: null,
+  memberNo: '',
 }
 
 // 🟢 你的自定义购买地址（请在这里修改为你真实的贩售机链接）
@@ -48,39 +90,95 @@ export const StatsWidget = ({
   const noteModalEnabled = vendingConfig?.noteModal === true
   // R2-B5a:会员开通 → 贩售入口让位会员入口(未登录双按钮,见下);
   // 商品模式(未开通会员)行为零变化
-  const memberModeCtx = useMemberNavConfig() !== null
-  // R3-6:公告卡会员区双按钮(仅未登录显示) + 登录弹窗
-  const [memberSession, setMemberSession] = useState<string>('probing')
+  const memberNavConfig = useMemberNavConfig()
+  const memberModeCtx = memberNavConfig !== null
+  // R3-6:公告卡会员区双按钮(仅未登录显示) + 登录弹窗;
+  // R12-B(1B):会话对象化 {status, expiresAt, memberNo}
+  const [memberSession, setMemberSession] = useState<MemberSessionInfo>(
+    INITIAL_MEMBER_SESSION
+  )
   const [loginOpen, setLoginOpen] = useState(false)
+  const [renewBusy, setRenewBusy] = useState(false)
+  const [renewFailed, setRenewFailed] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   // R11-B：陈旧页自愈——探测到 disabled（实际已切商品模式）时回落贩售分支，不再会员区空白
-  const memberMode = memberModeCtx && memberSession !== 'disabled'
+  const memberMode = memberModeCtx && memberSession.status !== 'disabled'
 
-  // 会员站挂载单次探测会话(无轮询;SSG 安全;失败按未登录渲染)
-  const probeMemberSession = useCallback(async (): Promise<string> => {
-    let next: string = 'guest'
-    try {
-      const res = await fetch('/api/member/session', { cache: 'no-store' })
-      const data = await res.json().catch(() => null)
-      const status = data?.status
-      if (status === 'active' || status === 'expired' || status === 'disabled') {
-        next = status
+  // 会员站挂载单次探测会话(无轮询;SSG 安全;失败按未登录渲染);
+  // R12-B(1B):捕获 expires_at/member_no(session member_no > sm_member_no cookie),
+  // 返回 {status, expiresAt} 对象供 onSuccess 判定 reload
+  const probeMemberSession = useCallback(
+    async (): Promise<{ status: string; expiresAt: string | null }> => {
+      let next: MemberSessionInfo = { status: 'guest', expiresAt: null, memberNo: '' }
+      try {
+        const res = await fetch('/api/member/session', { cache: 'no-store' })
+        const data = await res.json().catch(() => null)
+        const status = data?.status
+        if (status === 'active' || status === 'expired' || status === 'disabled') {
+          let memberNo =
+            typeof data?.member_no === 'string' ? sanitizeMemberNo(data.member_no) : ''
+          if (!memberNo) memberNo = readMemberNoFromCookieString(document.cookie)
+          next = {
+            status,
+            expiresAt: typeof data?.expires_at === 'string' ? data.expires_at : null,
+            memberNo,
+          }
+        }
+      } catch {
+        // 探测失败按未登录渲染
       }
-    } catch {
-      // 探测失败按未登录渲染
-    }
-    setMemberSession(next)
-    return next
-  }, [])
+      setMemberSession(next)
+      return { status: next.status, expiresAt: next.expiresAt }
+    },
+    []
+  )
 
   useEffect(() => {
     if (!memberMode) return
     // R4-B2:同步快判——无 member_no cookie → 立即 guest(双按钮即刻显示,零网络等待);
     // 有 → 维持 probing(会员不闪);随后探测仅作确认,结果覆盖
     if (!readMemberNoFromCookieString(document.cookie)) {
-      setMemberSession('guest')
+      setMemberSession({ status: 'guest', expiresAt: null, memberNo: '' })
     }
     void probeMemberSession()
   }, [memberMode, probeMemberSession])
+
+  // ---- R12-B(1B):登录态信息面板行为(续费/登出与 MemberChip 浮窗同款) ----
+  const memberShowRenew = isMemberExpiringSoon(memberSession.expiresAt)
+
+  const requestMemberRenew = useCallback(async () => {
+    const plan = memberNavConfig?.plans[0]
+    if (!plan || renewBusy) return
+    setRenewBusy(true)
+    try {
+      const res = await fetch('/api/member/renew-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: plan.days }),
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data?.success && typeof data.url === 'string' && data.url) {
+        window.open(data.url, '_blank', 'noopener')
+        return
+      }
+      setRenewFailed(true)
+    } catch {
+      setRenewFailed(true)
+    } finally {
+      setRenewBusy(false)
+    }
+  }, [memberNavConfig, renewBusy])
+
+  const handleMemberLogout = useCallback(async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await fetch('/api/member/logout', { method: 'POST', cache: 'no-store' })
+    } catch {
+      // 服务端清 cookie;失败也整页刷新回落 guest
+    }
+    window.location.reload()
+  }, [loggingOut])
 
   // 1. 数据解析 (保持原样不动)
   const post = data || {};
@@ -278,10 +376,63 @@ export const StatsWidget = ({
                </p>
             </Wrapper>
 
-            {/* 下半部分：R3-6 会员开通 → 未登录双按钮(红实心加入会员+白登录,仅 guest 显示)；
-             已登录(active/expired)/disabled/probing → 隐藏(右上 chip 承担)；否则贩售机入口（有按钮时贴底） */}
+            {/* 下半部分：R3-6 会员开通 → 未登录双按钮(红实心加入会员+白登录,仅 guest 显示);
+             R12-B(1B):登录态(active/expired) → 会员信息面板(欢迎行+续费/登出);
+             disabled/probing → 隐藏；否则贩售机入口（有按钮时贴底） */}
             {memberMode ? (
-              resolveStatsWidgetMemberButtons(memberSession) === 'dual' ? (
+              memberSession.status === 'active' ||
+              memberSession.status === 'expired' ? (
+              <div className="w-full mt-auto pt-4 relative z-20">
+                {/* R12-B(1B):实底深紫信息面板(方案 B;与访客态按钮堆叠同构) */}
+                <div className="rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[#2b2158] p-3.5">
+                  <div className="mb-3 flex items-center gap-2.5">
+                    <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] text-white">
+                      <PersonIcon className="h-[17px] w-[17px]" />
+                    </span>
+                    <div className="min-w-0">
+                      {/* 欢迎会员 {memberNo}:文案单点 MEMBER_NAV_WELCOME_PREFIX */}
+                      <p className="truncate text-[13px] font-bold text-white">
+                        {formatMemberWelcomeLabel(memberSession.memberNo)}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-[#c9c2e6]">
+                        {formatMemberValidityText(memberSession.expiresAt) || '会员生效中'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {memberShowRenew ? (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void requestMemberRenew();
+                        }}
+                        type="button"
+                        disabled={renewBusy}
+                        className="h-[34px] shrink-0 rounded-[9px] border border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.10)] px-3.5 text-xs font-bold text-[#e8e6f5] transition-all duration-300 hover:bg-[rgba(255,255,255,0.16)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span>{renewBusy ? '跳转中…' : MEMBER_NAV_RENEW_LABEL}</span>
+                      </button>
+                    ) : null}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void handleMemberLogout();
+                      }}
+                      type="button"
+                      disabled={loggingOut}
+                      className="flex h-[34px] flex-1 items-center justify-center rounded-[9px] bg-[#dc2626] text-xs font-bold text-white transition-all duration-300 hover:bg-[#b91c1c] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span>{loggingOut ? '退出中…' : MEMBER_NAV_LOGOUT_LABEL}</span>
+                    </button>
+                  </div>
+                  {renewFailed ? (
+                    <p className="mt-1.5 text-[11px] text-red-400">{MEMBER_RENEW_ERROR_TEXT}</p>
+                  ) : null}
+                </div>
+              </div>
+              ) : resolveStatsWidgetMemberButtons(memberSession.status) === 'dual' ? (
               <div className="w-full mt-auto pt-4 relative z-20 flex flex-col gap-2">
                 <button
                   onClick={(e) => {
@@ -349,8 +500,8 @@ export const StatsWidget = ({
           open={loginOpen}
           onClose={() => setLoginOpen(false)}
           onSuccess={() => {
-            void probeMemberSession().then((status) => {
-              if (status === 'active' || status === 'expired') {
+            void probeMemberSession().then((session) => {
+              if (session.status === 'active' || session.status === 'expired') {
                 window.location.reload()
               }
             })
