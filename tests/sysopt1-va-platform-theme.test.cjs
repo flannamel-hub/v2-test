@@ -100,7 +100,7 @@ const SITE_ID = '11111111-2222-4333-8444-555555555555'
 const PAGE_ID = 'theme-config-page-1'
 const { normalizeThemeId, sanitizeDisabledThemes } = platformControlsLib
 
-function createFakeSupabase({ quotaRow, settingsRow, platformRow } = {}) {
+function createFakeSupabase({ quotaRow, settingsRow, platformRow, platformError } = {}) {
   const row = settingsRow
   const log = { updates: [], upserts: [], inserts: [], platformSelects: 0 }
   const selectChain = (resolver, onCall) => {
@@ -125,7 +125,7 @@ function createFakeSupabase({ quotaRow, settingsRow, platformRow } = {}) {
         return {
           select: () =>
             selectChain(
-              () => ({ data: platformRow ?? null, error: null }),
+              () => ({ data: platformRow ?? null, error: platformError ?? null }),
               () => {
                 log.platformSelects += 1
               }
@@ -291,6 +291,15 @@ test('getPlatformThemeControls:缺行 → fail-safe 默认(限开+空集)', asyn
   setupSite({ platformRow: null })
   const ctrl = await platformControlsLib.getPlatformThemeControls()
   assert.deepEqual(ctrl, { limitEnabled: true, disabledThemes: [] })
+})
+
+test('getPlatformThemeControls:读取 error → fail-safe 默认(不缓存)', async () => {
+  const { fake } = setupSite({ platformError: { message: 'boom' } })
+  const ctrl = await platformControlsLib.getPlatformThemeControls()
+  assert.deepEqual(ctrl, { limitEnabled: true, disabledThemes: [] })
+  // 失败不缓存:第二次仍查库
+  await platformControlsLib.getPlatformThemeControls()
+  assert.equal(fake.log.platformSelects, 2)
 })
 
 test('getPlatformThemeControls:TTL 缓存生效(窗口内不重复查库)', async () => {

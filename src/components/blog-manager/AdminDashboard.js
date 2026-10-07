@@ -10052,13 +10052,13 @@ const [mounted, setMounted] = useState(false);
                         {/* 图库基座手术批2:图库开关关闭时菜单隐藏 gallery 项;特例(评审C9)——当前主题已是 gallery 时保留当前项与「生效中」标记;触发按钮标签仍按全量 currentTheme 计算 */}
                         {/* R2-B5b W1-b:会员模式(双门=pro 且 enabled)下 shop/shop-v2 灰态只封「切入」——
                             当前主题=shop 时保留「生效中」并允许切出,存量 shop 站不被锁死 */}
-                        {ADMIN_THEMES.filter(t => (galleryFeatureEnabled || t.id !== 'gallery' || currentActiveTheme === 'gallery') && (platformState === null || !platformState.disabledThemes.includes(normalizeAdminThemeId(t.id)) || currentActiveTheme === t.id)).map(t => {
+                        {ADMIN_THEMES.filter(t => (galleryFeatureEnabled || t.id !== 'gallery' || currentActiveTheme === 'gallery') && (platformState === null || !platformState.disabledThemes.includes(normalizeAdminThemeId(t.id)) || normalizeAdminThemeId(currentActiveTheme) === normalizeAdminThemeId(t.id))).map(t => {
                           const active = currentActiveTheme === t.id;
                           const memberShopLocked = memberGateState.loaded && memberGateState.plan === 'pro' && memberGateState.enabled === true;
                           // 灰态只封切入:当前生效中的 shop 卡不灰(允许切出到其它主题)
                           const shopLocked = !active && memberShopLocked && (t.id === 'shop' || t.id === 'shop-v2');
                           // SYS-OPT1 V-A:平台禁用项(隐藏过滤已生效,此处为防御——当前主题=被禁保留项除外)
-                          const platformLocked = !active && platformState !== null && platformState.disabledThemes.includes(normalizeAdminThemeId(t.id));
+                          const platformLocked = !active && platformState !== null && platformState.disabledThemes.includes(normalizeAdminThemeId(t.id)) && normalizeAdminThemeId(currentActiveTheme) !== normalizeAdminThemeId(t.id);
                           const switchBlocked = !active && themeSwitchQuota.blocked;
                           const blockedHint = switchBlocked
                             ? formatThemeSwitchQuotaRemaining(themeSwitchQuota.remainingMs)
@@ -10084,8 +10084,8 @@ const [mounted, setMounted] = useState(false);
                                 handleThemeChange(t.id);
                               }}
                               style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', cursor: active ? 'default' : (switchBlocked || shopLocked || platformLocked ? 'not-allowed' : 'pointer'), background: active ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${active ? t.color : 'transparent'}`, marginBottom: '4px', opacity: switchBlocked || shopLocked || platformLocked ? 0.45 : 1 }}
-                                                            onMouseEnter={e => { if (!active && !switchBlocked && !shopLocked && !platformLocked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                                                            onMouseLeave={e => { if (!active && !switchBlocked && !shopLocked && !platformLocked) e.currentTarget.style.background = 'transparent'; }}
+                              onMouseEnter={e => { if (!active && !switchBlocked && !shopLocked && !platformLocked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                              onMouseLeave={e => { if (!active && !switchBlocked && !shopLocked && !platformLocked) e.currentTarget.style.background = 'transparent'; }}
                             >
                               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: t.color, flexShrink: 0, boxShadow: active ? `0 0 8px ${t.color}` : 'none' }} />
                               <div style={{ flex: 1 }}>
