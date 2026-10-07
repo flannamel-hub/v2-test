@@ -2892,6 +2892,9 @@ const ADMIN_THEMES = [
   { id: 'shop', label: 'shop v1', color: '#22c55e', desc: '商城风格 v1 · 文章关联商品 + 商品卡网格' },
   { id: 'shop-v2', label: 'shop v2', color: '#14b8a6', desc: '商城风格 · 首页单列大卡橱窗' },
 ];
+// SYS-OPT1 V-A:管理员主题列表 id → 规范 ThemeId 本地小 map(双侧归一;平台禁用集为规范名)
+const ADMIN_THEME_NORMALIZE = { v1: 'anzifan', v2: 'touchgal' };
+const normalizeAdminThemeId = (id) => ADMIN_THEME_NORMALIZE[id] || id;
 
 function formatThemeSwitchQuotaRemaining(remainingMs) {
   if (!remainingMs || remainingMs <= 0) return '';
@@ -4733,6 +4736,8 @@ const [mounted, setMounted] = useState(false);
     windowEndsAt: null,
     remainingMs: 0,
   });
+  // SYS-OPT1 V-A:平台主题控制(null=未加载,列表 fail-open 全显)
+  const [platformState, setPlatformState] = useState(null);
 
   const [view, setView] = useState('list');
   // GAL-B4-FIX1: 最新 view ref(异步回调应用状态前校验用户是否仍在本页,丢弃晚到结果)
@@ -5864,6 +5869,12 @@ const [mounted, setMounted] = useState(false);
       if (d.success && d.quota) {
         setThemeSwitchQuota(d.quota);
       }
+      // SYS-OPT1 V-A:平台主题控制(向后兼容——旧部署无 platform 字段时置默认,列表全显)
+      setPlatformState(
+        d && d.success && d.platform
+          ? d.platform
+          : { limitEnabled: true, disabledThemes: [] }
+      );
     } catch (e) {
       console.warn('读取主题切换配额失败', e);
     }
@@ -10033,16 +10044,21 @@ const [mounted, setMounted] = useState(false);
                       <div onClick={() => setThemeMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
                       <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, minWidth: '240px', background: '#2a2a2e', border: '1px solid #555', borderRadius: '12px', padding: '8px', zIndex: 50, boxShadow: '0 12px 32px rgba(0,0,0,0.55)' }}>
                         <div style={{ fontSize: '10px', color: themeSwitchQuota.blocked ? '#f97316' : '#777', padding: '6px 10px 8px', letterSpacing: '0.5px' }}>
-                          {formatThemeSwitchQuotaHint(themeSwitchQuota) || '选择主题'}
+                          {/* SYS-OPT1 V-A(拍板 1A):限制停用期间显示停用提示,不再展示配额 */}
+                          {platformState !== null && platformState.limitEnabled === false
+                            ? '切换限制已停用'
+                            : formatThemeSwitchQuotaHint(themeSwitchQuota) || '选择主题'}
                         </div>
                         {/* 图库基座手术批2:图库开关关闭时菜单隐藏 gallery 项;特例(评审C9)——当前主题已是 gallery 时保留当前项与「生效中」标记;触发按钮标签仍按全量 currentTheme 计算 */}
                         {/* R2-B5b W1-b:会员模式(双门=pro 且 enabled)下 shop/shop-v2 灰态只封「切入」——
                             当前主题=shop 时保留「生效中」并允许切出,存量 shop 站不被锁死 */}
-                        {ADMIN_THEMES.filter(t => galleryFeatureEnabled || t.id !== 'gallery' || currentActiveTheme === 'gallery').map(t => {
+                        {ADMIN_THEMES.filter(t => (galleryFeatureEnabled || t.id !== 'gallery' || currentActiveTheme === 'gallery') && (platformState === null || !platformState.disabledThemes.includes(normalizeAdminThemeId(t.id)) || currentActiveTheme === t.id)).map(t => {
                           const active = currentActiveTheme === t.id;
                           const memberShopLocked = memberGateState.loaded && memberGateState.plan === 'pro' && memberGateState.enabled === true;
                           // 灰态只封切入:当前生效中的 shop 卡不灰(允许切出到其它主题)
                           const shopLocked = !active && memberShopLocked && (t.id === 'shop' || t.id === 'shop-v2');
+                          // SYS-OPT1 V-A:平台禁用项(隐藏过滤已生效,此处为防御——当前主题=被禁保留项除外)
+                          const platformLocked = !active && platformState !== null && platformState.disabledThemes.includes(normalizeAdminThemeId(t.id));
                           const switchBlocked = !active && themeSwitchQuota.blocked;
                           const blockedHint = switchBlocked
                             ? formatThemeSwitchQuotaRemaining(themeSwitchQuota.remainingMs)
@@ -10050,6 +10066,10 @@ const [mounted, setMounted] = useState(false);
                           return (
                             <div key={t.id}
                               onClick={() => {
+                                if (platformLocked) {
+                                  alert('该主题已暂停开放');
+                                  return;
+                                }
                                 if (shopLocked) {
                                   alert('已启用站点会员，shop 主题不可用');
                                   return;
@@ -10063,15 +10083,15 @@ const [mounted, setMounted] = useState(false);
                                 setThemeMenuOpen(false);
                                 handleThemeChange(t.id);
                               }}
-                              style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', cursor: active ? 'default' : (switchBlocked || shopLocked ? 'not-allowed' : 'pointer'), background: active ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${active ? t.color : 'transparent'}`, marginBottom: '4px', opacity: switchBlocked || shopLocked ? 0.45 : 1 }}
-                              onMouseEnter={e => { if (!active && !switchBlocked && !shopLocked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                              onMouseLeave={e => { if (!active && !switchBlocked && !shopLocked) e.currentTarget.style.background = 'transparent'; }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', cursor: active ? 'default' : (switchBlocked || shopLocked || platformLocked ? 'not-allowed' : 'pointer'), background: active ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${active ? t.color : 'transparent'}`, marginBottom: '4px', opacity: switchBlocked || shopLocked || platformLocked ? 0.45 : 1 }}
+                                                            onMouseEnter={e => { if (!active && !switchBlocked && !shopLocked && !platformLocked) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                                                            onMouseLeave={e => { if (!active && !switchBlocked && !shopLocked && !platformLocked) e.currentTarget.style.background = 'transparent'; }}
                             >
                               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: t.color, flexShrink: 0, boxShadow: active ? `0 0 8px ${t.color}` : 'none' }} />
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>{t.label}</div>
                                 <div style={{ fontSize: '11px', color: shopLocked ? '#f97316' : switchBlocked ? '#f97316' : '#888', marginTop: '2px' }}>
-                                  {shopLocked ? '已启用会员服务，shop 主题不可用' : switchBlocked ? blockedHint : t.desc}
+                                  {platformLocked ? '该主题已暂停开放' : shopLocked ? '已启用会员服务，shop 主题不可用' : switchBlocked ? blockedHint : t.desc}
                                 </div>
                               </div>
                               {active && <span style={{ color: t.color, fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>● 生效中</span>}

@@ -13,6 +13,7 @@ import { fetchMerchantProductBySku, isMerchantProductOnSale } from '@/src/lib/sh
 import { getStoreUrl, buildProductUrl } from '@/src/lib/shop/shopCart';
 import { getImageHostConfig } from '@/src/lib/media/imageHostConfig';
 import { getGalleryFeatureEnabled } from '@/src/lib/blog/galleryFeatureGate';
+import { getPlatformThemeControls, normalizeThemeId } from '@/src/lib/blog/platformThemeControls';
 import { getEffectiveMembershipConfig } from '@/src/lib/blog/membershipGate';
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue';
 import { collectPostRevalidatePaths } from '@/src/lib/blog/contentRevalidation';
@@ -1078,6 +1079,17 @@ export default async function handler(req, res) {
             if (membershipConfig) {
               return res.status(403).json({ success: false, error: '已启用站点会员，shop 主题不可用' });
             }
+          }
+          // SYS-OPT1 V-A:平台禁用主题守卫(拍板 2A)——服务端拒绝切入;
+          // 落点=shop 守卫后、配额校验前;拒绝即 return:不写 Notion/DB/不耗配额。
+          // 归一判定覆盖 v1/anzifan、mall/shop 等别名;同一主题重复保存放行(prev===next)。
+          const platformControls = await getPlatformThemeControls();
+          const nextThemeNorm = normalizeThemeId(nextThemeCode);
+          if (
+            platformControls.disabledThemes.includes(nextThemeNorm) &&
+            normalizeThemeId(previousThemeCode) !== nextThemeNorm
+          ) {
+            return res.status(403).json({ success: false, error: '该主题已暂停开放' });
           }
           try {
             await assertThemeSwitchAllowed(previousThemeCode, nextThemeCode);

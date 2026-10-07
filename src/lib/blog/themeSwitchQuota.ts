@@ -1,6 +1,7 @@
 import { getBlogSiteId, getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
 import { getSupabaseAdmin } from '@/src/lib/supabase/admin'
 import { getSiteThemeCode } from '@/src/lib/blog/siteTheme'
+import { getPlatformThemeControls } from '@/src/lib/blog/platformThemeControls'
 
 const TABLE = 'blog_site_settings'
 const WINDOW_MS = 24 * 60 * 60 * 1000
@@ -87,6 +88,12 @@ export async function getThemeSwitchQuotaStatus(): Promise<ThemeSwitchQuotaStatu
     return buildStatus(null, 0)
   }
 
+  // SYS-OPT1 V-A(拍板 1A)：平台开关停用 → 清零态(不拦不计；前端/API/assert 三处消费一致)
+  const platform = await getPlatformThemeControls()
+  if (!platform.limitEnabled) {
+    return buildStatus(null, 0)
+  }
+
   const { data, error } = await supabase
     .from(TABLE)
     .select('theme_switch_window_start, theme_switch_count')
@@ -114,6 +121,10 @@ export async function assertThemeSwitchAllowed(
   const next = String(nextCode || '').trim()
   if (!next || prev === next) return
 
+  // SYS-OPT1 V-A(拍板 1A)：平台开关停用=完全停用(不拦截)
+  const platform = await getPlatformThemeControls()
+  if (!platform.limitEnabled) return
+
   const status = await getThemeSwitchQuotaStatus()
   if (status.blocked) {
     throw new ThemeSwitchQuotaError(status.windowEndsAt, status.remainingMs)
@@ -128,6 +139,10 @@ export async function recordThemeSwitchIfNeeded(
   const prev = String(previousCode || '').trim()
   const next = String(nextCode || '').trim()
   if (!next || prev === next) return
+
+  // SYS-OPT1 V-A(拍板 1A)：平台开关停用=不计入配额(重开从零由平台侧 P-E 清零负责)
+  const platform = await getPlatformThemeControls()
+  if (!platform.limitEnabled) return
 
   const siteId = getBlogSiteId()
   const supabase = getSupabaseAdmin()
