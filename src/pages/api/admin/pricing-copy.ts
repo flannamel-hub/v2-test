@@ -9,12 +9,13 @@ import {
   type SiteMembershipCopyFaqItem,
 } from '@/src/lib/blog/membershipGate'
 import { verifyAdminRequest } from '@/src/lib/admin/verifyAdminRequest'
+import { normalizePricingCardStyle } from '@/src/lib/blog/pricingCardStyles'
 import { enqueueRevalidatePaths } from '@/src/lib/blog/revalidateQueue'
 
 /**
  * 站点会员 R2-B5b W2:「会员说明页」文案读写端点(仅 BLOG 后台浏览器调用)。
  * - GET:读 membership 配置,返回 copy + plans(只读区数据)+ plan/enabled 门控态;
- * - POST:仅允许编辑 copy 四字段(intro/benefits/guarantee/faq),服务端 sanitize 后
+ * - POST:仅允许编辑 copy 五字段(intro/benefits/guarantee/faq/cardStyle),服务端 sanitize 后
  *   读-改-写 merge 回 membership(保留 enabled/plans 原值不动;绝不接受/透传这两字段);
  * - 竞态缓解三件套(§10.3):模块级单飞串行(in-flight 写入排队,不与在途写交错)+
  *   写前紧邻重读 + 写后 updatedAt 对账回读;残余跨进程窗口=接受并记录(零 SQL 无法原子化);
@@ -36,9 +37,13 @@ type PricingCopyPostBody = {
   benefits?: unknown
   guarantee?: unknown
   faq?: unknown
+  cardStyle?: unknown
 }
 
-type SanitizedCopy = Pick<SiteMembershipCopy, 'intro' | 'benefits' | 'guarantee' | 'faq'>
+type SanitizedCopy = Pick<
+  SiteMembershipCopy,
+  'intro' | 'benefits' | 'guarantee' | 'faq' | 'cardStyle'
+>
 
 /** 字段级 sanitize:非字符串/空白 → undefined;超长截断(与 membershipGate 读侧口径一致) */
 function sanitizeCopyField(value: unknown, max: number): string | undefined {
@@ -82,6 +87,9 @@ function sanitizeCopy(body: PricingCopyPostBody): SanitizedCopy | null {
   if (guarantee !== undefined) out.guarantee = guarantee
   const faq = sanitizeFaq(body.faq)
   if (faq !== undefined) out.faq = faq
+  // R13:等级卡样式(仅三值;'default'/非法 → 不写字段)
+  const cardStyle = normalizePricingCardStyle(body.cardStyle)
+  if (cardStyle !== undefined) out.cardStyle = cardStyle
   if (Object.keys(out).length === 0) return null
   return out
 }

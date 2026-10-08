@@ -364,7 +364,10 @@ test('R6 faq 双保险:混非法项剔除、全无效回落默认、≤8 截断�
 test('R6 源文件静态复核:PricingPageContent !text-white×3/总 text-white×5;MemberLoginDialog 红字零残留', () => {
   const pricingSrc = fs.readFileSync(path.join(repoRoot, 'src/components/member/PricingPageContent.tsx'), 'utf8')
   assert.equal((pricingSrc.match(/!text-white/g) || []).length, 3)
-  assert.equal((pricingSrc.match(/font-semibold !text-white transition-all/g) || []).length, 3)
+  // R13:三处 CTA 的 important 白字自字面量收敛进 ctaTextCls(前缀式 important 语义不变);
+  // 断言对应更新:3 处引用模板 + ctaTextCls 默认分支仍含 '!text-white'
+  assert.equal((pricingSrc.match(/font-semibold \$\{ctaTextCls\} transition-all/g) || []).length, 3)
+  assert.ok(pricingSrc.includes(": '!text-white'"))
   assert.equal((pricingSrc.match(/text-white/g) || []).length, 5) // 3 个 ! 版 + priceCls 两处
   // R6-5 步骤图例两节点逐字 + R6-6 FAQ 标题
   assert.ok(pricingSrc.includes('选择方案'))

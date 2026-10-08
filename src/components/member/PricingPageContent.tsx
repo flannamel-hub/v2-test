@@ -11,6 +11,7 @@ import type {
   SiteMembershipCopy,
 } from '@/src/lib/blog/membershipGate'
 import { isTweetDarkTheme, isTweetLightTheme } from '@/src/themes/tweet/tweetTheme'
+import { resolvePricingCardStyle } from '@/src/lib/blog/pricingCardStyles'
 
 /**
  * 站点会员 B4-W6/R2-B5a:/pricing「会员说明」页内容(保留主题壳层,由 [page].tsx 接线)。
@@ -187,6 +188,8 @@ export function PricingPageContent({
       : isTweetDarkTheme(activeTheme)
         ? 'dark'
         : 'auto'
+  // R13:等级卡样式(读 copy.cardStyle;非法/缺省=default)
+  const cardStyle = resolvePricingCardStyle(membership.copy?.cardStyle)
   const cardCls =
     panelTheme === 'dark'
       ? 'border-neutral-700 bg-[#181818]/95'
@@ -211,9 +214,29 @@ export function PricingPageContent({
       : panelTheme === 'light'
         ? 'text-neutral-900'
         : 'text-neutral-900 dark:text-white'
-  // R4-B3:CTA 统一红底;R5-B1:皇冠改实心金 #FACC15(primaryButtonCls 三处引用均在 renderCta 内,已随改移除)
-  // R6-4:tweet 全局 a{color:inherit}(0,1,2)压制锚点文字色,CTA 白字须前缀式 important
-  const ctaButtonCls = 'bg-[#dc2626] hover:bg-[#b91c1c]'
+  // R4-B3:CTA 统一红底;R5-B1:皇冠改实心金 #FACC15
+  // R6-4:tweet 全局 a{color:inherit}(0,1,2)压制锚点文字色,CTA 文字色须前缀式 important
+  // R13(2B):按钮随风格自带配色(纯平色零渐变) —— default 红 / ice 冰蓝 / prism 紫 / modern 黑(暗态反白)
+  const ctaButtonCls =
+    cardStyle === 'ice'
+      ? 'bg-[#2b7fd0] hover:bg-[#236fc0]'
+      : cardStyle === 'prism'
+        ? 'bg-[#8b5cf6] hover:bg-[#7a4de8]'
+        : cardStyle === 'modern'
+          ? panelTheme === 'dark'
+            ? 'bg-[#f5f5f5] hover:bg-white'
+            : panelTheme === 'light'
+              ? 'bg-[#111] hover:bg-black'
+              : 'bg-[#111] hover:bg-black dark:bg-[#f5f5f5] dark:hover:bg-white'
+          : 'bg-[#dc2626] hover:bg-[#b91c1c]'
+  const ctaTextCls =
+    cardStyle === 'modern'
+      ? panelTheme === 'dark'
+        ? '!text-black'
+        : panelTheme === 'light'
+          ? '!text-white'
+          : '!text-white dark:!text-black'
+      : '!text-white'
   // R6-5:步骤图例连接线(细实线,禁虚线;三态主题)
   const guideLineCls =
     panelTheme === 'dark'
@@ -248,7 +271,7 @@ export function PricingPageContent({
           type="button"
           onClick={() => void requestRenew(days)}
           disabled={busy}
-          className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${ctaButtonCls}`}
+          className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold ${ctaTextCls} transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${ctaButtonCls}`}
         >
           <span className="relative inline-flex items-center justify-center">
             <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
@@ -266,7 +289,7 @@ export function PricingPageContent({
           onClick={(e) => {
             if (!storeUrl) e.preventDefault()
           }}
-          className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
+          className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold ${ctaTextCls} transition-all active:scale-[0.98] ${ctaButtonCls}`}
         >
           <span className="relative inline-flex items-center justify-center">
             <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
@@ -282,7 +305,7 @@ export function PricingPageContent({
         onClick={(e) => {
           if (!storeUrl) e.preventDefault()
         }}
-        className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold !text-white transition-all active:scale-[0.98] ${ctaButtonCls}`}
+        className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold ${ctaTextCls} transition-all active:scale-[0.98] ${ctaButtonCls}`}
       >
         <span className="relative inline-flex items-center justify-center">
           <CrownIcon className="absolute right-full top-1/2 -translate-y-1/2 mr-1.5 h-3.5 w-3.5 shrink-0 text-[#FACC15]" />
@@ -293,7 +316,11 @@ export function PricingPageContent({
   }
 
   return (
-    <div className="flex flex-col gap-8 py-2">
+    <div
+      className="flex flex-col gap-8 py-2"
+      data-pricing-panel={panelTheme}
+      data-pricing-card-style={cardStyle}
+    >
       {/* 页头:标题 + 说明段(copy 分段,缺省回落内置默认) */}
       <div>
         <h2 className={`text-lg font-semibold ${titleCls}`}>会员说明</h2>
@@ -331,20 +358,22 @@ export function PricingPageContent({
           {membership.plans.map((plan) => (
             <div
               key={plan.sku}
-              className={`flex flex-col gap-4 rounded-2xl border p-5 ${cardCls}`}
+              className={`pricing-card pricing-card--${cardStyle} flex flex-col gap-4 rounded-2xl border p-5 ${cardStyle === 'default' ? cardCls : ''}`}
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className={`text-sm font-medium ${titleCls}`}>
+              <div className="pricing-card-head flex items-baseline justify-between gap-3">
+                <span className={`pricing-tier text-sm font-medium ${titleCls}`}>
                   {formatMembershipTierLabel(plan.days)}
                 </span>
-                <span className={`text-2xl font-extrabold ${priceCls}`}>
+                <span className={`pricing-price text-2xl font-extrabold ${priceCls}`}>
                   ¥{plan.price}
                 </span>
               </div>
-              <ul className="flex flex-col gap-1.5">
+              <ul className="pricing-benefits flex flex-col gap-1.5">
                 {pricingCopy.benefits.map((item, index) => (
-                  <li key={`${index}-${item}`} className={`flex items-start gap-2 text-xs leading-relaxed ${mutedCls}`}>
-                    <span aria-hidden="true">·</span>
+                  <li key={`${index}-${item}`} className={`pricing-benefit-item flex items-start gap-2 text-xs leading-relaxed ${mutedCls}`}>
+                    <span aria-hidden="true" className="pricing-benefit-mark">
+                      {cardStyle === 'ice' ? null : cardStyle === 'prism' ? '✦' : cardStyle === 'modern' ? '–' : '·'}
+                    </span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -390,6 +419,155 @@ export function PricingPageContent({
       </p>
 
       <MemberLoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} />
+
+      <style jsx>{`
+        /* ===== R13 等级卡样式(仅作用于档位卡组;FAQ 与其它卡面保持默认外观) ===== */
+        .pricing-card--ice,
+        .pricing-card--prism,
+        .pricing-card--modern {
+          position: relative;
+        }
+        .pricing-card--ice {
+          overflow: hidden;
+        }
+        .pricing-card--ice::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: var(--pc-sheen, transparent);
+        }
+        [data-pricing-panel='light'] .pricing-card--ice,
+        [data-pricing-panel='auto'] .pricing-card--ice {
+          --pc-sheen: radial-gradient(150px 95px at 88% -12%, rgba(140, 205, 255, 0.34), transparent 66%);
+          --pc-price: linear-gradient(92deg, #2b7fd0, #38bdf8);
+          --pc-tier: #5f7488;
+          --pc-li: #64748b;
+          --pc-mark: linear-gradient(135deg, #8fd0fa, #4a9fe8);
+          background: linear-gradient(168deg, #fcfeff 0%, #f3f9ff 52%, #e9f4ff 100%);
+          border-color: #d3e7fb;
+          box-shadow: 0 12px 28px -14px rgba(43, 127, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        }
+        [data-pricing-panel='dark'] .pricing-card--ice,
+        :global(.dark) [data-pricing-panel='auto'] .pricing-card--ice {
+          --pc-sheen: radial-gradient(150px 95px at 88% -12%, rgba(90, 170, 240, 0.2), transparent 66%);
+          --pc-price: linear-gradient(92deg, #8ed2f7, #59a8f2);
+          --pc-tier: #9fb8cc;
+          --pc-li: #8ba7bd;
+          --pc-mark: linear-gradient(135deg, #6db9ee, #3d8bdc);
+          background: linear-gradient(168deg, #16222e 0%, #0f1826 100%);
+          border-color: #24405a;
+          box-shadow: 0 12px 30px -16px rgba(56, 189, 248, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+        }
+        .pricing-card--ice .pricing-tier {
+          color: var(--pc-tier);
+        }
+        .pricing-card--ice .pricing-benefit-item {
+          color: var(--pc-li);
+        }
+        .pricing-card--ice .pricing-benefit-mark {
+          width: 6px;
+          height: 6px;
+          border-radius: 1.5px;
+          transform: rotate(45deg);
+          margin-top: 6px;
+          flex-shrink: 0;
+          background: var(--pc-mark);
+        }
+        [data-pricing-panel='light'] .pricing-card--prism,
+        [data-pricing-panel='auto'] .pricing-card--prism {
+          --pc-prism-bg: radial-gradient(3px 3px at 84% 16%, rgba(255, 160, 232, 0.9), transparent 100%),
+            radial-gradient(2.4px 2.4px at 90% 30%, rgba(150, 190, 255, 0.85), transparent 100%),
+            radial-gradient(2.2px 2.2px at 78% 26%, rgba(190, 150, 255, 0.8), transparent 100%),
+            linear-gradient(170deg, #fffdfe, #fbf7ff) padding-box,
+            conic-gradient(from 200deg at 50% 50%, #ffc6e3, #c4adff, #a8dcff, #c9e9ff, #ffd9ae, #ffc6e3) border-box;
+          --pc-price: linear-gradient(92deg, #8b5cf6, #ec4899, #06b6d4);
+          --pc-tier: #7a7290;
+          --pc-li: #6f6885;
+          --pc-mark-color: #b98cf5;
+          box-shadow: 0 12px 30px -14px rgba(167, 139, 250, 0.42);
+        }
+        [data-pricing-panel='dark'] .pricing-card--prism,
+        :global(.dark) [data-pricing-panel='auto'] .pricing-card--prism {
+          --pc-prism-bg: radial-gradient(3px 3px at 84% 16%, rgba(255, 150, 235, 0.9), transparent 100%),
+            radial-gradient(2.4px 2.4px at 90% 30%, rgba(140, 190, 255, 0.85), transparent 100%),
+            radial-gradient(2.2px 2.2px at 78% 26%, rgba(190, 160, 255, 0.75), transparent 100%),
+            linear-gradient(170deg, #17131f, #100d18) padding-box,
+            conic-gradient(from 200deg at 50% 50%, #8f7bff, #e879c9, #5fd0e8, #ffd479, #f5c46b, #8f7bff) border-box;
+          --pc-price: linear-gradient(92deg, #a78bfa, #f472b6, #67e8f9);
+          --pc-tier: #b0a6c9;
+          --pc-li: #a79fc0;
+          --pc-mark-color: #c4a6ff;
+          box-shadow: 0 12px 32px -16px rgba(149, 115, 255, 0.4);
+        }
+        .pricing-card--prism {
+          border-color: transparent;
+          background: var(--pc-prism-bg, #fff);
+        }
+        .pricing-card--prism .pricing-tier {
+          color: var(--pc-tier);
+        }
+        .pricing-card--prism .pricing-benefit-item {
+          color: var(--pc-li);
+        }
+        .pricing-card--prism .pricing-benefit-mark {
+          color: var(--pc-mark-color);
+        }
+        [data-pricing-panel='light'] .pricing-card--modern,
+        [data-pricing-panel='auto'] .pricing-card--modern {
+          --pc-bg: #ffffff;
+          --pc-bd: #ececec;
+          --pc-tier: #8a8a8a;
+          --pc-price-color: #0a0a0a;
+          --pc-li: #6b7280;
+          --pc-mark-color: #b6bac2;
+          --pc-hr: #f0f0f0;
+        }
+        [data-pricing-panel='dark'] .pricing-card--modern,
+        :global(.dark) [data-pricing-panel='auto'] .pricing-card--modern {
+          --pc-bg: #101012;
+          --pc-bd: #242428;
+          --pc-tier: #8b8b90;
+          --pc-price-color: #fafafa;
+          --pc-li: #9ca3af;
+          --pc-mark-color: #b6bac2;
+          --pc-hr: #232327;
+        }
+        .pricing-card.pricing-card--modern {
+          border-radius: 12px;
+          background: var(--pc-bg);
+          border-color: var(--pc-bd);
+          box-shadow: none;
+        }
+        .pricing-card--modern .pricing-tier {
+          font-size: 13px;
+          letter-spacing: 0.12em;
+          font-weight: 600;
+          color: var(--pc-tier);
+        }
+        .pricing-card--modern .pricing-price {
+          font-size: 30px;
+          color: var(--pc-price-color);
+        }
+        .pricing-card--modern .pricing-card-head {
+          border-bottom: 1px solid var(--pc-hr);
+          padding-bottom: 12px;
+        }
+        .pricing-card--modern .pricing-benefit-item {
+          color: var(--pc-li);
+        }
+        .pricing-card--modern .pricing-benefit-mark {
+          color: var(--pc-mark-color);
+        }
+        .pricing-card--ice .pricing-price,
+        .pricing-card--prism .pricing-price {
+          background: var(--pc-price);
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: transparent;
+        }
+      `}</style>
     </div>
   )
 }

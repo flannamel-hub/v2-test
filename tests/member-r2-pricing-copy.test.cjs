@@ -321,6 +321,59 @@ test('POST 全部留空 → copy:null(恢复默认),enabled/plans 不动', async
   assert.equal(settingsRow.membership.plans.length, 2)
 })
 
+// --- R13:cardStyle 写侧 ------------------------------------------------------------
+
+test('POST 仅 cardStyle=ice → copy 含 cardStyle(+updatedAt),文案字段缺省;enabled/plans 不动', async () => {
+  const { settingsRow } = setupSite()
+  const res = createResponse()
+  await pricingCopyHandler(
+    createRequest({ method: 'POST', body: { cardStyle: 'ice' } }),
+    res
+  )
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.copy.cardStyle, 'ice')
+  assert.equal(res.body.copy.intro, undefined)
+  assert.equal(typeof res.body.copy.updatedAt, 'string')
+  assert.equal(settingsRow.membership.copy.cardStyle, 'ice')
+  assert.equal(settingsRow.membership.enabled, true)
+  assert.equal(settingsRow.membership.plans.length, 2)
+})
+
+test('POST cardStyle 非法或默认值 → 不写字段;纯样式提交 → copy:null', async () => {
+  const { settingsRow } = setupSite({ copy: { intro: '旧' } })
+  for (const bad of ['default', 'bogus', 42]) {
+    const res = createResponse()
+    await pricingCopyHandler(
+      createRequest({ method: 'POST', body: { cardStyle: bad } }),
+      res
+    )
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.body.copy, null)
+    assert.equal(settingsRow.membership.copy, null)
+  }
+})
+
+test('POST 文案+cardStyle=prism 并存,互不干扰', async () => {
+  const { settingsRow } = setupSite()
+  const res = createResponse()
+  await pricingCopyHandler(
+    createRequest({ method: 'POST', body: { intro: '新文案', cardStyle: 'prism' } }),
+    res
+  )
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.copy.intro, '新文案')
+  assert.equal(res.body.copy.cardStyle, 'prism')
+  assert.equal(settingsRow.membership.copy.cardStyle, 'prism')
+})
+
+test('GET 透传 copy.cardStyle', async () => {
+  setupSite({ copy: { intro: '文案', cardStyle: 'modern' } })
+  const res = createResponse()
+  await pricingCopyHandler(createRequest(), res)
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.copy.cardStyle, 'modern')
+})
+
 test('POST 仅 faq → copy 只含 faq(+updatedAt),其他字段缺省', async () => {
   const { settingsRow } = setupSite()
   const res = createResponse()

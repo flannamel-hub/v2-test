@@ -66,6 +66,7 @@ import {
   memberZoneParagraphCount,
 } from '@/src/lib/admin/memberZoneText';
 import { generateAdminPostSlug } from '@/src/lib/blog/generateAdminPostSlug';
+import { PRICING_CARD_STYLE_OPTIONS, resolvePricingCardStyle } from '@/src/lib/blog/pricingCardStyles';
 import {
   saveEditorDraftSnapshot,
   loadEditorDraftSnapshot,
@@ -2932,6 +2933,13 @@ const PRICING_COPY_DEFAULTS = {
     { q: '购买后可以取消或退款吗？', a: '如当前网站存在欺诈行为，可以联系平台客服退款，其他情况不能退款。退款请提供开通会员的网站地址、订单号、支付时间及说明退款原因。' },
   ],
 };
+// R13:等级卡样式选择器预览小样(与前台 src/lib/blog/pricingCardStyles.ts 四个取值一一对应)
+const PRICING_CARD_STYLE_SWATCH_STYLE = {
+  default: { background: '#f2f2f2', border: '1px solid #cfcfcf' },
+  ice: { background: 'linear-gradient(160deg, #fcfeff, #e9f4ff)', border: '1px solid #b9d9f7' },
+  prism: { border: '1.5px solid transparent', background: 'linear-gradient(#fffdfe, #fbf7ff) padding-box, conic-gradient(from 200deg, #ffc6e3, #c4adff, #a8dcff, #ffd9ae, #ffc6e3) border-box' },
+  modern: { background: '#ffffff', border: '1px solid #e6e6e6' },
+};
 /** benefits 编辑器初值:有非空条目用库值,否则回落默认 3 条(与前台 resolvePricingCopy 口径一致) */
 const normalizePricingBenefitsForEditor = (benefits) => {
   const list = Array.isArray(benefits) ? benefits.filter((s) => typeof s === 'string' && s.trim()) : [];
@@ -5024,6 +5032,8 @@ const [mounted, setMounted] = useState(false);
   const [pricingCopyFaq, setPricingCopyFaq] = useState([]);
   const [pricingCopyPlans, setPricingCopyPlans] = useState([]);
   const [pricingCopyDirty, setPricingCopyDirty] = useState(false);
+  // R13:等级卡样式('default'|'ice'|'prism'|'modern';选择零请求,随「保存文案」提交)
+  const [pricingCopyCardStyle, setPricingCopyCardStyle] = useState('default');
   // 【版本修复】页:解锁弹窗与页内保存状态
   const [versionRepairUnlockOpen, setVersionRepairUnlockOpen] = useState(false);
   const [versionRepairUnlockClosing, setVersionRepairUnlockClosing] = useState(false);
@@ -5731,6 +5741,7 @@ const [mounted, setMounted] = useState(false);
         setPricingCopyBenefits(normalizePricingBenefitsForEditor(copy?.benefits));
         setPricingCopyGuarantee(copy?.guarantee || PRICING_COPY_DEFAULTS.guarantee);
         setPricingCopyFaq(normalizePricingFaqForEditor(copy?.faq));
+        setPricingCopyCardStyle(resolvePricingCardStyle(copy?.cardStyle));
       } else {
         setPricingCopyPlans([]);
       }
@@ -7030,6 +7041,7 @@ const [mounted, setMounted] = useState(false);
               a: String(item?.a || '').trim().slice(0, 300),
             }))
             .filter((item) => item.q.length > 0 && item.a.length > 0),
+          cardStyle: pricingCopyCardStyle,
         }),
       });
       const d = await r.json();
@@ -7039,6 +7051,7 @@ const [mounted, setMounted] = useState(false);
         setPricingCopyBenefits(normalizePricingBenefitsForEditor(copy?.benefits));
         setPricingCopyGuarantee(copy?.guarantee || PRICING_COPY_DEFAULTS.guarantee);
         setPricingCopyFaq(normalizePricingFaqForEditor(copy?.faq));
+        setPricingCopyCardStyle(resolvePricingCardStyle(copy?.cardStyle));
         setPricingCopyDirty(false);
         showAdminToast('已保存，约 1 分钟内生效');
       } else alert('保存失败：' + (d.error || '未知错误'));
@@ -11519,6 +11532,28 @@ const [mounted, setMounted] = useState(false);
                   <div style={ADS_LOCKED_NOTICE_STYLE}>{pricingCopyLockedMessage}</div>
                 )}
                 <div style={{padding:'18px 18px 20px', background:'#333', border:'1px solid #555', borderRadius:'14px', opacity: pricingCopyLocked ? 0.55 : 1}}>
+                  {/* R13:等级卡样式选择(零请求,随「保存文案」提交) */}
+                  <div style={{marginBottom:'16px'}}>
+                    <div style={{fontSize:'11px', color:'#bcbcbc', marginBottom:'8px'}}>等级卡样式</div>
+                    <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(128px, 1fr))', gap:'10px'}}>
+                      {PRICING_CARD_STYLE_OPTIONS.map((opt) => {
+                        const selected = pricingCopyCardStyle === opt.value;
+                        return (
+                          <button key={opt.value} type="button" disabled={pricingCopyLocked || pricingCopySaving}
+                            onClick={() => { setPricingCopyCardStyle(opt.value); setPricingCopyDirty(true); }}
+                            style={{display:'flex', alignItems:'center', gap:'10px', padding:'10px 12px', borderRadius:'12px', border: selected ? '1px solid #fff' : '1px solid #555', background: selected ? '#3d3d3d' : '#2a2a2e', cursor: pricingCopyLocked || pricingCopySaving ? 'not-allowed' : 'pointer', textAlign:'left', minWidth:0}}>
+                            <span aria-hidden="true" style={{position:'relative', width:'34px', height:'22px', borderRadius:'7px', flexShrink:0, ...PRICING_CARD_STYLE_SWATCH_STYLE[opt.value]}}>
+                              {opt.value === 'modern' ? (
+                                <span style={{position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)', width:'14px', height:'2px', borderRadius:'1px', background:'#111'}} />
+                              ) : null}
+                            </span>
+                            <span style={{fontSize:'12.5px', color: selected ? '#fff' : '#cfcfcf', fontWeight: selected ? 'bold' : 'normal', whiteSpace:'nowrap'}}>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{fontSize:'11px', color:'#8d8d8d', marginTop:'8px', lineHeight:1.6}}>影响会员说明页（/pricing）的等级卡外观；选择后需点底部「保存文案」提交。</div>
+                  </div>
                   <div style={{marginBottom:'16px'}}>
                     <label style={{display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'11px', color:'#bcbcbc', marginBottom:'6px'}}>
                       概述段

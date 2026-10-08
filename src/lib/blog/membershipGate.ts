@@ -1,6 +1,7 @@
 import { getBlogSiteIdOrNull } from '@/src/lib/gallery/blogSite'
 import { getSupabaseAdmin } from '@/src/lib/supabase/admin'
 import { getSiteQuotaState } from '@/src/lib/blog/quotaState'
+import { normalizePricingCardStyle, type PricingCardStyleValue } from './pricingCardStyles'
 
 const TABLE = 'blog_site_settings'
 
@@ -26,6 +27,8 @@ export type SiteMembershipCopy = {
   benefits?: string[]
   guarantee?: string
   faq?: SiteMembershipCopyFaqItem[]
+  /** R13:等级卡样式('ice'|'prism'|'modern';缺省=默认样式) */
+  cardStyle?: PricingCardStyleValue
   updatedAt?: string
 }
 export type SiteMembershipConfig = {
@@ -118,6 +121,8 @@ function normalizeCopy(raw: unknown): SiteMembershipCopy | null {
   }
   const guarantee = normalizeCopyText(record.guarantee, COPY_GUARANTEE_MAX)
   if (guarantee !== undefined) out.guarantee = guarantee
+  const cardStyle = normalizePricingCardStyle(record.cardStyle)
+  if (cardStyle !== undefined) out.cardStyle = cardStyle
   const updatedAt = normalizeCopyText(record.updatedAt, COPY_UPDATED_AT_MAX)
   if (updatedAt !== undefined) out.updatedAt = updatedAt
   if (Object.keys(out).length === 0) return null

@@ -381,6 +381,48 @@ test('copy 归一(R3 重写):非对象 → null;字段级非法丢弃;全字段�
   assert.equal(capped.copy.guarantee.length, 300)
 })
 
+// --- R13:copy.cardStyle 归一 ------------------------------------------------------
+
+test('copy.cardStyle 归一:合法三值保留;非法/默认值丢弃;仅 cardStyle 也可独立成立', async () => {
+  blogSiteStub.__setBlogSiteId(SITE_ID)
+
+  adminStub.__setSupabaseClient(
+    createFakeSupabase({
+      membershipRow: {
+        membership: { enabled: true, plans: [], copy: { intro: '介绍', cardStyle: 'ice' } },
+      },
+    })
+  )
+  const kept = await getMembershipConfig()
+  assert.equal(kept.copy.cardStyle, 'ice')
+  assert.equal(kept.copy.intro, '介绍')
+
+  for (const bad of ['default', 'bogus', 42, null, { a: 1 }]) {
+    adminStub.__setSupabaseClient(
+      createFakeSupabase({
+        membershipRow: {
+          membership: { enabled: true, plans: [], copy: { cardStyle: bad } },
+        },
+      })
+    )
+    __resetMembershipGateCacheForTest()
+    const dropped = await getMembershipConfig()
+    // 非法值丢弃后无其他合法字段 → 整份 null
+    assert.equal(dropped.copy, null)
+  }
+
+  adminStub.__setSupabaseClient(
+    createFakeSupabase({
+      membershipRow: {
+        membership: { enabled: true, plans: [], copy: { cardStyle: 'modern' } },
+      },
+    })
+  )
+  __resetMembershipGateCacheForTest()
+  const onlyStyle = await getMembershipConfig()
+  assert.deepEqual(onlyStyle.copy, { cardStyle: 'modern' })
+})
+
 // --- 缓存 -----------------------------------------------------------------------
 
 test('15s TTL 缓存:命中后桩计数不再增长;reset 后重读', async () => {
