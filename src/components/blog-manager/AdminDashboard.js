@@ -34,6 +34,7 @@ import {
   clearGalleryCoverFlags,
   COVER_MODE_AUTO,
   COVER_MODE_BODY,
+  COVER_MODE_URL,
   createInitialCoverSettings,
   resolveEditorBodyCoverBlockId,
   resolveEditorGalleryCoverIndex,
@@ -146,7 +147,6 @@ const PUBLISH_QUEUE_IDLE_STALL_MS = {
   gallery: 180_000,
   media: 120_000,
   post: 90_000,
-  refresh: 120_000,
   default: 120_000,
 };
 
@@ -524,6 +524,10 @@ const GlobalStyle = () => (
     .header-actions-trigger { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 40px; min-height: 40px; padding: 10px 12px; border-radius: 8px; background: #424242; border: 1px solid greenyellow; color: greenyellow; cursor: pointer; transition: background 0.15s ease, box-shadow 0.15s ease; }
     .header-actions-trigger:hover:not(:disabled) { background: #4a4a4a; box-shadow: 0 0 12px rgba(173, 255, 47, 0.2); }
     .header-actions-trigger:disabled { opacity: 0.45; cursor: not-allowed; }
+    .header-actions-trigger.har-refresh { gap: 0; }
+    .header-actions-trigger.har-refresh.is-cooling { opacity: 0.45; cursor: not-allowed; }
+    .har-label { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; margin-left: 0; transition: max-width 0.28s cubic-bezier(0.22, 0.7, 0.3, 1), opacity 0.2s ease, margin-left 0.28s cubic-bezier(0.22, 0.7, 0.3, 1); }
+    .header-actions-trigger.har-refresh:hover .har-label { max-width: 160px; opacity: 1; margin-left: 6px; }
     .header-actions-gear-trigger { display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 8px; background: transparent; border: none; color: inherit; opacity: 0.5; cursor: pointer; transition: opacity 0.15s ease, background 0.15s ease; }
     .header-actions-gear-trigger:hover:not(:disabled) { opacity: 0.9; background: rgba(255, 255, 255, 0.06); }
     .header-actions-gear-trigger:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -1543,7 +1547,6 @@ const PUBLISH_QUEUE_PHASE_LABELS = {
   media: '正文图片上传',
   gallery: '图库上传/同步',
   post: '写入文章',
-  refresh: '前台刷新',
 };
 
 function pubqStateText(job) {
@@ -1572,7 +1575,6 @@ function pubqStateText(job) {
       : '同步图库…';
     return base + elapsedSuffix;
   }
-  if (job.phase === 'refresh') return '正在更新前台页面…' + elapsedSuffix;
   if (job.phase === 'post') return '正在写入文章…' + elapsedSuffix;
   return '处理中…' + elapsedSuffix;
 }
@@ -2575,24 +2577,25 @@ const CrawlerIngestPanel = ({
   );
 };
 
-/** 顶栏：刷新前台按钮（点击即刷新，无下拉） */
+/** 顶栏：刷新前台按钮（点击即刷新，无下拉；悬停滚轴展开显示功能名/冷却剩余） */
 const AdminRefreshButton = ({
   isThemeLoading,
   blogRefreshBusy,
   blogRefreshCooldownSec,
   onShellRefresh,
 }) => {
-  const disabled = isThemeLoading || blogRefreshBusy || blogRefreshCooldownSec > 0;
-  const title =
-    blogRefreshCooldownSec > 0
-      ? `刷新前台:更新首页、自定义页面、归档与分类/标签列表 · 冷却中（${formatRefreshCooldownHint(blogRefreshCooldownSec)}）`
-      : '刷新前台:更新首页、自定义页面、归档与分类/标签列表';
+  const cooling = blogRefreshCooldownSec > 0;
+  const disabled = isThemeLoading || blogRefreshBusy;
+  const title = cooling
+    ? `刷新前台:更新首页、自定义页面、归档与分类/标签列表 · 冷却中（${formatRefreshCooldownHint(blogRefreshCooldownSec)}）`
+    : '刷新前台:更新首页、自定义页面、归档与分类/标签列表';
   return (
     <button
       type="button"
-      className="header-actions-trigger"
+      className={`header-actions-trigger har-refresh${cooling ? ' is-cooling' : ''}`}
       onClick={onShellRefresh}
       disabled={disabled}
+      aria-disabled={cooling || undefined}
       aria-label="刷新前台"
       title={title}
     >
@@ -2601,6 +2604,9 @@ const AdminRefreshButton = ({
       ) : (
         <Icons.Refresh />
       )}
+      <span className="har-label" aria-hidden>
+        {cooling ? `冷却中 · ${formatRefreshCooldownHint(blogRefreshCooldownSec)}` : '刷新前台'}
+      </span>
     </button>
   );
 };
@@ -2967,7 +2973,7 @@ const FormatBar = ({ b, onChange, onInsertLink }) => (
     <button onClick={() => onChange('bold', !b.bold)} title="加粗" style={{ width: '30px', height: '28px', borderRadius: '6px', cursor: 'pointer', border: '1px solid', borderColor: b.bold ? 'greenyellow' : '#444', background: b.bold ? 'greenyellow' : '#2a2a2e', color: b.bold ? '#000' : '#ccc', fontWeight: 'bold' }}>B</button>
     <button onClick={() => onChange('italic', !b.italic)} title="斜体" style={{ width: '30px', height: '28px', borderRadius: '6px', cursor: 'pointer', border: '1px solid', borderColor: b.italic ? 'greenyellow' : '#444', background: b.italic ? 'greenyellow' : '#2a2a2e', color: b.italic ? '#000' : '#ccc', fontStyle: 'italic' }}>I</button>
     {onInsertLink && (
-      <button onClick={onInsertLink} title="给选中的文字添加超链接" style={{ height: '28px', padding: '0 8px', borderRadius: '6px', cursor: 'pointer', border: '1px solid #444', background: '#2a2a2e', color: '#7cb3ff', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>🔗 链接</button>
+      <button onClick={onInsertLink} title="将选中的文字转为超链接（未选中时使用光标所在行文字）" style={{ height: '28px', padding: '0 8px', borderRadius: '6px', cursor: 'pointer', border: '1px solid #444', background: '#2a2a2e', color: '#7cb3ff', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>🔗 链接</button>
     )}
     <div style={{ width: '1px', height: '20px', background: '#444', margin: '0 4px' }} />
     {NOTION_TEXT_COLORS.map(c => (
@@ -3555,6 +3561,7 @@ const BlockBuilder = ({
 
   // 给当前块（h1/正文/引用/注释）选中的文字插入行内超链接，写成 [文字](url)
   // 点击「🔗 链接」时先捕获当前选区，再弹出页内弹窗（而非浏览器 prompt）
+  // OPT4-③: 未选中文字时默认取「光标所在行」（单行块即整块文字）作为链接文字与替换范围；空行兜底原行为
   const insertLinkForBlock = (b) => {
     const el = typeof document !== 'undefined' ? document.getElementById('editfield-' + b.id) : null;
     const content = b.content || '';
@@ -3565,6 +3572,16 @@ const BlockBuilder = ({
       end = el.selectionEnd;
     }
     const selected = content.slice(start, end);
+    if (!selected) {
+      const lineStart = start <= 0 ? 0 : content.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = content.indexOf('\n', start);
+      if (lineEnd === -1) lineEnd = content.length;
+      const lineText = content.slice(lineStart, lineEnd);
+      if (lineText.trim()) {
+        setLinkModal({ blockId: b.id, start: lineStart, end: lineEnd, label: lineText.trim(), url: 'https://' });
+        return;
+      }
+    }
     setLinkModal({ blockId: b.id, start, end, label: selected || '', url: 'https://' });
   };
 
@@ -4142,7 +4159,7 @@ const BlockBuilder = ({
         >
           <div style={{ width:'100%', maxWidth:'420px', background:'#1f1f24', border:'1px solid #3a3a42', borderRadius:'14px', boxShadow:'0 12px 40px rgba(0,0,0,0.5)', padding:'22px' }}>
             <div style={{ fontSize:'16px', fontWeight:'bold', color:'#fff', marginBottom:'4px', display:'flex', alignItems:'center', gap:'6px' }}>🔗 添加超链接</div>
-            <div style={{ fontSize:'12px', color:'#999', marginBottom:'18px' }}>将选中文字转为超链接；未选中时可手动填写显示文字。</div>
+            <div style={{ fontSize:'12px', color:'#999', marginBottom:'18px' }}>选中文字将转为超链接；未选中时默认使用光标所在行的文字。</div>
             <label style={{ display:'block', fontSize:'12px', color:'#bbb', marginBottom:'6px' }}>显示文字</label>
             <input
               className="glow-input"
@@ -5990,6 +6007,26 @@ const [mounted, setMounted] = useState(false);
     tick();
     const id = setInterval(tick, 500);
     return () => clearInterval(id);
+  }, []);
+  // OPT4-④：打开后台即同步服务端剩余冷却（防「刷新后台页面=假可点」）
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch('/api/admin/revalidate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'manual-refresh-state' }),
+        });
+        const d = await r.json();
+        if (d?.success && typeof d.remainingSec === 'number' && d.remainingSec > 0) {
+          blogRefreshCooldownUntilRef.current = Date.now() + d.remainingSec * 1000;
+          setBlogRefreshCooldownSec(Math.ceil(d.remainingSec));
+        }
+      } catch (e) {
+        console.warn('读取前台刷新冷却失败', e);
+      }
+    };
+    void load();
   }, []);
   useEffect(() => {
     if (!headerActionsMenuOpen) return;
@@ -7862,6 +7899,26 @@ const [mounted, setMounted] = useState(false);
     catch (e) { alert('头像上传失败：' + e.message); }
     finally { setCoverUploading(false); }
   };
+
+  // OPT4-① 站长公告封面：上传即写入 coverSettings（随「保存修改」透传到 cover 属性）
+  const uploadAnnouncementCover = async (file) => {
+    if (!file) return;
+    setCoverUploading(true);
+    try {
+      const url = await uploadAvatarFile(file);
+      setCoverSettings({ mode: COVER_MODE_URL, manualUrl: url });
+      setFormDirty((prev) => ({ ...prev, cover: url }));
+    } catch (e) {
+      alert('封面上传失败：' + e.message);
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+  // OPT4-① 恢复默认封面（保存后 cover 置空 → 前台回站点默认封面）
+  const resetAnnouncementCover = () => {
+    resetCoverSettings();
+    setFormDirty((prev) => ({ ...prev, cover: '' }));
+  };
   
   // ============ 后台发布队列 ============
   // 更新队列中某条任务的状态/进度
@@ -8188,8 +8245,6 @@ const [mounted, setMounted] = useState(false);
       }
       if (bailIfCancelled()) return;
 
-      updateJob(job.id, { phase: 'refresh', progress: null });
-
       try {
         if (saveScope === 'post') {
           // M2: 首发存为草稿不入队（前台无此文，Published 索引永远不收录，重试必败）；
@@ -8214,7 +8269,11 @@ const [mounted, setMounted] = useState(false);
               queuePriority: 10,
               queueMaxAttempts: isFirstPublish ? 8 : 3,
             })
-              .then((rev) => showRevalidateFeedback(rev, showAdminToast))
+              .then((rev) => {
+                if (!rev || !rev.ok) {
+                  showAdminToast('内容已保存，但前台刷新未完成，请点右上角「刷新前台」', 3200);
+                }
+              })
               .catch((e) => console.warn('文章内页增量刷新失败', e));
           }
         } else if (saveScope === 'page' && saveSlug === 'download') {
@@ -8229,9 +8288,13 @@ const [mounted, setMounted] = useState(false);
             contentChange: true,
             queueReason: 'download-page-save',
             queuePriority: 20,
-          }).then((rev) => showRevalidateFeedback(rev, showAdminToast));
+          }).then((rev) => {
+            if (!rev || !rev.ok) {
+              showAdminToast('内容已保存，但前台刷新未完成，请点右上角「刷新前台」', 3200);
+            }
+          });
         } else if (saveScope === 'page') {
-          const rev = await triggerContentRevalidation({
+          void triggerContentRevalidation({
             scope: 'page',
             slug: saveSlug,
             previousSlug,
@@ -8241,8 +8304,11 @@ const [mounted, setMounted] = useState(false);
             contentChange: true,
             queueReason: 'page-save',
             queuePriority: 10,
+          }).then((rev) => {
+            if (!rev || !rev.ok) {
+              showAdminToast('内容已保存，但前台刷新未完成，请点右上角「刷新前台」', 3200);
+            }
           });
-          showRevalidateFeedback(rev, showAdminToast);
         } else if (saveScope === 'gallery-ad' || saveScope === 'vending' || saveScope === 'announcement-popup' || saveScope === 'popup-ad' || saveScope === 'click-ad' || saveScope === 'social-links' || saveScope === 'banner') {
           const scope = saveScope;
           void triggerContentRevalidation({
@@ -8270,7 +8336,7 @@ const [mounted, setMounted] = useState(false);
         }
       } catch (revErr) {
         console.warn('发布增量刷新失败', revErr);
-        showAdminToast('内容已保存，但前台刷新未完成，请点右上角「刷新BLOG」');
+        showAdminToast('内容已保存，但前台刷新未完成，请点右上角「刷新前台」');
       }
 
       updateJob(job.id, { status: 'success', phase: '', progress: null });
@@ -11804,6 +11870,29 @@ const [mounted, setMounted] = useState(false);
                <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>标题 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" value={form.title} onChange={e=>setFormDirty({...form, title:e.target.value})} placeholder="输入标题" /></div>
                  <div style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>摘要</label><input className="glow-input" value={form.excerpt} onChange={e=>setFormDirty({...form, excerpt:e.target.value})} placeholder="输入摘要" /></div>
                  <div className="editor-date-field" style={{marginBottom:'15px'}}><label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'5px'}}>发布日期 <span style={{color: '#ff4d4f'}}>*</span></label><input className="glow-input" type="date" value={form.date} onChange={e=>setFormDirty({...form, date:e.target.value})} /></div>
+                 {form?.slug === ANNOUNCEMENT_SLUG ? (
+                 <div style={{marginTop:'4px', marginBottom:'0', paddingTop:'16px', borderTop:'1px solid #333'}}>
+                   <label style={{display:'block', fontSize:'11px', color:'#bbb', marginBottom:'6px'}}>公告封面</label>
+                   <div style={{display:'flex', gap:'14px', alignItems:'flex-start', flexWrap:'wrap'}}>
+                     <label className="img-drop" style={{width:'320px', maxWidth:'100%', height:'150px', minHeight:'150px', flexShrink:0, padding:0, borderRadius:'12px', overflow:'hidden'}}
+                       onDragOver={e=>{e.preventDefault(); e.stopPropagation();}}
+                       onDrop={e=>{e.preventDefault(); e.stopPropagation(); uploadAnnouncementCover(e.dataTransfer.files[0]);}}>
+                       <input type="file" accept="image/*" style={{display:'none'}} onChange={e=>{ uploadAnnouncementCover(e.target.files[0]); e.target.value=''; }} />
+                       {coverUploading
+                         ? <div className="img-uploading"><div className="img-spin"></div></div>
+                         : (form.cover || '').trim()
+                           ? <img src={form.cover} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="" />
+                           : <div style={{pointerEvents:'none', fontSize:'12px', textAlign:'center', color:'#999'}}>拖拽 / 点击<br/>上传封面</div>}
+                     </label>
+                     <div style={{flex:1, minWidth:'200px', display:'flex', flexDirection:'column', gap:'10px'}}>
+                       <p style={{fontSize:'11px', color:'#777', margin:0, lineHeight:1.6}}>未上传时使用站点默认封面；上传后点击「保存修改」生效。</p>
+                       {(form.cover || '').trim() ? (
+                         <button type="button" onClick={resetAnnouncementCover} style={{height:'30px', padding:'0 12px', borderRadius:'8px', cursor:'pointer', border:'1px solid #444', background:'transparent', color:'#ccc', fontSize:'12px', alignSelf:'flex-start'}}>恢复默认封面</button>
+                       ) : null}
+                     </div>
+                   </div>
+                 </div>
+                 ) : null}
                {!editingSimplePage ? (
                <div style={{marginTop:'4px', marginBottom:'0', paddingTop:'16px', borderTop:'1px solid #333'}}>
                  <label style={{display:'block', fontSize:'11px', color:'#fbbf24', marginBottom:'6px', fontWeight:'bold'}}>🔒 文章访问密码</label>

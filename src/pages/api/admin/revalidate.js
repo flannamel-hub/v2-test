@@ -230,6 +230,30 @@ export default async function handler(req, res) {
       return res.status(result.configured === false ? 503 : 200).json(result)
     }
 
+    if (req.body?.action === 'manual-refresh-state') {
+      const now = Date.now()
+      const siteId = getBlogSiteIdOrNull()
+      let lastAt = lastManualShellRevalidateAt
+      if (siteId) {
+        try {
+          const persisted = await readLastManualRefreshMs(siteId)
+          if (typeof persisted === 'number' && persisted > lastAt) {
+            lastAt = persisted
+          }
+        } catch (e) {
+          console.warn('[admin/revalidate] read manual refresh state failed', e)
+        }
+      }
+      const remainingMs =
+        lastAt > 0
+          ? Math.max(0, MANUAL_SHELL_REVALIDATE_MIN_MS - (now - lastAt))
+          : 0
+      return res.status(200).json({
+        success: true,
+        remainingSec: Math.ceil(remainingMs / 1000),
+      })
+    }
+
     const {
       scope = 'post',
       slug,
